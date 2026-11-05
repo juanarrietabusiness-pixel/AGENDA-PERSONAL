@@ -9,13 +9,26 @@ léela antes de cambiar algo de fondo.
 
 ```bash
 npm install
-npm run dev        # el prototipo
-npm run verificar  # lint (sin errores NI avisos) + pruebas + build: lo que corre CI
+npm run dev         # sólo la interfaz: sin servidor es el PROTOTIPO (datos de ejemplo en el navegador)
+npm run dev:worker  # la aplicación con el Worker y D1 en local (wrangler); pide .dev.vars con CODIGO_ALTA
+npm run verificar   # lint (sin errores NI avisos) + pruebas + build: lo que corre CI
 ```
 
-Hoy es un prototipo SIN servidor: los datos son de ejemplo (`src/datos/demo.js`)
-y se guardan en el navegador (`useAlmacen`). El Worker, D1, Telegram, Google y
-la IA son la fase 1.
+Desplegar es un workflow de GitHub Actions («Desplegar», a mano): verifica, migra D1, publica y pone los secretos.
+Los pasos, sólo de navegador, en `DEPLOY.md`. La base es `agenda-personal-db` (su id, en `wrangler.jsonc`).
+
+**Las dos formas de la pantalla** (`useAlmacen`): si `/api/arranque` no contesta JSON, es el prototipo; si contesta,
+pide entrar (o crear la única cuenta con `CODIGO_ALTA`) y cada cambio del estado se manda al servidor como DIFERENCIA
+(`cambiosEntre` en `src/lib/api.js`). Las pantallas no saben en cuál están: usan `estado` y `cambiar`.
+
+**El servidor** (`worker/`): `index.js` enruta y comprueba el origen; `lib/sesion.js` es el acceso; `lib/almacen.js`
+es la ÚNICA capa que consulta D1, y recibe el dueño al construirse (D1 no tiene RLS: una consulta sin `owner_id` no
+falla, devuelve datos ajenos; un test falla si aparece un `prepare(` fuera de almacen.js y sesion.js);
+`lib/modelo.js` llama a Claude o a Meta por la misma puerta; `lib/ordenar.js` es el asistente que ordena.
+
+**Capturar guarda primero y ordena después**: la captura entra TAL CUAL en `capturas`; si la IA falla, se queda en la
+Bandeja con su error. Lo que devuelve el modelo lo comprueba `src/lib/agente.js` (`leerOrden`) antes de que
+`aplicarOrden` toque nada, y todo lo aplicado se puede deshacer.
 
 ## Reglas que no se rompen
 
@@ -43,3 +56,10 @@ la IA son la fase 1.
   diálogos con `useDialogo`, botones con nombre, nada interactivo en un `div`.
 - `base` de Vite fija en `/` (en el calendario de marketing, condicionarla dejó
   la página en blanco en producción).
+- **El agente sólo cambia lo que el código valida**: horarios de `CLAVES_AJUSTE` (`aplicarAjuste`) y bloques del
+  ritmo (`aplicarRitmo`), con horas «HH:MM» y días 0–6. Una fecha pasada no se guarda: se pregunta.
+- **El PBKDF2 va en tramos de 100.000** (`derivar` en worker/lib/sesion.js): workerd rechaza más por llamada y ni Node
+  ni `wrangler dev` lo aplican. Un test espía `deriveBits`.
+- Todo `create` de las migraciones lleva `if not exists` (un test lo exige), y `connect-src` es `'self'` a secas: una
+  llave de IA nunca llega al navegador.
+- La NVI está escogida, pero el banco sigue en RVR1960 hasta tener sus textos exactos: nunca de memoria.

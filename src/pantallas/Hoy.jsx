@@ -15,7 +15,7 @@ const duracion = (min) => (min < 60 ? `${min} min` : `${Math.floor(min / 60)} h$
 
 export default function Hoy({ estado, hoy, hora, acciones: accionesUI }) {
   const { acciones, eventos, ajustes, bandeja } = estado;
-  const plan = planDelDia({ dia: hoy, eventos: [...RITMO_BASE, ...eventos], acciones, ajustes, ahora: hora });
+  const plan = planDelDia({ dia: hoy, eventos: [...(estado.ritmo ?? RITMO_BASE), ...eventos], acciones, ajustes, ahora: hora });
   const { actual } = ahora(plan, hora);
   const v = elegirVersiculo({ momento: "manana", hoy, historial: estado.historialVersiculos, frecuencia: ajustes.frecuenciaVersiculos });
   const tres = [...plan.tres.escogidas, ...plan.tres.sugeridas];

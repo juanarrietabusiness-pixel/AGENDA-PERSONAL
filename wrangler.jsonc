@@ -1,0 +1,39 @@
+{
+  // ============================================================
+  // La agenda personal: un solo Worker sirve la aplicación (Static Assets)
+  // y la API en el MISMO origen.
+  //
+  // `run_worker_first` sólo para /api/*: lo demás lo sirve el servidor de
+  // recursos sin despertar al Worker. El respaldo de la SPA devuelve
+  // index.html para cualquier otra ruta.
+  // ============================================================
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "agenda-personal",
+  "main": "./worker/index.js",
+  "compatibility_date": "2026-09-16",
+  "compatibility_flags": ["nodejs_compat"],
+
+  "assets": {
+    "directory": "./dist/",
+    "not_found_handling": "single-page-application",
+    "binding": "ASSETS",
+    "run_worker_first": ["/api/*"]
+  },
+
+  // La base se creó el 2026-11-05 en la cuenta de Juan (la misma del calendario de marketing).
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "agenda-personal-db",
+      "database_id": "561ebced-08ec-4cd8-9f83-cc2182510f2e",
+      "migrations_dir": "migraciones/d1"
+    }
+  ],
+
+  // Los secretos NO van aquí. Se ponen con `wrangler secret put` (el workflow «Desplegar» los toma de GitHub):
+  //   CODIGO_ALTA         el código para crear la primera (y única) cuenta
+  //   ANTHROPIC_API_KEY   Claude (opcional si hay la de Meta)
+  //   META_API_KEY        Muse Spark (opcional si hay la de Anthropic)
+  "workers_dev": true,
+  "observability": { "enabled": true }
+}

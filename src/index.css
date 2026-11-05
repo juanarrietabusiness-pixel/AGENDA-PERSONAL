@@ -298,3 +298,9 @@ textarea.campo { min-height: 120px; resize: vertical; }
 .segmentado { display: inline-flex; padding: 3px; gap: 3px; border-radius: var(--radius); background: var(--surface-2); border: 1px solid var(--borde); }
 .segmentado button { min-height: var(--tap-sm); padding: 0 var(--sp-4); border: 0; border-radius: var(--radius-sm); background: transparent; font-weight: 600; font-size: var(--fs-sm); color: var(--texto-2); }
 .segmentado button[aria-pressed="true"] { background: var(--acento); color: var(--sobre-acento); }
+
+/* ---------- Entrada y resultado de una captura ---------- */
+.pantalla-entrada { min-height: 100dvh; display: grid; place-items: center; padding: var(--sp-4); color: var(--texto-2); }
+.entrada { width: 100%; max-width: 420px; }
+.entrada h1 { font-size: var(--fs-2xl); margin: 0 0 var(--sp-2); color: var(--texto); }
+.tarjeta-resultado { white-space: pre-wrap; margin: var(--sp-3) 0 0; padding: var(--sp-4); border-radius: var(--radius); background: var(--surface-2); border: 1px solid var(--borde); font-size: var(--fs-sm); line-height: 1.55; }

@@ -1,0 +1,102 @@
+# ============================================================
+# Desplegar: migraciones de D1, el Worker y sus secretos
+#
+# Se lanza a mano desde la pestaña Actions («Desplegar» → «Run workflow»).
+# Corre `npm run verificar` entero ANTES de publicar nada: si algo falla,
+# no se toca lo que está en línea.
+#
+# Secretos del repositorio (Settings → Secrets and variables → Actions):
+#   CLOUDFLARE_API_TOKEN   obligatorio (Workers Scripts: Edit + D1: Edit)
+#   CLOUDFLARE_ACCOUNT_ID  obligatorio
+#   CODIGO_ALTA            para crear la cuenta la primera vez
+#   ANTHROPIC_API_KEY      para que el asistente use Claude
+#   META_API_KEY           para que use Muse Spark
+# Los tres últimos pasan al Worker sólo si están puestos; uno vacío no borra
+# el que ya tenga el Worker.
+# ============================================================
+name: Desplegar
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+concurrency:
+  group: desplegar
+  cancel-in-progress: false
+
+jobs:
+  desplegar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Comprobar los secretos de Cloudflare
+        env:
+          TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CUENTA: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          falta=""
+          [ -z "$TOKEN" ]  && falta="$falta CLOUDFLARE_API_TOKEN"
+          [ -z "$CUENTA" ] && falta="$falta CLOUDFLARE_ACCOUNT_ID"
+          if [ -n "$falta" ]; then
+            echo "::error::Faltan secretos del repositorio:$falta (Settings → Secrets and variables → Actions)."
+            exit 1
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Verificar (lint, pruebas y build)
+        run: npm run verificar
+
+      - name: Aplicar las migraciones de D1
+        run: npx wrangler d1 migrations apply agenda-personal-db --remote
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Publicar el Worker
+        run: |
+          set -o pipefail
+          npx wrangler deploy | tee "$RUNNER_TEMP/deploy.log"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Poner los secretos del Worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CODIGO_ALTA: ${{ secrets.CODIGO_ALTA }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          META_API_KEY: ${{ secrets.META_API_KEY }}
+        run: |
+          archivo="$RUNNER_TEMP/secretos.json"
+          node -e '
+            const nombres = ["CODIGO_ALTA", "ANTHROPIC_API_KEY", "META_API_KEY"];
+            const puestos = Object.fromEntries(nombres.filter((n) => process.env[n]).map((n) => [n, process.env[n]]));
+            require("node:fs").writeFileSync(process.argv[1], JSON.stringify(puestos), { mode: 0o600 });
+            console.log("Secretos que se ponen:", Object.keys(puestos).join(", ") || "ninguno");
+          ' "$archivo"
+          if [ "$(cat "$archivo")" != "{}" ]; then npx wrangler secret bulk "$archivo"; fi
+          rm -f "$archivo"
+
+      - name: Comprobar que contesta
+        run: |
+          url=$(grep -oE 'https://[a-z0-9.-]+\.workers\.dev' "$RUNNER_TEMP/deploy.log" | head -1 || true)
+          if [ -z "$url" ]; then
+            echo "No encontré la dirección en la salida de wrangler: míralo en Cloudflare → Workers → agenda-personal."
+            exit 0
+          fi
+          echo "### La aplicación está en $url" >> "$GITHUB_STEP_SUMMARY"
+          for i in 1 2 3 4 5; do
+            curl -fsS "$url/api/salud" && exit 0
+            sleep 4
+          done
+          echo "::error::El Worker no contestó en $url/api/salud."
+          exit 1

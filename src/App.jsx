@@ -7,6 +7,8 @@ import Semana from "./pantallas/Semana.jsx";
 import Sombreros from "./pantallas/Sombreros.jsx";
 import Asistente from "./pantallas/Asistente.jsx";
 import Ajustes from "./pantallas/Ajustes.jsx";
+import Entrar from "./pantallas/Entrar.jsx";
+import * as api from "./lib/api.js";
 import { useAlmacen } from "./hooks/useAlmacen.js";
 import { hoyEn, horaEn, sumarDias, textoLargo } from "./lib/fechas.js";
 import { completar, posponer, soltar } from "./lib/metodo.js";
@@ -39,7 +41,8 @@ export default function App() {
   const reloj = useReloj();
   const hoy = hoyEn(undefined, reloj);
   const hora = horaEn(undefined, reloj);
-  const { estado, cambiar, reiniciar } = useAlmacen(hoy);
+  const almacen = useAlmacen(hoy);
+  const { estado, cambiar, reiniciar, modo } = almacen;
   const [pantalla, setPantalla] = useState(pantallaDeLaDireccion);
   const [capturando, setCapturando] = useState(false);
   const [aclarando, setAclarando] = useState(null);
@@ -51,7 +54,7 @@ export default function App() {
     return () => window.removeEventListener("hashchange", alCambiar);
   }, []);
 
-  const tema = temaDe(estado.ajustes.tema);
+  const tema = temaDe(estado?.ajustes?.tema);
   useEffect(() => {
     document.documentElement.style.setProperty("--acento", tema.acento);
     document.documentElement.style.setProperty("--sobre-acento", tema.sobreAcento);
@@ -63,6 +66,9 @@ export default function App() {
     setMensaje(texto);
     setTimeout(() => setMensaje(""), 4000);
   };
+
+  if (modo === "cargando") return <div className="pantalla-entrada" role="status">Cargando…</div>;
+  if (modo === "acceso" || modo === "alta") return <Entrar modo={modo} almacen={almacen} />;
 
   const accionesUI = {
     hecha: (id) => {
@@ -94,10 +100,31 @@ export default function App() {
     },
   };
 
-  const guardarCaptura = (texto) => {
-    cambiar((e) => ({ ...e, bandeja: [{ id: `c-${Date.now()}`, texto, canal: "app", creada: hoy }, ...e.bandeja] }));
-    setCapturando(false);
-    avisar("Guardado en la Bandeja.");
+  /**
+   * Con servidor: la captura va al asistente, que la ordena; se enseña su tarjeta con «Deshacer».
+   * Sin servidor (prototipo): queda en la Bandeja para aclararla a mano.
+   */
+  const guardarCaptura = async (texto, canal) => {
+    if (modo !== "servidor") {
+      cambiar((e) => ({ ...e, bandeja: [{ id: `c-${Date.now()}`, texto, canal, creada: hoy }, ...e.bandeja] }));
+      return { tarjeta: "Guardado en la Bandeja. En el prototipo la IA no está conectada: lo aclaras tú." };
+    }
+    const r = await api.capturar(texto, canal);
+    await almacen.recargar();
+    if (!r.ok && !r.resultado) return { tarjeta: `Quedó en la Bandeja: ${r.error ?? "el asistente no pudo ordenarlo."}`, error: true };
+    return { tarjeta: r.resultado.tarjeta, capturaId: r.captura?.id, pregunta: r.resultado.pregunta };
+  };
+
+  const deshacerCaptura = async (id) => {
+    const r = await api.deshacer(id);
+    await almacen.recargar();
+    return r.ok;
+  };
+
+  const reintentar = async (id) => {
+    const r = await api.reordenar(id);
+    await almacen.recargar();
+    avisar(r.ok ? r.resultado.tarjeta.split("\n").slice(0, 2).join(" ") : `Sigue en la Bandeja: ${r.error}`);
   };
 
   const terminarAclarar = (accion) => {
@@ -117,7 +144,7 @@ export default function App() {
     <div className="app">
       <header className="cabecera">
         <div className="marca"><span className="marca-punto" aria-hidden="true" />{tema.nombre}</div>
-        <span className="chip">Prototipo</span>
+        {modo === "prototipo" && <span className="chip">Prototipo</span>}
         <span className="cabecera-fecha">{mayuscula(textoLargo(hoy))}</span>
       </header>
       <div className="cuerpo">
@@ -136,8 +163,8 @@ export default function App() {
           {pantalla === "hoy" && <Hoy {...props} />}
           {pantalla === "semana" && <Semana {...props} />}
           {pantalla === "sombreros" && <Sombreros {...props} />}
-          {pantalla === "asistente" && <Asistente {...props} onAclarar={setAclarando} />}
-          {pantalla === "ajustes" && <Ajustes estado={estado} cambiar={cambiar} reiniciar={reiniciar} />}
+          {pantalla === "asistente" && <Asistente {...props} onAclarar={setAclarando} onReintentar={modo === "servidor" ? reintentar : null} />}
+          {pantalla === "ajustes" && <Ajustes estado={estado} cambiar={cambiar} reiniciar={modo === "prototipo" ? reiniciar : null} salir={modo === "servidor" ? almacen.salir : null} />}
           {pantalla !== "ajustes" && (
             <p style={{ marginTop: "var(--sp-6)", textAlign: "center" }}>
               <a href="#ajustes" style={{ color: "var(--texto-3)", fontSize: "var(--fs-sm)" }}>Ajustes: nombre, color, IA y versículos</a>
@@ -154,7 +181,13 @@ export default function App() {
         {mensaje}
       </div>
 
-      {capturando && <Capturar onGuardar={guardarCaptura} onCerrar={() => setCapturando(false)} />}
+      {almacen.fallo && (
+        <div role="alert" className="aviso rojo" style={{ position: "fixed", left: 16, right: 16, bottom: 140, zIndex: 60 }}>
+          <span>{almacen.fallo}</span>
+          <button type="button" className="boton fantasma" onClick={almacen.limpiarFallo}>Cerrar</button>
+        </div>
+      )}
+      {capturando && <Capturar onGuardar={guardarCaptura} onDeshacer={deshacerCaptura} onCerrar={() => setCapturando(false)} />}
       {aclarando && <Aclarar captura={aclarando} hoy={hoy} onListo={terminarAclarar} onCerrar={() => setAclarando(null)} />}
     </div>
   );

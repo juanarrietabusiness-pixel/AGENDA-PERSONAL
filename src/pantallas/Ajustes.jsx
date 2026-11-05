@@ -12,7 +12,7 @@ const FRECUENCIAS = [
 
 const mensual = (m) => 900 * costo(m, { entrada: 6000, salida: 1000 });
 
-export default function Ajustes({ estado, cambiar, reiniciar }) {
+export default function Ajustes({ estado, cambiar, reiniciar, salir }) {
   const id = useId();
   const { ajustes } = estado;
   const ia = ajustes.ia;
@@ -109,18 +109,23 @@ export default function Ajustes({ estado, cambiar, reiniciar }) {
         <p style={{ fontSize: "var(--fs-sm)", color: "var(--texto-2)" }}>
           El asistente escoge de un banco cerrado y el texto lo pone la aplicación: nunca cita de memoria. No usa como promesa personal: {FUERA_DE_CONTEXTO.map((v) => v.ref).join(", ")}.
         </p>
+        <p style={{ fontSize: "var(--fs-sm)", color: "var(--texto-2)" }}>
+          Escogiste la NVI. Mientras llegan sus textos exactos, el banco enseña la Reina-Valera 1960: no se cita de memoria.
+        </p>
         <p style={{ fontSize: "var(--fs-3xs)", color: "var(--texto-3)" }}>{ATRIBUCION}</p>
       </section>
 
       <section className="tarjeta seccion" aria-labelledby={`${id}-h`}>
-        <div className="seccion-cabeza"><h2 id={`${id}-h`}>Tu semana: por confirmar</h2></div>
+        <div className="seccion-cabeza"><h2 id={`${id}-h`}>Tu semana: por confirmar</h2><span className="nota">Díselo al asistente: «madrugo a las 5», «termino de trabajar a las 5:30»</span></div>
         <ul style={{ margin: 0, paddingLeft: "var(--sp-5)", color: "var(--texto-2)", fontSize: "var(--fs-sm)" }}>
-          {ajustes.porConfirmar.map((p) => <li key={p}>{p}</li>)}
+          {(ajustes.porConfirmar ?? []).map((p) => <li key={p.clave ?? p}>{p.texto ?? p}</li>)}
+          {!(ajustes.porConfirmar ?? []).length && <li>Todo confirmado.</li>}
         </ul>
       </section>
 
       <div className="botones seccion">
-        <button type="button" className="boton" onClick={reiniciar}><Icon name="refresh" size={16} /> Volver a los datos de ejemplo</button>
+        {reiniciar && <button type="button" className="boton" onClick={reiniciar}><Icon name="refresh" size={16} /> Volver a los datos de ejemplo</button>}
+        {salir && <button type="button" className="boton" onClick={salir}><Icon name="logout" size={16} /> Salir</button>}
       </div>
     </>
   );

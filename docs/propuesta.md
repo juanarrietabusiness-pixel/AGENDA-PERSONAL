@@ -1,9 +1,21 @@
-# Asistente personal: propuesta (versión 2)
+# Asistente personal: propuesta (versión 3)
 
-Estado a 2026-11-04. Esta versión recoge las respuestas de Juan a la primera, y ya hay un **prototipo** en este
-repositorio (sección 10). Al final quedan las decisiones pendientes.
+Estado a 2026-11-05. Esta versión recoge tus segundas respuestas, y la fase 1 ya empezó: hay **servidor** (sección 12).
+Al final quedan las decisiones pendientes.
 
-**Qué cambió desde la versión 1:**
+**Qué cambió desde la versión 2:**
+
+- **Ya hay servidor**: un Worker de Cloudflare con su base de datos (`agenda-personal-db`, ya creada), el acceso con
+  contraseña y **el asistente que ordena de verdad** con Muse Spark o Claude. Falta ponerle los secretos y desplegarlo
+  (`DEPLOY.md`).
+- **Tus horarios se ajustan hablando con el asistente** («madrugo a las 5», «la célula ahora es los viernes»): no hay
+  que confirmarlos antes (sección 3).
+- **Nombre y color quedan para el final.** Mientras, el prototipo sigue llamándose Atalaya (sección 7).
+- **La Biblia: NVI.** Sus textos todavía no están en el banco (sección 6).
+- **Lo que no te gustó de «Mi día»** (que no es cómodo, ni intuitivo, ni atractivo) es ahora una regla de diseño
+  (sección 10).
+
+**Qué cambió de la versión 1 a la 2:**
 
 - La lógica de tareas **no sale de «Mi día» del calendario de marketing**: es nueva, armada con los métodos de
   productividad más usados (sección 1).
@@ -118,9 +130,13 @@ marcado «Hora por confirmar».
 | Sábado | Oración (sin madrugar tanto) · la revisión semanal (propuesta: 8:30 a. m.) |
 | Domingo | **Servicio a las 10:00 a. m.** |
 
-**Lo que supuse y tienes que confirmar:** la hora a la que madrugas (puse 4:45), cuánto dura la oración (una hora), a
-qué hora termina tu jornada (6:00 p. m.), la hora de la planificación de la célula (8:00 p. m.), cuánto duran los
-servicios y la célula, y la hora de la grabación (3:00 a 6:30 p. m.).
+**Lo que supuse** (la hora a la que madrugas, cuánto dura la oración, cuándo termina tu jornada, la hora de la
+planificación de la célula, cuánto duran los servicios y la grabación) **no hay que confirmarlo antes**: se lo dices al
+asistente cuando quieras («madrugo a las 5», «la grabación es de 2 a 5», «ya no hay servicio el martes») y él cambia tu
+semana. Lo que puede cambiar así está acotado: horarios (despertar, dormir, resumen, cierre, silencio, jornada, día y
+hora de la revisión) y los bloques fijos de la semana (añadir, cambiar o quitar). El código valida cada hora y cada
+día antes de guardar, y la tarjeta dice qué cambió, con «Deshacer». En Ajustes sale la lista de lo que todavía es
+suposición mía.
 
 **Una sola fuente:** casi todo eso ya está en tu Google Calendar. En la aplicación real **se lee de ahí**; no se copia.
 Al conectar Google, cada evento que se repite se casa con su sombrero y se te pregunta cuáles son **protegidos** (sin
@@ -291,6 +307,8 @@ Quedó una de días anteriores: la vemos en el cierre.
 
 ## 7. Nombre y color
 
+**Queda para el final**, como pediste. Mientras, la aplicación se llama Atalaya. Las opciones siguen aquí.
+
 Los cuatro se pueden probar en el prototipo (Ajustes → Nombre y color), y el nombre se cambia después en un solo sitio
 (`src/lib/temas.js`). Ninguno es azul, para no confundirlo con Juancito Ads.
 
@@ -348,13 +366,18 @@ Telegram.
 
 ## 10. Lo que ya está hecho: el prototipo
 
-Para que veas cómo se acomoda todo antes de construir el servidor. **Corre en el navegador, sin servidor y sin IA**,
-con datos de ejemplo sacados de lo que me contaste, y guarda lo que haces en ese navegador.
+Las pantallas funcionan de dos formas. **Sin servidor** (`npm run dev`) es el prototipo: datos de ejemplo sacados de lo
+que me contaste, sin IA, guardado en ese navegador. **Con servidor** (desplegada, o `npm run dev:worker` en local) pide
+entrar, guarda en D1 y el asistente ordena lo que capturas.
 
 ```bash
 npm install
 npm run dev
 ```
+
+**La regla de diseño que sale de «Mi día»:** que sea cómodo, intuitivo y atractivo. Cada pantalla tiene que entenderse
+sin explicación, lo importante a un toque y nada que haya que mantener a mano. Lo que hoy no lo cumpla se arregla en la
+fase 1C (sección 12).
 
 **Las cuatro pantallas:**
 
@@ -371,7 +394,7 @@ npm run dev
   que falta confirmar de tu semana.
 - **Capturar**: el botón de todas las pantallas, escribiendo o dictando.
 
-**La lógica, pura y con pruebas** (`src/lib/`, 61 pruebas en `tests/`):
+**La lógica, pura y con pruebas** (`src/lib/`; las pruebas, en `tests/`):
 
 | Archivo | Qué hace |
 |---|---|
@@ -388,6 +411,8 @@ npm run dev
 | `mensajes.js` | El resumen, el cierre, los avisos y «¿la completaste?», con variantes |
 | `ia.js` | Claude o Meta por función, lo confidencial, la petición para Meta y el costo |
 | `temas.js` | Los nombres y colores para probar |
+| `agente.js` | Leer lo que devuelve el modelo, comprobarlo, aplicarlo, deshacerlo y la tarjeta de «Esto hice» |
+| `api.js` | Lo que la pantalla le pide al servidor, y qué cambió entre dos estados |
 
 ---
 
@@ -407,20 +432,37 @@ npm run dev
 
 ## 12. Lo que sigue
 
-**Fase 1: que funcione de verdad.** Con lo que ya está:
+**Fase 1A, hecha (falta desplegarla):**
 
-1. El **Worker con D1** (las tablas de la versión 1, con los campos de `metodo.js`), el acceso con contraseña y el
-   despliegue desde GitHub Actions.
-2. El **asistente que ordena** con Claude o Meta, el banco de versículos y la tarjeta con «Deshacer».
-3. **Telegram**: capturar texto y voz, el resumen, los avisos con botones y el cierre.
+- **El Worker con D1** (`worker/`, `migraciones/d1/`): la base `agenda-personal-db` ya está creada en Cloudflare. Una
+  sola cuenta: se crea la primera vez con un código de alta (`CODIGO_ALTA`, secreto del Worker) y después sólo se
+  entra. Contraseña con PBKDF2 a 600.000 vueltas en tramos de 100.000 (el tope de Cloudflare), cookie `__Host-` y de la
+  sesión sólo se guarda la huella.
+- **El asistente que ordena** (`src/lib/agente.js`, `worker/lib/ordenar.js`): lo capturado se guarda TAL CUAL primero
+  (si la IA falla, queda en la Bandeja con el motivo y «Que lo ordene el asistente»), y luego el modelo lo convierte en
+  acciones, proyectos con subtareas, eventos, esperas, personas, fechas especiales y cambios de horario. **El código
+  comprueba todo antes de guardar**: el día de la semana, que la fecha no haya pasado, la regla de repetición, que un
+  evento tenga hora. La tarjeta dice qué hizo, con «Deshacer», y si el asistente pregunta algo, tu siguiente frase le
+  contesta.
+- **Muse Spark o Claude, por la misma puerta** (`worker/lib/modelo.js`): si la cuenta no tiene un modelo, prueba el
+  siguiente; si Meta lo rechaza y hay llave de Anthropic, lo hace Claude y lo dice; lo confidencial nunca va a
+  Contributor. Cada llamada deja su costo.
+- **Desplegar desde GitHub** (`.github/workflows/desplegar.yml`): verifica, migra, publica y pone los secretos. Los
+  pasos, sólo de navegador, están en `DEPLOY.md`.
+- 89 pruebas: también una base D1 de verdad en memoria, que la capa de datos acota por dueño y que ninguna consulta
+  vive fuera de ella.
 
-**Lo que necesitaré de ti para la fase 1:**
+**Lo que necesito de ti para ponerla en línea** (`DEPLOY.md`): los secretos en GitHub (el token y el id de Cloudflare,
+el código de alta y tu llave nueva de Meta) y pulsar «Run workflow».
 
-- **Crear el bot en Telegram** con @BotFather (dos minutos) y darme su nombre; el token va como secreto, nunca en el
-  chat.
-- **Las llaves de IA**: pueden ser las mismas del calendario de marketing (Anthropic y Meta), puestas como secretos del
-  Worker nuevo.
-- **Dar de alta la base de datos** en Cloudflare, o darme permiso para crearla.
+**Fase 1B: Telegram.** El bot lo tienes que crear tú: sólo se crea desde tu cuenta de Telegram, hablando con
+@BotFather (`/newbot`, un nombre y un usuario que termine en «bot»). Te da un token: va como secreto en GitHub
+(`TELEGRAM_BOT_TOKEN`), nunca en el chat. Con eso: capturar texto y voz, el resumen de la mañana, los avisos con
+botones y el cierre.
+
+**Fase 1C: que sea cómodo, intuitivo y atractivo.** Es lo que no te gustó de «Mi día», así que no es un detalle del
+final: con la aplicación en tu teléfono, una pasada de diseño sobre lo que uses de verdad. Para guiarla, cuéntame qué
+pantalla abres primero, qué te sobra y qué buscas y no encuentras.
 
 **Fase 2:** Google Calendar y Juancito Ads. **Fase 3:** el seguimiento completo. **Fase 4:** visión y metas. **Fase 5:**
 el cerebro que aprende.
@@ -429,11 +471,10 @@ el cerebro que aprende.
 
 ## 13. Decisiones pendientes
 
-1. **Nombre y color.** Prueba los cuatro en el prototipo. Yo me quedo con Atalaya.
-2. **Tus horarios** de la sección 3, sobre todo a qué hora madrugas y cuándo termina tu jornada.
-3. **¿Qué no te gustó de «Mi día»?** Una frase basta para no repetirlo.
-4. **Las cuentas de Google**: ¿te sirve lo de compartir tus calendarios personales con la cuenta de la agencia?
-5. **¿Qué es «Spark News»?** Entiendo Muse Spark; dime si es otro.
-6. **La versión de la Biblia**: RVR1960, o NVI o NTV.
-7. **El día de la revisión semanal**: propongo el sábado a las 8:30 a. m. (no madrugas y la semana aún no empieza).
-8. **¿Empiezo la fase 1?** Necesita lo de la sección 12.
+1. **Nombre y color**: al final.
+2. **Las cuentas de Google**: ¿te sirve lo de compartir tus calendarios personales con la cuenta de la agencia
+   (sección 4)? Hace falta para la fase 2.
+3. **Los textos de la NVI**: el entorno donde trabajo no deja entrar a Bible Gateway, así que no los he podido traer
+   (y no los escribo de memoria). O se permite ese dominio en el acceso a la red del entorno, o me pegas los versículos
+   del banco. Mientras, salen en Reina-Valera 1960.
+4. **El día de la revisión semanal**: propongo el sábado a las 8:30 a. m.; también se lo puedes cambiar al asistente.

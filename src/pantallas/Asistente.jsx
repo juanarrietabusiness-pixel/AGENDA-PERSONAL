@@ -12,9 +12,9 @@ const CANAL = { telegram: "Telegram", voz: "Nota de voz", app: "La aplicación",
  * La Bandeja (lo capturado que falta aclarar) y cómo te va a hablar el asistente. Los mensajes de la derecha los arma
  * el CÓDIGO con tu día de verdad: son los que llegarán por Telegram.
  */
-export default function Asistente({ estado, hoy, onAclarar }) {
+export default function Asistente({ estado, hoy, onAclarar, onReintentar }) {
   const { acciones, eventos, ajustes, bandeja } = estado;
-  const plan = planDelDia({ dia: hoy, eventos: [...RITMO_BASE, ...eventos], acciones, ajustes });
+  const plan = planDelDia({ dia: hoy, eventos: [...(estado.ritmo ?? RITMO_BASE), ...eventos], acciones, ajustes });
   const frecuencia = ajustes.frecuenciaVersiculos;
   const resumen = resumenDeLaManana({
     nombre: ajustes.nombre,
@@ -47,8 +47,10 @@ export default function Asistente({ estado, hoy, onAclarar }) {
               <li key={c.id} className="tarjeta" style={{ padding: "var(--sp-3) var(--sp-4)" }}>
                 <div className="etiqueta-canal">{CANAL[c.canal] ?? c.canal}</div>
                 <div>{c.texto}</div>
+                {c.error && <p className="aviso rojo" style={{ margin: "var(--sp-2) 0 0" }}>{c.error}</p>}
                 <div className="botones" style={{ marginTop: "var(--sp-3)" }}>
-                  <button type="button" className="boton primario" onClick={() => onAclarar(c)}>Aclarar</button>
+                  {onReintentar && <button type="button" className="boton" onClick={() => onReintentar(c.id)}>Que lo ordene el asistente</button>}
+                  <button type="button" className="boton primario" onClick={() => onAclarar(c)}>Aclarar yo</button>
                 </div>
               </li>
             ))}

@@ -72,32 +72,51 @@ export function instruccionesBase({ nombre = "Juan", nombreAsistente = "tu asist
 }
 
 /** Lo que el modelo devuelve al ordenar una captura. Lo valida el código antes de guardar nada. */
-export const FORMA_DE_ORDENAR = `Responde SOLO con JSON:
+export const FORMA_DE_ORDENAR = `Responde SOLO con JSON, sin texto antes ni después:
 {
-  "elementos": [{
-    "tipo": "accion" | "evento" | "recordatorio" | "idea" | "fecha-especial" | "referencia",
-    "titulo": "empieza con verbo si es una acción",
-    "sombrero": "trabajo" | "artistico" | "iglesia" | "personal",
-    "proyecto": "nombre de un proyecto o responsabilidad existente, o uno nuevo" | null,
-    "lista": "siguientes" | "espera" | "algun-dia" | "referencia",
-    "cuando": "AAAA-MM-DD" | null,
-    "limite": "AAAA-MM-DD (sólo si es una fecha límite real)" | null,
-    "hora": "HH:MM" | null,
-    "minutos": 5 | 15 | 30 | 60 | 90 | 120,
-    "importante": true | false,
-    "personas": ["nombres"],
-    "repite": { "regla": "RRULE (RFC 5545), p. ej. FREQ=WEEKLY;BYDAY=TH", "modo": "calendario" | "despues" } | null,
-    "confidencial": true | false,
-    "subtareas": [{ "titulo": "...", "cuando": "AAAA-MM-DD" | null }],
-    "delegable": { "a": "persona o rol", "porque": "una línea" } | null
-  }],
+  "elementos": [
+    {
+      "tipo": "accion" | "evento" | "recordatorio" | "idea" | "fecha-especial" | "referencia",
+      "titulo": "empieza con verbo si es una acción",
+      "sombrero": "trabajo" | "artistico" | "iglesia" | "personal",
+      "proyecto": "nombre de un proyecto o responsabilidad existente, o uno nuevo" | null,
+      "lista": "siguientes" | "espera" | "algun-dia" | "referencia",
+      "cuando": "AAAA-MM-DD (el día en que piensa hacerlo, o el del evento)" | null,
+      "limite": "AAAA-MM-DD (sólo si es una fecha límite real)" | null,
+      "hora": "HH:MM (la hora del evento o del recordatorio)" | null,
+      "minutos": 5 | 15 | 30 | 60 | 90 | 120,
+      "importante": true | false,
+      "personas": ["nombres"],
+      "espera_de": "persona de quien espera algo" | null,
+      "repite": { "regla": "RRULE (RFC 5545), p. ej. FREQ=WEEKLY;BYDAY=TH", "modo": "calendario" | "despues" } | null,
+      "confidencial": true | false,
+      "subtareas": [{ "titulo": "...", "cuando": "AAAA-MM-DD" | null }],
+      "delegable": { "a": "persona o rol", "porque": "una línea" } | null
+    },
+    { "tipo": "ajuste", "clave": "una de las claves de AJUSTES", "valor": "HH:MM, una lista de días o un texto", "dias": [0-6] | null },
+    { "tipo": "ritmo", "accion": "agregar" | "cambiar" | "quitar", "id": "id del bloque (para cambiar o quitar)",
+      "titulo": "...", "sombrero": "..." | null, "devocional": true | false, "inicio": "HH:MM", "fin": "HH:MM",
+      "dias": [0-6], "protegido": true | false }
+  ],
+  "personas_nuevas": [{ "nombre": "Adolfo", "relacion": "hermano de la iglesia", "sombrero": "iglesia" }],
   "pregunta": "una sola pregunta si falta algo esencial" | null,
-  "respuesta": "una o dos líneas para la tarjeta de confirmación"
+  "respuesta": "una o dos líneas para la tarjeta de confirmación",
+  "versiculo": "id de un versículo del banco, sólo si el momento lo pide" | null
 }
-Las subtareas de un proyecto con fecha se PROPONEN hacia atrás desde la fecha; la persona las acepta antes de que entren.`;
+Reglas:
+- Una captura puede traer varias cosas: devuelve un elemento por cada una.
+- Algo del Trabajo (un cliente, la agencia) va con sombrero «trabajo»: se guarda en Juancito Ads.
+- «Reunión», «cita», «ensayo» con día y hora es un evento; sin hora, una acción para ese día.
+- Un recordatorio sin fecha va sin «cuando»; con «antes del viernes», «limite» es ese viernes.
+- Una idea va a «algun-dia», sin fecha.
+- Si dice cómo es su semana o sus horarios («madrugo a las 5», «la célula ahora es a las 7:30»), es un «ajuste» o un
+  «ritmo», no una tarea.
+- Las subtareas de un proyecto con fecha se proponen hacia atrás desde la fecha.
+- Si una fecha ya pasó este año, pregunta si es la del año que viene; no la inventes.
+- Si aparece una persona que no conoces y se sabe quién es («mi hermano Adolfo de la iglesia»), va en personas_nuevas.`;
 
 /** El sistema completo para ordenar una captura. */
-export function instruccionesParaOrdenar({ ajustes, hoy, proyectos = [], personas = [], pautas = [], nombreAsistente }) {
+export function instruccionesParaOrdenar({ ajustes, hoy, proyectos = [], personas = [], pautas = [], ritmo = [], nombreAsistente, claves = {}, horarios = "" }) {
   return [
     instruccionesBase({ nombre: ajustes.nombre, nombreAsistente }),
     "",
@@ -109,6 +128,15 @@ export function instruccionesParaOrdenar({ ajustes, hoy, proyectos = [], persona
     "",
     "PERSONAS QUE CONOCES:",
     personas.length ? personas.map((p) => `- ${p.nombre}${p.relacion ? `: ${p.relacion}` : ""}${p.sombrero ? ` (${p.sombrero})` : ""}`).join("\n") : "- (ninguna todavía)",
+    "",
+    "SU SEMANA FIJA (el ritmo; id · qué · cuándo):",
+    ritmo.length ? ritmo.map((e) => `- ${e.id} · ${e.titulo} · ${e.inicio}–${e.fin} · ${e.repite?.regla ?? e.fecha ?? ""}`).join("\n") : "- (vacío)",
+    "",
+    "SUS HORARIOS:",
+    horarios || "- (sin datos)",
+    "",
+    "AJUSTES QUE PUEDES CAMBIAR (clave: qué es):",
+    Object.entries(claves).map(([k, v]) => `- ${k}: ${v}`).join("\n") || "- (ninguno)",
     "",
     "REGLAS QUE ACEPTÓ:",
     pautas.length ? pautas.map((p) => `- ${p}`).join("\n") : "- (ninguna todavía)",

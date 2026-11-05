@@ -9,7 +9,7 @@ export default function Semana({ estado, hoy }) {
   const { acciones, eventos } = estado;
   const lunes = lunesDe(hoy);
   const dias = Array.from({ length: 7 }, (_, i) => sumarDias(lunes, i));
-  const todos = [...RITMO_BASE, ...eventos];
+  const todos = [...(estado.ritmo ?? RITMO_BASE), ...eventos];
   const porDia = dias.map((d) => ({
     dia: d,
     eventos: eventosDelDia(todos, d),
