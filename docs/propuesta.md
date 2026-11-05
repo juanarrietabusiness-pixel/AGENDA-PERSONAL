@@ -447,13 +447,18 @@ fase 1C (sección 12).
 - **Muse Spark o Claude, por la misma puerta** (`worker/lib/modelo.js`): si la cuenta no tiene un modelo, prueba el
   siguiente; si Meta lo rechaza y hay llave de Anthropic, lo hace Claude y lo dice; lo confidencial nunca va a
   Contributor. Cada llamada deja su costo.
-- **Desplegar desde GitHub** (`.github/workflows/desplegar.yml`): verifica, migra, publica y pone los secretos. Los
-  pasos, sólo de navegador, están en `DEPLOY.md`.
+- **Dónde vive:** en tu cuenta de Cloudflare, la misma del calendario, pero como Worker aparte, en
+  **`agenda.juancitoads.com`**. Separados para que tu equipo nunca vea lo personal y un despliegue no pueda romper el
+  otro; en la misma cuenta para poder conectarlos después (fase 2). Las llaves, en Cloudflare, como en el calendario.
+- **Desplegar desde GitHub** (`.github/workflows/desplegar.yml`): verifica, migra y publica. Los pasos, sólo de
+  navegador, están en `DEPLOY.md`.
+- **La puerta:** una sola cuenta, contraseña lenta de adivinar, cinco intentos fallidos cierran la entrada 15 minutos y
+  los buscadores no la indexan. Cloudflare Access, opcional, como segunda puerta.
 - 89 pruebas: también una base D1 de verdad en memoria, que la capa de datos acota por dueño y que ninguna consulta
   vive fuera de ella.
 
-**Lo que necesito de ti para ponerla en línea** (`DEPLOY.md`): los secretos en GitHub (el token y el id de Cloudflare,
-el código de alta y tu llave nueva de Meta) y pulsar «Run workflow».
+**Lo que necesito de ti para ponerla en línea** (`DEPLOY.md`): el token y el id de Cloudflare en GitHub, pulsar «Run
+workflow», y después el código de alta y tu llave nueva de Meta en Cloudflare.
 
 **Fase 1B: Telegram.** El bot lo tienes que crear tú: sólo se crea desde tu cuenta de Telegram, hablando con
 @BotFather (`/newbot`, un nombre y un usuario que termine en «bot»). Te da un token: va como secreto en GitHub

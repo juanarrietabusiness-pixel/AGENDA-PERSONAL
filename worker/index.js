@@ -23,12 +23,18 @@
 import { json, error, noEncontrado, cuerpo } from "./lib/respuesta.js";
 import {
   usuarioDeLaPeticion, abrirSesion, cerrarSesion, cookieSesion, cookieBorrada, entrar, darDeAlta, hayUsuarios,
+  ipDe, demasiadosFallos, apuntarFallo, olvidarFallos, VENTANA_FALLOS_MIN,
 } from "./lib/sesion.js";
 import { crearAlmacen, perfilInicial, TIPOS_ELEMENTO } from "./lib/almacen.js";
 import { ordenarCaptura, deshacerCaptura } from "./lib/ordenar.js";
 import { llaves } from "./lib/modelo.js";
 
 const MAX_CAPTURA = 4000;
+
+const bloqueada = () =>
+  json({ error: `Demasiados intentos fallidos. Espera ${VENTANA_FALLOS_MIN} minutos y vuelve a probar.` }, 429, {
+    "Retry-After": String(VENTANA_FALLOS_MIN * 60),
+  });
 
 /** Lo que cambia algo tiene que venir como JSON y del mismo origen: así un formulario de otra web no puede escribir. */
 function peticionSegura(req) {
@@ -54,18 +60,30 @@ async function api(req, env) {
   }
 
   if (recurso === "alta" && req.method === "POST") {
+    const ip = ipDe(req);
+    if (await demasiadosFallos(db, ip)) return bloqueada();
     const datos = (await cuerpo(req)) ?? {};
     const r = await darDeAlta(db, env, datos);
-    if (r.error) return error(r.error, r.estado);
+    if (r.error) {
+      // Un código de alta equivocado cuenta como un intento fallido: también se puede adivinar.
+      if (r.estado === 403) await apuntarFallo(db, ip);
+      return error(r.error, r.estado);
+    }
     await crearAlmacen(db, r.id).guardarPerfil(perfilInicial(datos.nombre));
     const testigo = await abrirSesion(db, r.id);
     return json({ ok: true }, 201, { "Set-Cookie": cookieSesion(testigo) });
   }
 
   if (recurso === "acceso" && req.method === "POST") {
+    const ip = ipDe(req);
+    if (await demasiadosFallos(db, ip)) return bloqueada();
     const { email, contrasena } = (await cuerpo(req)) ?? {};
     const id = await entrar(db, email, contrasena);
-    if (!id) return error("Correo o contraseña incorrectos.", 401);
+    if (!id) {
+      await apuntarFallo(db, ip);
+      return error("Correo o contraseña incorrectos.", 401);
+    }
+    await olvidarFallos(db, ip);
     const testigo = await abrirSesion(db, id);
     return json({ ok: true }, 200, { "Set-Cookie": cookieSesion(testigo) });
   }

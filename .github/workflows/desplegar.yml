@@ -6,13 +6,12 @@
 # no se toca lo que está en línea.
 #
 # Secretos del repositorio (Settings → Secrets and variables → Actions):
-#   CLOUDFLARE_API_TOKEN   obligatorio (Workers Scripts: Edit + D1: Edit)
+#   CLOUDFLARE_API_TOKEN   obligatorio (Workers Scripts: Edit, D1: Edit y
+#                          Zone → Workers Routes: Edit sobre juancitoads.com)
 #   CLOUDFLARE_ACCOUNT_ID  obligatorio
-#   CODIGO_ALTA            para crear la cuenta la primera vez
-#   ANTHROPIC_API_KEY      para que el asistente use Claude
-#   META_API_KEY           para que use Muse Spark
-# Los tres últimos pasan al Worker sólo si están puestos; uno vacío no borra
-# el que ya tenga el Worker.
+# Las llaves de la aplicación (CODIGO_ALTA, ANTHROPIC_API_KEY, META_API_KEY)
+# van en Cloudflare, en el Worker, como «Secret». Si alguna está ADEMÁS en
+# GitHub, este workflow la pone; una que no esté no borra la del Worker.
 # ============================================================
 name: Desplegar
 
@@ -88,15 +87,16 @@ jobs:
 
       - name: Comprobar que contesta
         run: |
-          url=$(grep -oE 'https://[a-z0-9.-]+\.workers\.dev' "$RUNNER_TEMP/deploy.log" | head -1 || true)
-          if [ -z "$url" ]; then
-            echo "No encontré la dirección en la salida de wrangler: míralo en Cloudflare → Workers → agenda-personal."
-            exit 0
+          respaldo=$(grep -oE 'https://[a-z0-9.-]+\.workers\.dev' "$RUNNER_TEMP/deploy.log" | head -1 || true)
+          propia="https://agenda.juancitoads.com"
+          contesta() { for i in 1 2 3 4 5; do curl -fsS --max-time 10 "$1/api/salud" >/dev/null 2>&1 && return 0; sleep 6; done; return 1; }
+          if contesta "$propia"; then
+            echo "### La aplicación está en $propia" >> "$GITHUB_STEP_SUMMARY"
+          elif [ -n "$respaldo" ] && contesta "$respaldo"; then
+            # La primera vez, el certificado del dominio propio puede tardar unos minutos.
+            echo "::warning::$propia todavía no contesta (el certificado puede tardar unos minutos la primera vez). Mientras, está en $respaldo"
+            echo "### La aplicación está en $respaldo ($propia, en unos minutos)" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::error::El Worker no contestó en /api/salud."
+            exit 1
           fi
-          echo "### La aplicación está en $url" >> "$GITHUB_STEP_SUMMARY"
-          for i in 1 2 3 4 5; do
-            curl -fsS "$url/api/salud" && exit 0
-            sleep 4
-          done
-          echo "::error::El Worker no contestó en $url/api/salud."
-          exit 1

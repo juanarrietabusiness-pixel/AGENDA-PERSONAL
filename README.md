@@ -12,8 +12,8 @@ Es privada, de una sola persona, y va aparte del calendario de la agencia
 eventos.
 
 **Estado:** fase 1A. Hay servidor (Worker de Cloudflare con D1), acceso con contraseña y
-un asistente que ordena lo capturado con Muse Spark o Claude. Falta desplegarlo: los pasos, sólo de navegador, están
-en [`DEPLOY.md`](DEPLOY.md). La propuesta completa, con lo que falta decidir, está en
+un asistente que ordena lo capturado con Muse Spark o Claude. Sale en `agenda.juancitoads.com`; los pasos para
+desplegarla, sólo de navegador, están en [`DEPLOY.md`](DEPLOY.md). La propuesta completa, con lo que falta decidir, está en
 [`docs/propuesta.md`](docs/propuesta.md).
 
 ```bash

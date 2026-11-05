@@ -91,6 +91,70 @@ describe("el acceso", () => {
     expect(r.res.headers.get("x-content-type-options")).toBe("nosniff");
     expect(r.res.headers.get("cache-control")).toBe("no-store");
     expect(r.res.headers.get("content-security-policy")).toMatch(/default-src 'none'/);
+    expect(r.res.headers.get("x-robots-tag")).toBe("noindex, nofollow");
+  });
+
+  it("cinco fallos desde una IP cierran la entrada a esa IP, aunque luego acierte", async () => {
+    await darDeAlta();
+    cookie = "";
+    const intento = (contrasena, ip = "1.1.1.1") =>
+      pedir("/api/acceso", { metodo: "POST", datos: { email: "juan@ejemplo.com", contrasena }, cabeceras: { "cf-connecting-ip": ip } });
+    for (let i = 0; i < 5; i++) expect((await intento("mal")).estado).toBe(401);
+    const cerrada = await intento("una contraseña larga");
+    expect(cerrada.estado).toBe(429);
+    expect(cerrada.res.headers.get("retry-after")).toBe("900");
+    expect(cerrada.datos.error).toMatch(/Espera 15 minutos/);
+    // Otra IP sí entra, y entrar bien borra sus propios fallos.
+    expect((await intento("mal", "2.2.2.2")).estado).toBe(401);
+    expect((await intento("una contraseña larga", "2.2.2.2")).estado).toBe(200);
+    expect(env.DB.crudo.prepare("select count(*) as n from intentos_acceso where clave = 'ip:2.2.2.2'").get().n).toBe(0);
+  });
+
+  it("no calcula la contraseña con la entrada cerrada (cada intento cuesta CPU)", async () => {
+    await darDeAlta();
+    cookie = "";
+    for (let i = 0; i < 5; i++) await pedir("/api/acceso", { metodo: "POST", datos: { email: "juan@ejemplo.com", contrasena: "mal" } });
+    const espia = vi.spyOn(crypto.subtle, "deriveBits");
+    expect((await pedir("/api/acceso", { metodo: "POST", datos: { email: "juan@ejemplo.com", contrasena: "mal" } })).estado).toBe(429);
+    expect(espia).not.toHaveBeenCalled();
+    vi.restoreAllMocks();
+  });
+
+  it("un código de alta equivocado también cuenta", async () => {
+    const malo = () => pedir("/api/alta", { metodo: "POST", datos: { codigo: "otro", email: "a@b.co", contrasena: "1234567890" } });
+    for (let i = 0; i < 5; i++) expect((await malo()).estado).toBe(403);
+    expect((await darDeAlta()).estado).toBe(429);
+  });
+
+  it("treinta fallos repartidos entre IPs cierran la entrada a todas", async () => {
+    await darDeAlta();
+    cookie = "";
+    for (let i = 0; i < 30; i++) {
+      await pedir("/api/acceso", { metodo: "POST", datos: { email: "x@y.co", contrasena: "mal" }, cabeceras: { "cf-connecting-ip": `9.9.9.${i}` } });
+    }
+    const r = await pedir("/api/acceso", { metodo: "POST", datos: { email: "juan@ejemplo.com", contrasena: "una contraseña larga" }, cabeceras: { "cf-connecting-ip": "3.3.3.3" } });
+    expect(r.estado).toBe(429);
+  });
+});
+
+describe("la dirección y lo que se publica", () => {
+  const raiz = join(import.meta.dirname, "..");
+  const wrangler = JSON.parse(readFileSync(join(raiz, "wrangler.jsonc"), "utf8").replace(/^\s*\/\/.*$/gm, ""));
+
+  it("sale en agenda.juancitoads.com como dominio propio, y workers.dev sigue de respaldo", () => {
+    expect(wrangler.routes).toEqual([{ pattern: "agenda.juancitoads.com", custom_domain: true }]);
+    // Con `routes` puesto y sin esto, wrangler apaga workers.dev en el siguiente despliegue.
+    expect(wrangler.workers_dev).toBe(true);
+  });
+
+  it("ningún secreto vive en wrangler.jsonc", () => {
+    expect(wrangler.vars ?? {}).toEqual({});
+    expect(readFileSync(join(raiz, "wrangler.jsonc"), "utf8")).not.toMatch(/sk-ant-|LLM\||"[A-Za-z0-9_-]{40,}"/);
+  });
+
+  it("los buscadores no la indexan", () => {
+    expect(readFileSync(join(raiz, "public", "_headers"), "utf8")).toMatch(/^\s+X-Robots-Tag: noindex, nofollow$/m);
+    expect(readFileSync(join(raiz, "index.html"), "utf8")).toMatch(/<meta name="robots" content="noindex, nofollow" \/>/);
   });
 });
 

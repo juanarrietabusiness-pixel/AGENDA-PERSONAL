@@ -12,6 +12,7 @@ const CABECERAS = Object.freeze({
   "X-Content-Type-Options": "nosniff",
   "Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'",
   "Referrer-Policy": "no-referrer",
+  "X-Robots-Tag": "noindex, nofollow",
 });
 
 export const json = (datos, estado = 200, extra = {}) =>

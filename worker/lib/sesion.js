@@ -19,6 +19,9 @@ export const ITERACIONES = 600_000;
 export const MAX_POR_LLAMADA = 100_000;
 export const DIAS_SESION = 60;
 export const MIN_CONTRASENA = 10;
+export const MAX_FALLOS_IP = 5;
+export const MAX_FALLOS_TOTAL = 30;
+export const VENTANA_FALLOS_MIN = 15;
 
 const enc = new TextEncoder();
 const hex = (buf) => [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
@@ -124,4 +127,32 @@ export async function darDeAlta(db, env, { codigo, email, nombre, contrasena }) 
     .bind(id, correo, String(nombre ?? "").trim().slice(0, 60), await hashearContrasena(String(contrasena)))
     .run();
   return { id };
+}
+
+// ── El tope de intentos ──────────────────────────────────────
+
+/** La IP de quien pide (Cloudflare la pone en `CF-Connecting-IP`). */
+export const ipDe = (req) => req.headers.get("cf-connecting-ip") || "sin-ip";
+
+/** ¿Esa IP (o todas juntas) ya falló demasiado en la ventana? Se mira ANTES de calcular la contraseña. */
+export async function demasiadosFallos(db, ip) {
+  const desde = new Date(Date.now() - VENTANA_FALLOS_MIN * 60_000).toISOString();
+  const fila = await db
+    .prepare("select coalesce(sum(case when clave = ? then 1 else 0 end), 0) as de_ip, count(*) as total from intentos_acceso where momento > ?")
+    .bind(`ip:${ip}`, desde)
+    .first();
+  return Number(fila?.de_ip ?? 0) >= MAX_FALLOS_IP || Number(fila?.total ?? 0) >= MAX_FALLOS_TOTAL;
+}
+
+export async function apuntarFallo(db, ip) {
+  const ahora = new Date();
+  await db.batch([
+    db.prepare("delete from intentos_acceso where momento < ?").bind(new Date(ahora.getTime() - 86_400_000).toISOString()),
+    db.prepare("insert into intentos_acceso (id, clave, momento) values (?, ?, ?)").bind(crypto.randomUUID(), `ip:${ip}`, ahora.toISOString()),
+  ]);
+}
+
+/** Entrar bien borra los fallos de esa IP. */
+export async function olvidarFallos(db, ip) {
+  await db.prepare("delete from intentos_acceso where clave = ?").bind(`ip:${ip}`).run();
 }

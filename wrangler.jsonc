@@ -30,10 +30,18 @@
     }
   ],
 
-  // Los secretos NO van aquí. Se ponen con `wrangler secret put` (el workflow «Desplegar» los toma de GitHub):
+  // Los secretos NO van aquí. Se ponen en Cloudflare (el Worker → Settings → Variables and Secrets, tipo «Secret»)
+  // o, si están en GitHub, los pone el workflow «Desplegar»:
   //   CODIGO_ALTA         el código para crear la primera (y única) cuenta
   //   ANTHROPIC_API_KEY   Claude (opcional si hay la de Meta)
   //   META_API_KEY        Muse Spark (opcional si hay la de Anthropic)
+
+  // La dirección: un subdominio de juancitoads.com, como `calendario.` (la zona ya está en Cloudflare). El dominio
+  // propio lo crea el despliegue, con su certificado; el token necesita Zone → Workers Routes → Edit sobre esa zona.
+  // Cambiarla después obliga a registrar otra vez el webhook de Telegram y la vuelta del permiso de Google.
+  "routes": [{ "pattern": "agenda.juancitoads.com", "custom_domain": true }],
+  // `workers_dev: true` va ESCRITO: con `routes` puesto, wrangler lo da por `false` y apagaría la dirección de
+  // respaldo en el siguiente despliegue (pasó en el calendario de marketing).
   "workers_dev": true,
   "observability": { "enabled": true }
 }

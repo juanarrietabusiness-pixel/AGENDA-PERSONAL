@@ -14,8 +14,11 @@ npm run dev:worker  # la aplicación con el Worker y D1 en local (wrangler); pid
 npm run verificar   # lint (sin errores NI avisos) + pruebas + build: lo que corre CI
 ```
 
-Desplegar es un workflow de GitHub Actions («Desplegar», a mano): verifica, migra D1, publica y pone los secretos.
-Los pasos, sólo de navegador, en `DEPLOY.md`. La base es `agenda-personal-db` (su id, en `wrangler.jsonc`).
+Desplegar es un workflow de GitHub Actions («Desplegar», a mano): verifica, migra D1 y publica. Los pasos, sólo de
+navegador, en `DEPLOY.md`. Vive en la MISMA cuenta de Cloudflare que el calendario de marketing, como Worker aparte
+(`agenda-personal`), en **`agenda.juancitoads.com`** (dominio propio en `routes`; `workers_dev: true` va escrito o
+wrangler apagaría el respaldo). La base es `agenda-personal-db` (su id, en `wrangler.jsonc`). Las llaves van en
+Cloudflare como «Secret» del Worker; en GitHub sólo el token y el id de la cuenta.
 
 **Las dos formas de la pantalla** (`useAlmacen`): si `/api/arranque` no contesta JSON, es el prototipo; si contesta,
 pide entrar (o crear la única cuenta con `CODIGO_ALTA`) y cada cambio del estado se manda al servidor como DIFERENCIA
@@ -62,4 +65,7 @@ Bandeja con su error. Lo que devuelve el modelo lo comprueba `src/lib/agente.js`
   ni `wrangler dev` lo aplican. Un test espía `deriveBits`.
 - Todo `create` de las migraciones lleva `if not exists` (un test lo exige), y `connect-src` es `'self'` a secas: una
   llave de IA nunca llega al navegador.
+- **La entrada tiene tope** (`demasiadosFallos` en worker/lib/sesion.js): 5 fallos por IP o 30 en total en 15 minutos
+  dan 429, y se mira ANTES de calcular la contraseña. Una ruta nueva que compruebe un secreto (Telegram, el MCP) tiene
+  que pasar por lo mismo.
 - La NVI está escogida, pero el banco sigue en RVR1960 hasta tener sus textos exactos: nunca de memoria.
