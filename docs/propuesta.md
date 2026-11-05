@@ -460,10 +460,10 @@ fase 1C (sección 12).
 **Lo que necesito de ti para ponerla en línea** (`DEPLOY.md`): conectar el repositorio en Cloudflare (una vez) y
 poner en el Worker el código de alta y tu llave nueva de Meta.
 
-**Fase 1B: Telegram.** El bot lo tienes que crear tú: sólo se crea desde tu cuenta de Telegram, hablando con
-@BotFather (`/newbot`, un nombre y un usuario que termine en «bot»). Te da un token: va como secreto en GitHub
-(`TELEGRAM_BOT_TOKEN`), nunca en el chat. Con eso: capturar texto y voz, el resumen de la mañana, los avisos con
-botones y el cierre.
+**Fase 1B: Telegram.** Hecho lo primero: el bot (que creaste con @BotFather) se conecta desde Ajustes, captura texto
+y notas de voz (Whisper en Workers AI), contesta con la tarjeta y «Deshacer», y sólo te atiende a ti. El token va en
+Cloudflare como Secret `TELEGRAM_BOT_TOKEN`. Falta: el resumen de la mañana, los avisos con botones («Hecho»,
+«Mañana») y el cierre, que necesitan una tarea programada en el Worker.
 
 **Fase 1C: que sea cómodo, intuitivo y atractivo.** Es lo que no te gustó de «Mi día», así que no es un detalle del
 final: con la aplicación en tu teléfono, una pasada de diseño sobre lo que uses de verdad. Para guiarla, cuéntame qué

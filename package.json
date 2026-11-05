@@ -11,7 +11,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "verificar": "npm run lint && npm test && npm run build",
-    "dev:worker": "npm run build && wrangler dev",
+    "dev:worker": "npm run build && wrangler dev --env local",
     "deploy": "npm run build && wrangler deploy"
   },
   "dependencies": {

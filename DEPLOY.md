@@ -42,6 +42,7 @@ a leer).
 | `CODIGO_ALTA` | Una frase que inventas tú (por ejemplo, cinco palabras al azar). Sólo con ella se crea la cuenta | Para crear la cuenta |
 | `META_API_KEY` | La llave nueva de Meta para este asistente | Para usar Muse Spark |
 | `ANTHROPIC_API_KEY` | La llave de Anthropic | Para usar Claude (opcional) |
+| `TELEGRAM_BOT_TOKEN` | El token que da @BotFather al crear el bot | Para Telegram |
 
 Con una sola de las dos llaves de IA ya funciona. Al guardar, Cloudflare lo aplica en el momento.
 
@@ -52,6 +53,14 @@ Con una sola de las dos llaves de IA ya funciona. Al guardar, Cloudflare lo apli
 Abre `https://agenda.juancitoads.com`. La primera vez pide **crear la cuenta** con tu nombre, tu correo, una contraseña
 (10 caracteres o más) y el código de alta. Es la única cuenta: después nadie más puede darse de alta, y la pantalla sólo
 pide entrar.
+
+## 4. Conectar Telegram
+
+Con `TELEGRAM_BOT_TOKEN` puesto: en la agenda, **Ajustes → Telegram → Conectar Telegram → Abrir Telegram**, y en el
+chat del bot pulsa **Iniciar**. El enlace sirve una vez y vale 15 minutos. Desde ahí, lo que le escribas o le dictes
+al bot se ordena igual que en la aplicación, con su tarjeta y «Deshacer». El bot no le contesta a nadie más.
+
+Las notas de voz las transcribe **Workers AI** (Whisper) en tu misma cuenta de Cloudflare: no hace falta otra llave.
 
 ## Lo que la protege
 
@@ -73,7 +82,7 @@ de workers.dev), dejando fuera las rutas de Telegram y de Claude cuando existan,
 
 La llave que crea Cloudflare para publicar **no puede cambiar la base de datos** (a propósito). Por eso una migración
 nueva (`migraciones/d1/`) se aplica a la base ANTES de subir el cambio que la usa: desde una sesión de Claude con acceso
-a Cloudflare, o con `wrangler d1 migrations apply agenda-personal-db --remote`. Las que hay hoy (0001 y 0002) ya están
+a Cloudflare, o con `wrangler d1 migrations apply agenda-personal-db --remote`. Las que hay hoy (0001 a 0003) ya están
 aplicadas. Todo `create` lleva `if not exists`, así que aplicar dos veces no rompe nada.
 
 ## Si algo falla

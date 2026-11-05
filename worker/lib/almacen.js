@@ -146,6 +146,27 @@ export function crearAlmacen(db, ownerId) {
       return f ? { ...f, resultado: f.resultado ? leerJSON(f.resultado, null) : null } : null;
     },
 
+    // ── Telegram ──
+    async telegram() {
+      const f = await db.prepare("select chat_id, nombre, vinculado from telegram where owner_id = ?").bind(ownerId).first();
+      return { vinculado: Boolean(f?.chat_id), nombre: f?.chat_id ? f.nombre : "", desde: f?.chat_id ? f.vinculado : null };
+    },
+
+    /** Guarda la HUELLA del código para atar un chat (el código no se guarda). */
+    async codigoTelegram(huellaCodigo, caduca) {
+      await db
+        .prepare(
+          "insert into telegram (owner_id, codigo, caduca) values (?, ?, ?) " +
+            "on conflict (owner_id) do update set codigo = excluded.codigo, caduca = excluded.caduca",
+        )
+        .bind(ownerId, huellaCodigo, caduca)
+        .run();
+    },
+
+    async desvincularTelegram() {
+      await db.prepare("delete from telegram where owner_id = ?").bind(ownerId).run();
+    },
+
     async registrarConsumo({ modelo, funcion, entrada, salida, costo }) {
       try {
         await db

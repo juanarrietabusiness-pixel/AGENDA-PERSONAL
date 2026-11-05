@@ -304,3 +304,5 @@ textarea.campo { min-height: 120px; resize: vertical; }
 .entrada { width: 100%; max-width: 420px; }
 .entrada h1 { font-size: var(--fs-2xl); margin: 0 0 var(--sp-2); color: var(--texto); }
 .tarjeta-resultado { white-space: pre-wrap; margin: var(--sp-3) 0 0; padding: var(--sp-4); border-radius: var(--radius); background: var(--surface-2); border: 1px solid var(--borde); font-size: var(--fs-sm); line-height: 1.55; }
+
+a.boton { text-decoration: none; }

@@ -18,13 +18,19 @@
 //   POST   /api/capturas/:id/ordenar     volver a intentarlo
 //   POST   /api/capturas/:id/deshacer
 //   DELETE /api/capturas/:id
+//   GET    /api/telegram                 ¿hay bot? ¿está conectado este chat?
+//   POST   /api/telegram/conectar        el enlace de un solo uso para atar el chat
+//   POST   /api/telegram/desconectar
+//   ── sin sesión, firmado ──
+//   POST   /api/telegram/webhook         lo que manda Telegram (con su secreto)
 // ============================================================
 
 import { json, error, noEncontrado, cuerpo } from "./lib/respuesta.js";
 import {
   usuarioDeLaPeticion, abrirSesion, cerrarSesion, cookieSesion, cookieBorrada, entrar, darDeAlta, hayUsuarios,
-  ipDe, demasiadosFallos, apuntarFallo, olvidarFallos, VENTANA_FALLOS_MIN,
+  ipDe, demasiadosFallos, apuntarFallo, olvidarFallos, VENTANA_FALLOS_MIN, igualSeguro,
 } from "./lib/sesion.js";
+import { hayTelegram, secretoWebhook, procesar, conectar, ErrorTelegram } from "./lib/telegram.js";
 import { crearAlmacen, perfilInicial, TIPOS_ELEMENTO } from "./lib/almacen.js";
 import { ordenarCaptura, deshacerCaptura } from "./lib/ordenar.js";
 import { llaves } from "./lib/modelo.js";
@@ -86,6 +92,25 @@ async function api(req, env) {
     await olvidarFallos(db, ip);
     const testigo = await abrirSesion(db, id);
     return json({ ok: true }, 200, { "Set-Cookie": cookieSesion(testigo) });
+  }
+
+  // Telegram avisa sin sesión: vale su secreto (con el mismo tope que la entrada). Siempre contesta 200 tras procesar,
+  // o Telegram repetiría el aviso sin fin.
+  if (recurso === "telegram" && a === "webhook" && req.method === "POST") {
+    if (!hayTelegram(env)) return noEncontrado("Esa ruta");
+    const ip = ipDe(req);
+    if (await demasiadosFallos(db, ip)) return bloqueada();
+    if (!igualSeguro(req.headers.get("x-telegram-bot-api-secret-token") ?? "", await secretoWebhook(env))) {
+      await apuntarFallo(db, ip);
+      return error("Petición no permitida.", 403);
+    }
+    const update = await cuerpo(req);
+    try {
+      await procesar(env, update);
+    } catch (e) {
+      console.error("telegram:", e?.message ?? e);
+    }
+    return json({ ok: true });
   }
 
   if (recurso === "salir" && req.method === "POST") {
@@ -153,6 +178,22 @@ async function api(req, env) {
         await almacen.borrarCaptura(a);
         return json({ ok: true });
       }
+    }
+  }
+
+  if (recurso === "telegram") {
+    if (!a && req.method === "GET") return json({ configurado: hayTelegram(env), ...(await almacen.telegram()) });
+    if (a === "conectar" && req.method === "POST") {
+      if (!hayTelegram(env)) return error("Falta el token del bot: ponlo en Cloudflare como Secret TELEGRAM_BOT_TOKEN.", 409);
+      try {
+        return json(await conectar(env, almacen, url.origin));
+      } catch (e) {
+        return error(e instanceof ErrorTelegram ? e.message : "No se pudo hablar con Telegram.", 502);
+      }
+    }
+    if (a === "desconectar" && req.method === "POST") {
+      await almacen.desvincularTelegram();
+      return json({ ok: true });
     }
   }
 

@@ -24,8 +24,15 @@ Cloudflare como «Secret» del Worker.
 
 **Una migración nueva se aplica a la D1 remota ANTES de subir el código que la usa**: la llave que crea Workers Builds
 no tiene permiso sobre D1, y el push publica solo. Desde una sesión con el MCP de Cloudflare (`d1_database_query`, y
-apuntarla en `d1_migrations` para que wrangler sepa que está) o con `wrangler d1 migrations apply --remote`. La 0001 y
-la 0002 ya están aplicadas.
+apuntarla en `d1_migrations` para que wrangler sepa que está) o con `wrangler d1 migrations apply --remote`. De la 0001
+a la 0003 ya están aplicadas.
+
+**Telegram** (`worker/lib/telegram.js`): el webhook llega SIN sesión a `/api/telegram/webhook`; vale si trae el
+secreto que se le dio a Telegram al conectar (HMAC del token: no hay otro secreto que guardar) y sólo se atiende el
+chat atado a la cuenta (`telegram`, con un código de un solo uso cuya huella se guarda; `duenoDeChat`/`vincularChat` en
+sesion.js). A un desconocido no se le contesta. Cada mensaje entra con un id fijo (`tg-<chat>-<mensaje>`): si Telegram
+repite el aviso, no se guarda ni se paga dos veces. La voz la transcribe Whisper (Workers AI, binding `AI`); en local
+no hay AI (`npm run dev:worker` usa `--env local`, sin ese binding, porque pide iniciar sesión en Cloudflare).
 
 **Las dos formas de la pantalla** (`useAlmacen`): si `/api/arranque` no contesta JSON, es el prototipo; si contesta,
 pide entrar (o crear la única cuenta con `CODIGO_ALTA`) y cada cambio del estado se manda al servidor como DIFERENCIA

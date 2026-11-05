@@ -3,6 +3,7 @@ import Icon from "../componentes/Icon.jsx";
 import { TEMAS, OTROS_NOMBRES } from "../lib/temas.js";
 import { MODELOS, FUNCIONES, PROVEEDORES, modeloEscogido, advertencias, costo } from "../lib/ia.js";
 import { FUERA_DE_CONTEXTO, ATRIBUCION } from "../lib/versiculos.js";
+import Telegram from "../componentes/Telegram.jsx";
 
 const FRECUENCIAS = [
   { id: "normal", texto: "Normal" },
@@ -12,7 +13,7 @@ const FRECUENCIAS = [
 
 const mensual = (m) => 900 * costo(m, { entrada: 6000, salida: 1000 });
 
-export default function Ajustes({ estado, cambiar, reiniciar, salir }) {
+export default function Ajustes({ estado, cambiar, reiniciar, salir, servidor = false }) {
   const id = useId();
   const { ajustes } = estado;
   const ia = ajustes.ia;
@@ -46,6 +47,8 @@ export default function Ajustes({ estado, cambiar, reiniciar, salir }) {
         </div>
         <p style={{ margin: "var(--sp-3) 0 0", fontSize: "var(--fs-xs)", color: "var(--texto-3)" }}>Otros nombres posibles: {OTROS_NOMBRES.join(", ")}.</p>
       </section>
+
+      {servidor && <Telegram />}
 
       <section className="tarjeta seccion" aria-labelledby={`${id}-ia`}>
         <div className="seccion-cabeza"><h2 id={`${id}-ia`}>Quién piensa: Claude o Meta</h2></div>

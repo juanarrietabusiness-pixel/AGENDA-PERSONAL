@@ -156,3 +156,27 @@ export async function apuntarFallo(db, ip) {
 export async function olvidarFallos(db, ip) {
   await db.prepare("delete from intentos_acceso where clave = ?").bind(`ip:${ip}`).run();
 }
+
+// ── Telegram: el chat dice de quién es (el webhook no trae sesión) ──
+
+export async function duenoDeChat(db, chatId) {
+  if (chatId === undefined || chatId === null) return null;
+  const fila = await db.prepare("select owner_id from telegram where chat_id = ?").bind(String(chatId)).first();
+  return fila?.owner_id ?? null;
+}
+
+/** Ata el chat a la cuenta del código, si existe y no caducó. El código sirve UNA vez. Devuelve el dueño o null. */
+export async function vincularChat(db, codigo, chatId, nombre = "") {
+  if (!/^[0-9a-f]{32}$/.test(String(codigo ?? ""))) return null;
+  const ahora = new Date().toISOString();
+  const fila = await db.prepare("select owner_id from telegram where codigo = ? and caduca > ?").bind(await huella(codigo), ahora).first();
+  if (!fila) return null;
+  await db.batch([
+    // Un chat es de una sola cuenta: si estaba atado a otra, se suelta.
+    db.prepare("update telegram set chat_id = null, vinculado = null where chat_id = ? and owner_id <> ?").bind(String(chatId), fila.owner_id),
+    db
+      .prepare("update telegram set chat_id = ?, nombre = ?, vinculado = ?, codigo = null, caduca = null where owner_id = ?")
+      .bind(String(chatId), String(nombre ?? "").slice(0, 60), ahora, fila.owner_id),
+  ]);
+  return fila.owner_id;
+}

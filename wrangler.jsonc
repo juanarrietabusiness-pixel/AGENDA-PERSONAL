@@ -30,11 +30,15 @@
     }
   ],
 
+  // Workers AI: Whisper transcribe las notas de voz de Telegram.
+  "ai": { "binding": "AI" },
+
   // Los secretos NO van aquí. Se ponen en Cloudflare (el Worker → Settings → Variables and Secrets, tipo «Secret»)
   // o, si están en GitHub, los pone el workflow «Desplegar»:
   //   CODIGO_ALTA         el código para crear la primera (y única) cuenta
   //   ANTHROPIC_API_KEY   Claude (opcional si hay la de Meta)
   //   META_API_KEY        Muse Spark (opcional si hay la de Anthropic)
+  //   TELEGRAM_BOT_TOKEN  el token que da @BotFather
 
   // La dirección: un subdominio de juancitoads.com, como `calendario.` (la zona ya está en Cloudflare). El dominio
   // propio lo crea el despliegue, con su certificado; el token necesita Zone → Workers Routes → Edit sobre esa zona.
@@ -43,5 +47,20 @@
   // `workers_dev: true` va ESCRITO: con `routes` puesto, wrangler lo da por `false` y apagaría la dirección de
   // respaldo en el siguiente despliegue (pasó en el calendario de marketing).
   "workers_dev": true,
-  "observability": { "enabled": true }
+  "observability": { "enabled": true },
+
+  // `npm run dev:worker` usa este entorno: lo mismo SIN Workers AI (en local pide haber iniciado sesión en Cloudflare
+  // y sin ella no arranca nada) y sin el dominio. Sin AI, una nota de voz contesta que falta y lo demás funciona.
+  "env": {
+    "local": {
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "agenda-personal-db",
+          "database_id": "561ebced-08ec-4cd8-9f83-cc2182510f2e",
+          "migrations_dir": "migraciones/d1"
+        }
+      ]
+    }
+  }
 }

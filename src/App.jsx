@@ -164,7 +164,7 @@ export default function App() {
           {pantalla === "semana" && <Semana {...props} />}
           {pantalla === "sombreros" && <Sombreros {...props} />}
           {pantalla === "asistente" && <Asistente {...props} onAclarar={setAclarando} onReintentar={modo === "servidor" ? reintentar : null} />}
-          {pantalla === "ajustes" && <Ajustes estado={estado} cambiar={cambiar} reiniciar={modo === "prototipo" ? reiniciar : null} salir={modo === "servidor" ? almacen.salir : null} />}
+          {pantalla === "ajustes" && <Ajustes estado={estado} cambiar={cambiar} reiniciar={modo === "prototipo" ? reiniciar : null} salir={modo === "servidor" ? almacen.salir : null} servidor={modo === "servidor"} />}
           {pantalla !== "ajustes" && (
             <p style={{ marginTop: "var(--sp-6)", textAlign: "center" }}>
               <a href="#ajustes" style={{ color: "var(--texto-3)", fontSize: "var(--fs-sm)" }}>Ajustes: nombre, color, IA y versículos</a>

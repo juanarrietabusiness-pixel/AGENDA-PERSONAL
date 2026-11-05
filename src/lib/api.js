@@ -37,6 +37,9 @@ export const capturar = (texto, canal = "app") => pedir("capturas", { metodo: "P
 export const reordenar = (id) => pedir(`capturas/${id}/ordenar`, { metodo: "POST", datos: {} });
 export const deshacer = (id) => pedir(`capturas/${id}/deshacer`, { metodo: "POST", datos: {} });
 export const borrarCaptura = (id) => pedir(`capturas/${id}`, { metodo: "DELETE" });
+export const telegram = () => pedir("telegram");
+export const conectarTelegram = () => pedir("telegram/conectar", { metodo: "POST", datos: {} });
+export const desconectarTelegram = () => pedir("telegram/desconectar", { metodo: "POST", datos: {} });
 
 /** Lo que cambió entre dos estados, como peticiones al servidor. Puro (lo prueba tests/api.test.js). */
 export function cambiosEntre(antes, despues) {
