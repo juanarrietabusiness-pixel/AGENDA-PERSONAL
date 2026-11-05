@@ -14,11 +14,18 @@ npm run dev:worker  # la aplicación con el Worker y D1 en local (wrangler); pid
 npm run verificar   # lint (sin errores NI avisos) + pruebas + build: lo que corre CI
 ```
 
-Desplegar es un workflow de GitHub Actions («Desplegar», a mano): verifica, migra D1 y publica. Los pasos, sólo de
-navegador, en `DEPLOY.md`. Vive en la MISMA cuenta de Cloudflare que el calendario de marketing, como Worker aparte
+**Desplegar: Cloudflare se conecta al repositorio** (Workers Builds): cada push a la rama de producción corre
+`npm run verificar` como build y, si pasa, `npx wrangler deploy`. Sin tokens que crear (Juan no los ha manejado
+nunca: la llave la crea Cloudflare). Los pasos, sólo de navegador, en `DEPLOY.md`. El workflow «Desplegar» de GitHub
+queda de alternativa, a mano. Vive en la MISMA cuenta de Cloudflare que el calendario de marketing, como Worker aparte
 (`agenda-personal`), en **`agenda.juancitoads.com`** (dominio propio en `routes`; `workers_dev: true` va escrito o
 wrangler apagaría el respaldo). La base es `agenda-personal-db` (su id, en `wrangler.jsonc`). Las llaves van en
-Cloudflare como «Secret» del Worker; en GitHub sólo el token y el id de la cuenta.
+Cloudflare como «Secret» del Worker.
+
+**Una migración nueva se aplica a la D1 remota ANTES de subir el código que la usa**: la llave que crea Workers Builds
+no tiene permiso sobre D1, y el push publica solo. Desde una sesión con el MCP de Cloudflare (`d1_database_query`, y
+apuntarla en `d1_migrations` para que wrangler sepa que está) o con `wrangler d1 migrations apply --remote`. La 0001 y
+la 0002 ya están aplicadas.
 
 **Las dos formas de la pantalla** (`useAlmacen`): si `/api/arranque` no contesta JSON, es el prototipo; si contesta,
 pide entrar (o crear la única cuenta con `CODIGO_ALTA`) y cada cambio del estado se manda al servidor como DIFERENCIA

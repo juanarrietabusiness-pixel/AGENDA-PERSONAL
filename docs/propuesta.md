@@ -450,15 +450,15 @@ fase 1C (sección 12).
 - **Dónde vive:** en tu cuenta de Cloudflare, la misma del calendario, pero como Worker aparte, en
   **`agenda.juancitoads.com`**. Separados para que tu equipo nunca vea lo personal y un despliegue no pueda romper el
   otro; en la misma cuenta para poder conectarlos después (fase 2). Las llaves, en Cloudflare, como en el calendario.
-- **Desplegar desde GitHub** (`.github/workflows/desplegar.yml`): verifica, migra y publica. Los pasos, sólo de
-  navegador, están en `DEPLOY.md`.
+- **Desplegar**: Cloudflare se conecta al repositorio y publica cada cambio, sólo si antes pasan las pruebas. No hay
+  tokens que crear. Los pasos, sólo de navegador, están en `DEPLOY.md`. La base ya tiene sus tablas.
 - **La puerta:** una sola cuenta, contraseña lenta de adivinar, cinco intentos fallidos cierran la entrada 15 minutos y
   los buscadores no la indexan. Cloudflare Access, opcional, como segunda puerta.
 - 89 pruebas: también una base D1 de verdad en memoria, que la capa de datos acota por dueño y que ninguna consulta
   vive fuera de ella.
 
-**Lo que necesito de ti para ponerla en línea** (`DEPLOY.md`): el token y el id de Cloudflare en GitHub, pulsar «Run
-workflow», y después el código de alta y tu llave nueva de Meta en Cloudflare.
+**Lo que necesito de ti para ponerla en línea** (`DEPLOY.md`): conectar el repositorio en Cloudflare (una vez) y
+poner en el Worker el código de alta y tu llave nueva de Meta.
 
 **Fase 1B: Telegram.** El bot lo tienes que crear tú: sólo se crea desde tu cuenta de Telegram, hablando con
 @BotFather (`/newbot`, un nombre y un usuario que termine en «bot»). Te da un token: va como secreto en GitHub

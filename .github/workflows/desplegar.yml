@@ -1,24 +1,20 @@
 # ============================================================
-# Desplegar: migraciones de D1, el Worker y sus secretos
+# Desplegar desde GitHub: el camino ALTERNATIVO
 #
-# Se lanza a mano desde la pestaña Actions («Desplegar» → «Run workflow»).
-# Corre `npm run verificar` entero ANTES de publicar nada: si algo falla,
-# no se toca lo que está en línea.
-#
-# Secretos del repositorio (Settings → Secrets and variables → Actions):
-#   CLOUDFLARE_API_TOKEN   obligatorio (Workers Scripts: Edit, D1: Edit y
+# El camino principal es que Cloudflare se conecte al repositorio (Workers
+# Builds, ver DEPLOY.md): no hace falta crear ningún token. Este workflow
+# queda para cuando se quiera desplegar desde GitHub; sólo se lanza a mano
+# (Actions → «Desplegar» → «Run workflow») y necesita en el repositorio:
+#   CLOUDFLARE_API_TOKEN   (Workers Scripts: Edit, D1: Edit y
 #                          Zone → Workers Routes: Edit sobre juancitoads.com)
-#   CLOUDFLARE_ACCOUNT_ID  obligatorio
-# Las llaves de la aplicación (CODIGO_ALTA, ANTHROPIC_API_KEY, META_API_KEY)
-# van en Cloudflare, en el Worker, como «Secret». Si alguna está ADEMÁS en
-# GitHub, este workflow la pone; una que no esté no borra la del Worker.
+#   CLOUDFLARE_ACCOUNT_ID
+# Corre `npm run verificar` entero ANTES de publicar nada. Las llaves de la
+# aplicación van en Cloudflare; si alguna está ADEMÁS en GitHub, la pone.
 # ============================================================
 name: Desplegar
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
 
 concurrency:
   group: desplegar
