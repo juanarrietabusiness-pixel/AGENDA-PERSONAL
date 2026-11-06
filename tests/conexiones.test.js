@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import worker from "../worker/index.js";
 import { d1EnMemoria } from "./utils/d1Memoria.js";
 import { leerTareas, leerClientes, cambiosDesdeJuancito } from "../worker/lib/juancito.js";
-import { deEventoGoogle, aEventoGoogle, aTareaGoogle, cambiosDesdeGoogle, cifrar, descifrar } from "../worker/lib/google.js";
+import { deEventoGoogle, aEventoGoogle, aTareaGoogle, cambiosDesdeGoogle, cifrar, descifrar, deCalendarioGoogle, calendariosALeer, calendarioParaGuardar } from "../worker/lib/google.js";
 import { queToca } from "../worker/lib/seguimiento.js";
 import { nuevaAccion } from "../src/lib/metodo.js";
 import { AJUSTES_BASE } from "../src/lib/ajustes.js";
@@ -301,6 +301,87 @@ describe("Google: de allá a aquí y de aquí a allá", () => {
     expect(creados[0]).toMatchObject({ summary: "Ensayo", start: { dateTime: "2099-01-06T18:00:00" } });
     const despues = await pedir("/api/estado?desde=2099-01-01&hasta=2099-01-31");
     expect(despues.datos.eventos.find((x) => x.id === "e1").google).toMatchObject({ id: "nuevo-ev", cuenta: "juan@gmail.com" });
+  });
+});
+
+describe("Google con UNA cuenta: todos sus calendarios", () => {
+  const LISTA = [
+    { id: "juan@agencia.com", summary: "juan@agencia.com", primary: true, accessRole: "owner", backgroundColor: "#4d9bff" },
+    { id: "juan@gmail.com", summary: "juan@gmail.com", summaryOverride: "Personal", accessRole: "writer", backgroundColor: "#43c07a" },
+    { id: "es.pa#holiday@group.v.calendar.google.com", summary: "Festivos en Panamá", accessRole: "reader" },
+    { id: "oculto@group.calendar.google.com", summary: "Viejo", accessRole: "owner", selected: false },
+  ];
+
+  it("lee los que se ven en Google Calendar; guarda en el escogido sólo si se puede escribir en él", () => {
+    const lista = LISTA.map(deCalendarioGoogle);
+    expect(lista[1]).toEqual({ id: "juan@gmail.com", nombre: "Personal", principal: false, escribir: true, visible: true, color: "#43c07a" });
+    expect(calendariosALeer(lista, {})).toEqual(["juan@agencia.com", "juan@gmail.com", "es.pa#holiday@group.v.calendar.google.com"]);
+    expect(calendariosALeer(lista, { leer: ["juan@gmail.com", "no-existe"] })).toEqual(["juan@gmail.com"]);
+    expect(calendariosALeer([], {})).toEqual(["primary"]);
+    const datos = { lista, ajustes: { guardarEn: { personal: "juan@gmail.com", iglesia: "es.pa#holiday@group.v.calendar.google.com" } } };
+    expect(calendarioParaGuardar(datos, "personal")).toBe("juan@gmail.com");
+    expect(calendarioParaGuardar(datos, "iglesia")).toBe("primary"); // sólo lectura: al principal
+    expect(calendarioParaGuardar(datos, "trabajo")).toBe("primary");
+  });
+
+  it("de punta a punta: lee el calendario compartido, los feriados van a especiales y cada sombrero se guarda en el suyo", async () => {
+    env.GOOGLE_CLIENT_ID = "id-google";
+    env.GOOGLE_CLIENT_SECRET = "secreto-google";
+    const creados = [];
+    const leidos = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url, init = {}) => {
+        const u = String(url);
+        if (u === "https://oauth2.googleapis.com/token") return Response.json({ access_token: "ya29", refresh_token: "1//r", expires_in: 3600 });
+        if (u.startsWith("https://openidconnect.googleapis.com/")) return Response.json({ email: "juan@agencia.com" });
+        if (u.includes("/users/me/calendarList")) return Response.json({ items: LISTA });
+        const ev = /\/calendars\/([^/]+)\/events(\?|$)/.exec(u);
+        if (ev && (init.method ?? "GET") === "GET") {
+          const cal = decodeURIComponent(ev[1]);
+          leidos.push(cal);
+          const items = {
+            "juan@agencia.com": [{ id: "w1", summary: "Reunión con Dcasa", start: { dateTime: "2099-01-05T14:00:00Z" }, end: { dateTime: "2099-01-05T15:00:00Z" } }],
+            "juan@gmail.com": [{ id: "p1", summary: "Cena con María", start: { dateTime: "2099-01-05T23:00:00Z" }, end: { dateTime: "2099-01-06T01:00:00Z" } }],
+            "es.pa#holiday@group.v.calendar.google.com": [{ id: "h1", summary: "Día de los Mártires", start: { date: "2099-01-09" }, end: { date: "2099-01-10" } }],
+          }[cal] ?? [];
+          return Response.json({ items });
+        }
+        if (ev && init.method === "POST") {
+          creados.push({ cal: decodeURIComponent(ev[1]), cuerpo: JSON.parse(init.body) });
+          return Response.json({ id: `nuevo-${creados.length}` });
+        }
+        if (u.includes("tasks.googleapis.com")) return Response.json({ items: [] });
+        return new Response("{}", { status: 404 });
+      }),
+    );
+    await darDeAlta();
+    const permiso = new URL((await pedir("/api/google/conectar", { metodo: "POST", datos: {} })).datos.url);
+    await pedir(`/api/google/vuelta?code=c&state=${permiso.searchParams.get("state")}`);
+
+    // Lee los tres que se ven (no el oculto), con su nombre.
+    expect([...new Set(leidos)].sort()).toEqual(["es.pa#holiday@group.v.calendar.google.com", "juan@agencia.com", "juan@gmail.com"]);
+    let e = (await pedir("/api/estado?desde=2099-01-01&hasta=2099-01-31")).datos;
+    expect(e.conexiones[0].calendarios.map((k) => k.nombre)).toEqual(["juan@agencia.com", "Personal", "Festivos en Panamá", "Viejo"]);
+    expect(e.externos.find((x) => x.id === "p1")).toMatchObject({ titulo: "Cena con María", inicio: "18:00", calendarioNombre: "Personal", color: "#43c07a" });
+    expect(e.externos.find((x) => x.id === "h1")).toMatchObject({ todoElDia: true, dia: "2099-01-09" });
+
+    // Lo de Personal se guarda en el calendario compartido; un calendario de sólo lectura no se acepta.
+    expect((await pedir("/api/google/juan%40agencia.com", { metodo: "PUT", datos: { guardarEn: { personal: "juan@gmail.com", iglesia: "es.pa#holiday@group.v.calendar.google.com" } } })).estado).toBe(200);
+    e = (await pedir("/api/estado")).datos;
+    expect(e.conexiones[0].ajustes.guardarEn).toEqual({ personal: "juan@gmail.com" });
+    await pedir("/api/elementos/evento/e1", { metodo: "PUT", datos: { id: "e1", titulo: "Aniversario: cena", fecha: "2099-01-07", inicio: "19:00", fin: "21:00", sombrero: "personal", clase: "reunion" } });
+    await pedir("/api/elementos/evento/e2", { metodo: "PUT", datos: { id: "e2", titulo: "Reunión de equipo", fecha: "2099-01-07", inicio: "09:00", fin: "10:00", sombrero: "trabajo", clase: "reunion" } });
+    expect(creados.map((x) => [x.cal, x.cuerpo.summary])).toEqual([["juan@gmail.com", "Aniversario: cena"], ["juan@agencia.com", "Reunión de equipo"].map((v, i) => (i === 0 ? "primary" : v))]);
+    e = (await pedir("/api/estado?desde=2099-01-01&hasta=2099-01-31")).datos;
+    expect(e.eventos.find((x) => x.id === "e1").google).toMatchObject({ calendario: "juan@gmail.com", id: "nuevo-1" });
+
+    // Quitar uno de los que se ven: ya no se lee.
+    leidos.length = 0;
+    await pedir("/api/google/juan%40agencia.com", { metodo: "PUT", datos: { leer: ["juan@agencia.com", "juan@gmail.com"] } });
+    expect([...new Set(leidos)].sort()).toEqual(["juan@agencia.com", "juan@gmail.com"]);
+    e = (await pedir("/api/estado?desde=2099-01-01&hasta=2099-01-31")).datos;
+    expect(e.externos.find((x) => x.id === "h1")).toBeUndefined();
   });
 });
 

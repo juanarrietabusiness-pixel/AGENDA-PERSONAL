@@ -42,9 +42,12 @@ marketing para esto) y queda en `accion.juancito.id`. `cambiosDesdeJuancito` es 
 nuevo de Juan o sin asignar entra en el sombrero con `fuente: "juancito-ads"`.
 
 **Google** (`worker/lib/google.js`): una conexión por cuenta (`google:<correo>`), los permisos CIFRADOS (AES-GCM, llave
-por HKDF del `GOOGLE_CLIENT_SECRET`). Los eventos se leen a `externos` (copia que repone la vuelta) y salen en Hoy; lo
-que se agenda en un sombrero que esa cuenta lleva se crea allá. `reunionesDelPeriodo` no repite lo que se creó desde aquí
-(también las instancias «<id>_…» de un evento que se repite).
+por HKDF del `GOOGLE_CLIENT_SECRET`). Juan usa UNA cuenta (la del trabajo), así que se leen TODOS sus calendarios
+(`calendarList`, recordada 6 h en `datos.lista`; los que se ven en Google Calendar, o los de `ajustes.leer`), también los
+que otra cuenta le comparte, y lo de cada sombrero se guarda en el calendario de `ajustes.guardarEn` si se puede escribir
+en él (`calendarioParaGuardar`; si no, el principal). Los eventos se leen a `externos`, que cada lectura repone ENTERA;
+los de todo el día van a «Eventos especiales» (`especialesDelMes(…, externos)`) y los que tienen hora a «Reuniones».
+`reunionesDelPeriodo` no repite lo que se creó desde aquí (también las instancias «<id>_…» de un evento que se repite).
 
 **Reflejar** (`worker/lib/reflejar.js`): UN sitio para que un cambio (pantalla, asistente, Telegram, Claude) vaya a
 Juancito Ads y a Google. Lo que falla fuera NO deshace lo de aquí: la agenda es la verdad y la vuelta reintenta.

@@ -62,7 +62,7 @@ export default function Hoy({ estado, hoy, hora, onHecha, onAbrir, onDecidir, on
       recordatoriosHechos: rc.hechas.filter(deFiltro),
       libres: ordenarPor(sinFecha(acciones).filter(deFiltro), orden, ctx),
       reuniones: reunionesDelPeriodo(eventos, externos, r).filter((e) => !filtro || e.sombrero === filtro || e.fuente === "google"),
-      especiales: especialesDelMes(acciones, eventos, dia).filter(deFiltro),
+      especiales: especialesDelMes(acciones, eventos, dia, externos).filter((e) => !filtro || e.sombrero === filtro || e.fuente === "google"),
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [acciones, eventos, externos, periodo, dia, orden, filtro, hoy, proyectos, ajustes]);
@@ -138,7 +138,7 @@ export default function Hoy({ estado, hoy, hora, onHecha, onAbrir, onDecidir, on
       ? porDia(datos.reuniones, (xs) => (
           <ul className="lista">
             {xs.map((e) => (
-              <li key={e.clave ?? `${e.fuente ?? "aqui"}:${e.id}:${e.dia}`} className="evento" style={estiloDe(e.sombrero, sombreros)}>
+              <li key={e.clave ?? `${e.fuente ?? "aqui"}:${e.id}:${e.dia}`} className="evento" style={e.fuente === "google" && e.color ? { "--s": e.color } : estiloDe(e.sombrero, sombreros)}>
                 <span className="evento-hora">{e.inicio ? textoHora(e.inicio) : "Todo el día"}</span>
                 <div>
                   {e.fuente === "google" ? (
@@ -147,7 +147,7 @@ export default function Hoy({ estado, hoy, hora, onHecha, onAbrir, onDecidir, on
                     <button type="button" className="evento-titulo enlace" onClick={() => onAbrir("evento", eventos.find((x) => x.id === e.id) ?? e)}>{e.titulo}</button>
                   )}
                   <div className="accion-meta">
-                    {e.fuente === "google" ? <span className="chip">Google · {e.cuenta}</span> : <span>{nombreDe(e.sombrero, sombreros)}</span>}
+                    {e.fuente === "google" ? <span className="chip">{e.calendarioNombre ?? `Google · ${e.cuenta}`}</span> : <span>{nombreDe(e.sombrero, sombreros)}</span>}
                     {e.fin && e.inicio && <span>hasta {textoHora(e.fin)}</span>}
                     {e.lugar && <span>{e.lugar}</span>}
                     {e.notas && <span title={e.notas}><Icon name="file" size={11} style={{ display: "inline", verticalAlign: "-1px" }} /> Notas</span>}
@@ -167,11 +167,18 @@ export default function Hoy({ estado, hoy, hora, onHecha, onAbrir, onDecidir, on
     especiales: datos.especiales.length ? (
       <ul className="lista">
         {datos.especiales.map((e) => (
-          <li key={`${e.tipo}:${e.id}:${e.dia}`} className="evento" style={estiloDe(e.sombrero, sombreros)}>
+          <li key={`${e.tipo}:${e.id}:${e.dia}`} className="evento" style={e.tipo === "google" && e.color ? { "--s": e.color } : estiloDe(e.sombrero, sombreros)}>
             <span className="evento-hora">{textoCorto(e.dia, hoy)}</span>
             <div>
-              <button type="button" className="evento-titulo enlace" onClick={() => onAbrir(e.tipo, (e.tipo === "accion" ? acciones : eventos).find((x) => x.id === e.id) ?? e)}>{e.titulo}</button>
-              <div className="accion-meta"><span>{nombreDe(e.sombrero, sombreros)}</span>{e.dia === hoy && <span className="chip acento">Hoy</span>}</div>
+              {e.tipo === "google" ? (
+                e.enlace ? <a className="evento-titulo enlace" href={e.enlace} target="_blank" rel="noopener noreferrer">{e.titulo}</a> : <span className="evento-titulo">{e.titulo}</span>
+              ) : (
+                <button type="button" className="evento-titulo enlace" onClick={() => onAbrir(e.tipo, (e.tipo === "accion" ? acciones : eventos).find((x) => x.id === e.id) ?? e)}>{e.titulo}</button>
+              )}
+              <div className="accion-meta">
+                <span>{e.tipo === "google" ? e.calendarioNombre ?? "Google Calendar" : nombreDe(e.sombrero, sombreros)}</span>
+                {e.dia === hoy && <span className="chip acento">Hoy</span>}
+              </div>
             </div>
           </li>
         ))}

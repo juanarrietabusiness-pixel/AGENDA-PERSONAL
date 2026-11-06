@@ -121,14 +121,15 @@ export function crearHerramientas({ env, ownerId, despues }) {
       const ctx = { hoy, proyectos: estado.proyectos, sombreros };
       const tareas = accionesDelPeriodo(estado.acciones, { ...r, hoy, clase: "tarea" });
       const recs = accionesDelPeriodo(estado.acciones, { ...r, hoy, clase: "recordatorio" });
-      const externos = await almacen.externosEntre(r.desde, r.hasta);
+      const mes = rango("mes", dia);
+      const externos = await almacen.externosEntre(r.desde < mes.desde ? r.desde : mes.desde, r.hasta > mes.hasta ? r.hasta : mes.hasta);
       const reuniones = reunionesDelPeriodo(estado.eventos, externos, r);
-      const especiales = especialesDelMes(estado.acciones, estado.eventos, dia);
+      const especiales = especialesDelMes(estado.acciones, estado.eventos, dia, externos);
       const partes = [
         `Agenda de ${periodo === "manana" ? "mañana" : periodo === "hoy" ? "hoy" : `la ${periodo}`} (${r.desde}${r.hasta !== r.desde ? ` a ${r.hasta}` : ""}).`,
         `TAREAS (por prioridad):\n${ordenarPor(tareas.abiertas, "prioridad", ctx).map((a) => linea(a, sombreros, hoy)).join("\n") || "(ninguna)"}`,
         `RECORDATORIOS:\n${recs.abiertas.map((a) => linea(a, sombreros, hoy)).join("\n") || "(ninguno)"}`,
-        `REUNIONES Y CITAS:\n${reuniones.map((e) => `· ${textoCorto(e.dia, hoy)} ${e.inicio ? textoHora(e.inicio) : "todo el día"} · ${e.titulo}${e.fuente === "google" ? " (Google)" : ` (id ${e.id})`}`).join("\n") || "(ninguna)"}`,
+        `REUNIONES Y CITAS:\n${reuniones.map((e) => `· ${textoCorto(e.dia, hoy)} ${e.inicio ? textoHora(e.inicio) : "todo el día"} · ${e.titulo}${e.fuente === "google" ? ` (${e.calendarioNombre ?? "Google"})` : ` (id ${e.id})`}`).join("\n") || "(ninguna)"}`,
         `EVENTOS ESPECIALES DEL MES:\n${especiales.map((e) => `· ${textoCorto(e.dia, hoy)} · ${e.titulo}`).join("\n") || "(ninguno)"}`,
       ];
       const libres = sinFecha(estado.acciones);

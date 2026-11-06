@@ -98,7 +98,7 @@ export function crearAlmacen(db, ownerId) {
       salida.bandeja = (bandeja.results ?? []).map((c) => ({ ...c }));
       if (extra) {
         const [cerebro, conversacion, conexiones, externos] = extra;
-        Object.assign(salida, { cerebro, conversacion, conexiones: conexiones.map(({ servicio, sincronizado, error, datos }) => ({ servicio, sincronizado, error, conectada: Boolean(datos?.conectada || datos?.renovacion), cuenta: datos?.cuenta ?? null, ajustes: datos?.ajustes ?? {} })), externos });
+        Object.assign(salida, { cerebro, conversacion, conexiones: conexiones.map(({ servicio, sincronizado, error, datos }) => ({ servicio, sincronizado, error, conectada: Boolean(datos?.conectada || datos?.renovacion), cuenta: datos?.cuenta ?? null, ajustes: datos?.ajustes ?? {}, calendarios: datos?.lista ?? [] })), externos });
       }
       return salida;
     },

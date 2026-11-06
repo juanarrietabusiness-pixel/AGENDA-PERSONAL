@@ -146,10 +146,10 @@ export function eventosDelPeriodo(eventos, { desde, hasta }) {
 }
 
 /**
- * Los eventos especiales del mes: cumpleaños y aniversarios (acciones que se repiten cada año), y los eventos
- * marcados «especial». Siempre del MES, aunque se mire un día: es lo que Juan quiere tener presente.
+ * Los eventos especiales del mes: cumpleaños y aniversarios (acciones que se repiten cada año), los eventos
+ * marcados «especial» y lo de todo el día de Google Calendar. Siempre del MES, aunque se mire un día: es lo que Juan quiere tener presente.
  */
-export function especialesDelMes(acciones, eventos, dia) {
+export function especialesDelMes(acciones, eventos, dia, externos = []) {
   const { desde, hasta } = rango("mes", dia);
   const out = [];
   for (const a of acciones) {
@@ -163,14 +163,20 @@ export function especialesDelMes(acciones, eventos, dia) {
     }
   }
   for (const e of eventosDelPeriodo(eventos.filter((x) => x.clase === "especial"), { desde, hasta })) out.push({ ...e, tipo: "evento" });
+  // Lo de todo el día de Google Calendar (feriados, cumpleaños, un viaje) también es «especial», no una reunión.
+  for (const x of externos ?? []) {
+    if (x.tipo !== "evento" || !x.todoElDia || !enRango(x.dia, { desde, hasta })) continue;
+    if (eventos.some((p) => p.google?.id && (p.google.id === x.id || String(x.id).startsWith(`${p.google.id}_`)))) continue;
+    out.push({ ...x, tipo: "google", fuente: "google" });
+  }
   return out.sort((a, b) => a.dia.localeCompare(b.dia));
 }
 
-/** Las reuniones y citas del periodo: los eventos que no son especiales, y los de Google Calendar. */
+/** Las reuniones y citas del periodo: los eventos que no son especiales, y los de Google Calendar con hora. */
 export function reunionesDelPeriodo(eventos, externos, r) {
   const propios = eventosDelPeriodo(eventos.filter((e) => e.clase !== "especial"), r);
   const deGoogle = (externos ?? [])
-    .filter((x) => x.tipo === "evento" && enRango(x.dia, r) && !propios.some((p) => p.google?.id && (p.google.id === x.id || String(x.id).startsWith(`${p.google.id}_`))))
+    .filter((x) => x.tipo === "evento" && !x.todoElDia && enRango(x.dia, r) && !propios.some((p) => p.google?.id && (p.google.id === x.id || String(x.id).startsWith(`${p.google.id}_`))))
     .map((x) => ({ ...x, clase: "reunion", fuente: "google" }));
   return [...propios, ...deGoogle].sort((a, b) => (a.dia + (a.inicio ?? "00:00")).localeCompare(b.dia + (b.inicio ?? "00:00")));
 }

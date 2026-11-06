@@ -71,6 +71,15 @@ describe("la agenda: periodos y orden", () => {
     expect(r[0].fuente).toBe("google");
   });
 
+  it("lo de todo el día de Google (feriados, cumpleaños) va a especiales del mes, no a reuniones", () => {
+    const externos = [
+      { id: "h1", tipo: "evento", dia: "2026-11-28", todoElDia: true, titulo: "Independencia de España", calendarioNombre: "Festivos" },
+      { id: "g1", tipo: "evento", dia: HOY, inicio: "10:00", titulo: "Llamada" },
+    ];
+    expect(reunionesDelPeriodo([], externos, rango("mes", HOY)).map((x) => x.id)).toEqual(["g1"]);
+    expect(especialesDelMes([], [], HOY, externos).map((x) => [x.id, x.tipo])).toEqual([["h1", "google"]]);
+  });
+
   it("un evento que se repite sale en cada día del periodo; una regla rota no tumba nada", () => {
     const e = { id: "e", titulo: "Servicio", repite: { regla: "FREQ=WEEKLY;BYDAY=TU,WE", inicio: "2026-10-01" }, inicio: "19:00" };
     const roto = { id: "r", titulo: "Roto", repite: { regla: "esto no es una regla", inicio: "2026-10-01" } };

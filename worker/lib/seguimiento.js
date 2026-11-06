@@ -30,6 +30,7 @@ import { planDeAvisos, avisosDelDia, horaDelCierre, preguntasDeHoy, preguntada }
 import { resumenDeLaManana, cierreDelDia, textoDeAviso, preguntaCompletaste, bloqueVersiculo } from "../../src/lib/mensajes.js";
 import { elegirVersiculo } from "../../src/lib/versiculos.js";
 import { seguimientoDe } from "../../src/lib/ajustes.js";
+import { reunionesDelPeriodo } from "../../src/lib/agenda.js";
 import { RITMO_BASE } from "../../src/lib/ritmo.js";
 
 export const APP = "https://agenda.juancitoads.com";
@@ -74,7 +75,8 @@ export function queToca({ estado, ahora, hoy }) {
       const acc = acciones.find((x) => x.id === a.accionId);
       return acc ? `• ${textoDeAviso(a, acc, hoy)}` : null;
     }).filter(Boolean);
-    const reuniones = eventosDelDia(estado.eventos ?? [], hoy).filter((e) => e.clase !== "especial");
+    // Las propias y las de Google Calendar (también las de los calendarios compartidos).
+    const reuniones = reunionesDelPeriodo(estado.eventos ?? [], estado.externos ?? [], { desde: hoy, hasta: hoy });
     const texto = [
       resumenDeLaManana({ nombre, plan, versiculo }),
       ...(reuniones.length ? [["Reuniones y citas de hoy:", ...reuniones.map((e) => `• ${textoHora(e.inicio)} ${e.titulo}`)].join("\n")] : []),
@@ -151,7 +153,7 @@ export async function vuelta(env, momento = new Date()) {
     if (!hayTelegram(env)) continue;
     const chat = await chatDe(db, owner);
     if (!chat) continue;
-    estado = await almacen.estado();
+    estado = { ...(await almacen.estado()), externos: await almacen.externosEntre(hoy, hoy).catch(() => []) };
     for (const m of queToca({ estado, ahora, hoy })) {
       if (!(await almacen.reclamarAviso(m.clave))) continue;
       try {

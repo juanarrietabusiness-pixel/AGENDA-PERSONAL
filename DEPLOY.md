@@ -104,10 +104,16 @@ marketing, para no tocar lo suyo):
 Conecta siempre desde `agenda.juancitoads.com` (desde la dirección de workers.dev Google diría que la vuelta no es la
 registrada).
 
-Después, en la agenda: **Ajustes → Google → Conectar Google** con la cuenta personal, y otra vez **Conectar otra
-cuenta** con la de la agencia. Google te avisará de que la app «no está verificada» (es tuya y sólo la usas tú):
-**Configuración avanzada → Ir a Agenda personal**. En cada cuenta escoges qué sombreros llevan sus eventos y sus tareas.
-Los permisos se guardan cifrados con el secreto del cliente.
+Después, en la agenda: **Ajustes → Google → Conectar Google** con **la cuenta que usas a diario** (con una basta). Google
+avisará de que la app «no está verificada» (es tuya y sólo la usas tú): **Configuración avanzada → Ir a Agenda
+personal**, y marca las dos casillas (Calendar y Tasks). Si es una cuenta de empresa y dice «bloqueada por tu
+administrador», hay que autorizar la app en la consola de administración de Google Workspace.
+
+La agenda lee **todos los calendarios que ves en esa cuenta**, también los que otra cuenta te comparte (si en la del
+trabajo ves tu calendario personal, la agenda también). En **Ajustes → Google** escoges cuáles se ven en Hoy, en qué
+calendario se guarda lo que agendas de cada sombrero (sólo los que te dejan escribir) y qué tareas van a Google Tasks.
+Lo de todo el día (feriados, cumpleaños) sale en «Eventos especiales»; lo que tiene hora, en «Reuniones». Los permisos
+se guardan cifrados con el secreto del cliente.
 
 ## 7. Conectar Claude
 

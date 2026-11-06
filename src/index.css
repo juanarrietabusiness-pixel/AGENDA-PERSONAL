@@ -385,6 +385,11 @@ button.dia-item { width: 100%; background: none; border: 0; text-align: left; fo
 .cuenta-google { border-top: 1px solid var(--borde); padding-top: var(--sp-3); margin-top: var(--sp-3); }
 .cuenta-google-cabeza { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2) var(--sp-3); }
 .cuenta-google-cabeza .boton { margin-left: auto; }
+.destinos { display: grid; gap: var(--sp-2); }
+.destino { display: grid; grid-template-columns: minmax(0, 9rem) minmax(0, 1fr); gap: var(--sp-3); align-items: center; font-size: var(--fs-sm); }
+.destino .punto { background: var(--s); }
+.destino .campo { min-height: var(--tap-sm); padding: 0 var(--sp-3); }
+@media (max-width: 419px) { .destino { grid-template-columns: 1fr; gap: 4px; } }
 .horas-semana { display: grid; grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); gap: 4px; }
 .horas-semana label { display: grid; gap: 2px; font-size: var(--fs-3xs); color: var(--texto-3); text-transform: capitalize; text-align: center; }
 .hora-corta { min-height: var(--tap-sm); padding: 0 4px; font-size: var(--fs-xs); text-align: center; min-width: 0; width: 100%; }

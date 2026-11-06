@@ -6,7 +6,12 @@
 // con su permiso, y la agenda las junta:
 //
 //   · Los EVENTOS de sus calendarios se leen (una copia en `externos`, que el
-//     cron repone) y salen en «Hoy» como reuniones.
+//     cron repone) y salen en «Hoy»: con hora, como reuniones; de todo el día
+//     (feriados, cumpleaños, un viaje), como eventos especiales. Se leen TODOS
+//     los calendarios que la cuenta enseña en Google Calendar —también los que
+//     otra cuenta le comparte—, o los que Juan escoja: con UNA cuenta basta.
+//   · Lo que se agenda en un sombrero se guarda en el calendario que Juan
+//     escoja para ese sombrero (`ajustes.guardarEn`; si no, el principal).
 //   · Lo que el asistente agenda con hora se CREA en el Google Calendar de la
 //     cuenta que lleva ese sombrero; cambiarlo o borrarlo aquí lo cambia allá.
 //   · Las TAREAS de los sombreros que Juan escoja van a Google Tasks; marcarlas
@@ -96,7 +101,7 @@ export async function terminar(env, almacen, { code, state, origen }) {
   const estado = await almacen.estado();
   // La primera cuenta lleva todos los sombreros (menos el de Juancito Ads, cuyas tareas viven allá); las demás, ninguno hasta que Juan escoja.
   const todos = sombrerosDe(estado.ajustes);
-  const ajustes = previa?.ajustes ?? (otras.length ? { eventosDe: [], tareasDe: [], calendarios: ["primary"] } : { eventosDe: todos.map((s) => s.id), tareasDe: todos.filter((s) => s.fuente !== "juancito-ads").map((s) => s.id), calendarios: ["primary"] });
+  const ajustes = previa?.ajustes ?? (otras.length ? { eventosDe: [], tareasDe: [] } : { eventosDe: todos.map((s) => s.id), tareasDe: todos.filter((s) => s.fuente !== "juancito-ads").map((s) => s.id) });
   await almacen.guardarConexion(servicio, {
     cuenta,
     renovacion: t.refresh_token ? await cifrar(env, t.refresh_token) : previa.renovacion,
@@ -134,7 +139,7 @@ async function api(env, almacen, servicio, url, { method = "GET", body } = {}) {
 // ── De Google a la agenda (puro) ──
 
 /** Un evento de Google → { id, tipo, dia, inicio, fin, titulo, … } en la hora de Panamá. */
-export function deEventoGoogle(e, { cuenta, calendario, zona = ZONA }) {
+export function deEventoGoogle(e, { cuenta, calendario, calendarioNombre = null, color = null, zona = ZONA }) {
   const todoElDia = Boolean(e.start?.date);
   const ini = todoElDia ? null : new Date(e.start?.dateTime);
   const fin = todoElDia ? null : new Date(e.end?.dateTime);
@@ -152,6 +157,8 @@ export function deEventoGoogle(e, { cuenta, calendario, zona = ZONA }) {
     todoElDia,
     cuenta,
     calendario,
+    calendarioNombre,
+    color,
     enlace: e.htmlLink ?? null,
     conGente: Array.isArray(e.attendees) && e.attendees.length > 1,
   };
@@ -181,6 +188,47 @@ export function aTareaGoogle(a) {
   };
 }
 
+/** Un calendario de la lista de la cuenta → { id, nombre, principal, escribir, visible, color }. Puro. */
+export function deCalendarioGoogle(c) {
+  return {
+    id: String(c.id),
+    nombre: String(c.summaryOverride || c.summary || c.id).slice(0, 80),
+    principal: Boolean(c.primary),
+    escribir: c.accessRole === "owner" || c.accessRole === "writer",
+    visible: c.selected !== false && !c.hidden,
+    color: /^#[0-9a-fA-F]{6}$/.test(c.backgroundColor ?? "") ? c.backgroundColor : null,
+  };
+}
+
+/** Qué calendarios se leen: los que Juan escogió (`ajustes.leer`) o, si no escogió, los que ve en Google Calendar. */
+export function calendariosALeer(lista, ajustes = {}) {
+  if (!lista?.length) return ["primary"];
+  if (Array.isArray(ajustes.leer)) return ajustes.leer.filter((id) => lista.some((c) => c.id === id));
+  return lista.filter((c) => c.visible).map((c) => c.id);
+}
+
+/** En qué calendario se guarda lo de un sombrero: el escogido, si se puede escribir en él; si no, el principal. */
+export function calendarioParaGuardar(datos, sombrero) {
+  const escogido = datos?.ajustes?.guardarEn?.[sombrero];
+  const lista = datos?.lista ?? [];
+  if (escogido && (!lista.length || lista.some((c) => c.id === escogido && c.escribir))) return escogido;
+  return "primary";
+}
+
+const HORAS_LISTA = 6;
+
+/** La lista de calendarios de una cuenta, recordada unas horas (cambia poco). Devuelve los datos puestos al día. */
+async function conLista(env, almacen, c, forzar) {
+  const d = c.datos;
+  if (!forzar && d.lista?.length && Date.now() - (d.listaAl ?? 0) < HORAS_LISTA * 3_600_000) return d;
+  const r = await api(env, almacen, c.servicio, `${CAL}/users/me/calendarList?minAccessRole=reader&maxResults=250`);
+  const lista = (r?.items ?? []).filter((x) => !x.deleted).map(deCalendarioGoogle);
+  const fresca = (await almacen.conexion(c.servicio))?.datos ?? d;
+  const nuevos = { ...fresca, lista, listaAl: Date.now() };
+  await almacen.guardarConexion(c.servicio, nuevos);
+  return nuevos;
+}
+
 /** Las cuentas de Google conectadas, con sus ajustes. */
 export async function cuentas(almacen) {
   return (await almacen.conexiones()).filter((c) => c.servicio.startsWith(PREFIJO) && c.datos?.renovacion);
@@ -193,8 +241,9 @@ const cuentaPara = (lista, sombrero, que) => lista.find((c) => (c.datos.ajustes?
 export async function crearEvento(env, almacen, evento, lista) {
   const c = cuentaPara(lista, evento.sombrero, "eventosDe");
   if (!c) return null;
-  const r = await api(env, almacen, c.servicio, `${CAL}/calendars/primary/events`, { method: "POST", body: aEventoGoogle(evento) });
-  return { cuenta: c.datos.cuenta, servicio: c.servicio, calendario: "primary", id: r.id };
+  const cal = calendarioParaGuardar(c.datos, evento.sombrero);
+  const r = await api(env, almacen, c.servicio, `${CAL}/calendars/${encodeURIComponent(cal)}/events`, { method: "POST", body: aEventoGoogle(evento) });
+  return { cuenta: c.datos.cuenta, servicio: c.servicio, calendario: cal, id: r.id };
 }
 export const actualizarEvento = (env, almacen, evento) =>
   api(env, almacen, evento.google.servicio, `${CAL}/calendars/${encodeURIComponent(evento.google.calendario ?? "primary")}/events/${encodeURIComponent(evento.google.id)}`, { method: "PATCH", body: aEventoGoogle(evento) });
@@ -241,23 +290,40 @@ export async function sincronizar(env, almacen, { hoy, forzar = false } = {}) {
   if (!hayGoogle(env)) return { ok: false, motivo: "sin-google" };
   const lista = await cuentas(almacen);
   let total = 0;
-  for (const c of lista) {
-    const ultima = c.sincronizado ? Date.parse(c.sincronizado) : 0;
+  for (const cuenta of lista) {
+    const ultima = cuenta.sincronizado ? Date.parse(cuenta.sincronizado) : 0;
     if (!forzar && Date.now() - ultima < MINUTOS_SYNC * 60_000) continue;
+    let c = cuenta;
+    const fallos = [];
     try {
       const desde = sumarDias(hoy, -7);
       const hasta = sumarDias(hoy, 62);
       const filas = [];
-      for (const cal of c.datos.ajustes?.calendarios ?? ["primary"]) {
-        const q = new URLSearchParams({ timeMin: `${desde}T00:00:00-05:00`, timeMax: `${hasta}T23:59:59-05:00`, singleEvents: "true", orderBy: "startTime", maxResults: "250" });
-        const r = await api(env, almacen, c.servicio, `${CAL}/calendars/${encodeURIComponent(cal)}/events?${q}`);
-        for (const e of r?.items ?? []) {
-          if (e.status === "cancelled") continue;
-          const x = deEventoGoogle(e, { cuenta: c.datos.cuenta, calendario: cal });
-          if (x) filas.push(x);
+      let datos = c.datos;
+      try {
+        datos = await conLista(env, almacen, c, forzar);
+      } catch {
+        /* sin la lista se lee el principal, como antes */
+      }
+      for (const cal of calendariosALeer(datos.lista, datos.ajustes).slice(0, 15)) {
+        const info = datos.lista?.find((x) => x.id === cal);
+        const nombre = info?.nombre ?? null;
+        try {
+          const q = new URLSearchParams({ timeMin: `${desde}T00:00:00-05:00`, timeMax: `${hasta}T23:59:59-05:00`, singleEvents: "true", orderBy: "startTime", maxResults: "250" });
+          const r = await api(env, almacen, c.servicio, `${CAL}/calendars/${encodeURIComponent(cal)}/events?${q}`);
+          for (const e of r?.items ?? []) {
+            if (e.status === "cancelled") continue;
+            const x = deEventoGoogle(e, { cuenta: datos.cuenta, calendario: cal, calendarioNombre: nombre, color: info?.color ?? null });
+            if (x) filas.push(x);
+          }
+        } catch (e) {
+          // Un calendario que falla (compartido y retirado) no tumba los demás.
+          fallos.push(`${nombre ?? cal}: ${e.message}`);
         }
       }
-      await almacen.reemplazarExternos(c.servicio, { desde, hasta }, filas);
+      // La copia se repone ENTERA: lo de un calendario que se dejó de ver (o de fuera de la ventana) no se queda.
+      await almacen.reemplazarExternos(c.servicio, { desde: "0000-01-01", hasta: "9999-12-31" }, filas);
+      c = { ...c, datos };
       if ((c.datos.ajustes?.tareasDe ?? []).length) {
         const q = new URLSearchParams({ showCompleted: "true", showHidden: "true", maxResults: "100" });
         const r = await api(env, almacen, c.servicio, `${TASKS}/lists/%40default/tasks?${q}`);
@@ -266,7 +332,7 @@ export async function sincronizar(env, almacen, { hoy, forzar = false } = {}) {
         if (cambios.length) await almacen.lote(cambios.map((a) => almacen.sentenciaElemento("accion", a)));
         total += cambios.length;
       }
-      await almacen.marcarConexion(c.servicio, { sincronizado: new Date().toISOString(), error: null });
+      await almacen.marcarConexion(c.servicio, { sincronizado: new Date().toISOString(), error: fallos.length ? `No pude leer ${fallos.join("; ")}`.slice(0, 500) : null });
     } catch (e) {
       await almacen.marcarConexion(c.servicio, { error: e.message });
     }

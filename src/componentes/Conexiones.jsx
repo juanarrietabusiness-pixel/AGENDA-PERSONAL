@@ -78,60 +78,119 @@ function Juancito({ c, recargar, avisar }) {
 function Google({ cuentas, configurado, sombreros, recargar, avisar }) {
   const id = useId();
   const [ocupado, setOcupado] = useState(false);
-  const alternar = async (c, que, sid) => {
-    const lista = c.ajustes?.[que] ?? [];
-    const nueva = lista.includes(sid) ? lista.filter((x) => x !== sid) : [...lista, sid];
-    await api.googleAjustes(c.cuenta, { [que]: nueva });
+  const guardar = async (c, datos, texto) => {
+    const r = await api.googleAjustes(c.cuenta, datos).catch(() => null);
+    if (!r?.ok) avisar(r?.error ?? "No se pudo guardar.");
+    else if (texto) avisar(texto);
     await recargar();
+  };
+  const alternar = (c, que, sid) => {
+    const lista = c.ajustes?.[que] ?? [];
+    return guardar(c, { [que]: lista.includes(sid) ? lista.filter((x) => x !== sid) : [...lista, sid] });
   };
   return (
     <section className="tarjeta seccion" aria-labelledby={`${id}-t`}>
       <div className="seccion-cabeza">
         <h2 id={`${id}-t`}><Icon name="calendar" size={14} /> Google Calendar y Google Tasks</h2>
-        <span className="nota">Tus dos cuentas en un solo sitio</span>
+        <span className="nota">Con una cuenta basta</span>
       </div>
       {!configurado ? (
         <p style={{ fontSize: "var(--fs-sm)", color: "var(--texto-2)" }}>
-          Falta configurar Google: pon <strong>GOOGLE_CLIENT_ID</strong> y <strong>GOOGLE_CLIENT_SECRET</strong> como Secret en Cloudflare (los pasos están en DEPLOY.md). Después vuelve aquí y conecta tus cuentas.
+          Falta configurar Google: pon <strong>GOOGLE_CLIENT_ID</strong> y <strong>GOOGLE_CLIENT_SECRET</strong> como Secret en Cloudflare (los pasos están en DEPLOY.md). Después vuelve aquí y conecta tu cuenta.
         </p>
       ) : (
         <>
           <p style={{ fontSize: "var(--fs-sm)", color: "var(--texto-2)" }}>
-            Conecta la personal y la de la agencia: sus eventos salen en «Hoy». Escoge qué sombreros llevan sus eventos y sus tareas a cada cuenta: lo que se agende ahí se crea allá, y lo que marques hecho allá se marca aquí.
+            Conecta la cuenta que usas a diario. La agenda lee todos los calendarios que ves en ella —también los que otra cuenta te comparte— y lo que agendes aquí se guarda en el calendario que escojas para cada sombrero.
           </p>
-          {cuentas.map((c) => (
-            <div key={c.servicio} className="cuenta-google">
-              <div className="cuenta-google-cabeza">
-                <strong>{c.cuenta}</strong>
-                <span className="nota">al día: {cuando(c.sincronizado)}</span>
-                <button type="button" className="boton fantasma" onClick={async () => { await api.googleDesconectar(c.cuenta); await recargar(); }}>Desconectar</button>
-              </div>
-              {c.error && <p className="aviso rojo">{c.error}</p>}
-              {[["eventosDe", "Sus eventos van a esta cuenta"], ["tareasDe", "Sus tareas van a Google Tasks de esta cuenta"]].map(([que, texto]) => (
-                <div key={que} className="fila-ajuste" style={{ gridTemplateColumns: "1fr" }}>
-                  <span style={{ fontSize: "var(--fs-sm)" }}>{texto}</span>
-                  <div className="filtro-sombreros" role="group" aria-label={texto}>
-                    {sombreros.filter((s) => que === "eventosDe" || s.fuente !== "juancito-ads").map((s) => (
-                      <button key={s.id} type="button" className="chip-boton" style={estiloDe(s.id, sombreros)} aria-pressed={(c.ajustes?.[que] ?? []).includes(s.id)} onClick={() => alternar(c, que, s.id)}>
-                        <span className="punto" /> {s.nombre}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          ))}
+          {cuentas.map((c) => <CuentaGoogle key={c.servicio} c={c} sombreros={sombreros} guardar={guardar} alternar={alternar} recargar={recargar} />)}
           <div className="botones" style={{ marginTop: "var(--sp-3)" }}>
-            <button type="button" className="boton primario" onClick={() => irA(api.googleConectar, avisar)}><Icon name="plus" size={16} /> {cuentas.length ? "Conectar otra cuenta" : "Conectar Google"}</button>
+            {cuentas.length === 0 && <button type="button" className="boton primario" onClick={() => irA(api.googleConectar, avisar)}><Icon name="plus" size={16} /> Conectar Google</button>}
             {cuentas.length > 0 && (
-              <button type="button" className="boton" disabled={ocupado} onClick={async () => { setOcupado(true); await api.googleSincronizar().catch(() => null); setOcupado(false); await recargar(); avisar("Google al día."); }}>
-                <Icon name="refresh" size={16} /> {ocupado ? "Leyendo…" : "Poner al día ahora"}
-              </button>
+              <>
+                <button type="button" className="boton" disabled={ocupado} onClick={async () => { setOcupado(true); await api.googleSincronizar().catch(() => null); setOcupado(false); await recargar(); avisar("Google al día."); }}>
+                  <Icon name="refresh" size={16} /> {ocupado ? "Leyendo…" : "Poner al día ahora"}
+                </button>
+                <button type="button" className="boton fantasma" onClick={() => irA(api.googleConectar, avisar)}><Icon name="plus" size={16} /> Conectar otra cuenta</button>
+              </>
             )}
           </div>
         </>
       )}
     </section>
+  );
+}
+
+/** Una cuenta de Google: qué calendarios se ven, dónde se guarda cada sombrero y qué tareas van a Google Tasks. */
+function CuentaGoogle({ c, sombreros, guardar, alternar, recargar }) {
+  const cals = c.calendarios ?? [];
+  const leer = Array.isArray(c.ajustes?.leer) ? c.ajustes.leer : cals.filter((k) => k.visible).map((k) => k.id);
+  const escribibles = cals.filter((k) => k.escribir);
+  const principal = cals.find((k) => k.principal);
+  const eventosDe = c.ajustes?.eventosDe ?? [];
+  const tareasDe = c.ajustes?.tareasDe ?? [];
+  const destino = (sid) => {
+    const g = c.ajustes?.guardarEn?.[sid];
+    return g && escribibles.some((k) => k.id === g) ? g : principal?.id ?? "primary";
+  };
+  const alternarLeer = (calId) => guardar(c, { leer: leer.includes(calId) ? leer.filter((x) => x !== calId) : [...leer, calId] }, "Listo: lo vuelvo a leer.");
+  const ponerEventos = (sid, valor) => {
+    if (valor === "") return alternar(c, "eventosDe", sid);
+    return guardar(c, { eventosDe: eventosDe.includes(sid) ? eventosDe : [...eventosDe, sid], guardarEn: { [sid]: valor } });
+  };
+  return (
+    <div className="cuenta-google">
+      <div className="cuenta-google-cabeza">
+        <strong>{c.cuenta}</strong>
+        <span className="nota">al día: {cuando(c.sincronizado)}</span>
+        <button type="button" className="boton fantasma" onClick={async () => { await api.googleDesconectar(c.cuenta); await recargar(); }}>Desconectar</button>
+      </div>
+      {c.error && <p className="aviso rojo">{c.error}</p>}
+
+      <div className="fila-ajuste" style={{ gridTemplateColumns: "1fr" }}>
+        <span style={{ fontSize: "var(--fs-sm)" }}><strong>Calendarios que se ven en Hoy</strong></span>
+        {cals.length ? (
+          <div className="filtro-sombreros" role="group" aria-label="Calendarios que se ven en Hoy">
+            {cals.map((k) => (
+              <button key={k.id} type="button" className="chip-boton" style={k.color ? { "--s": k.color } : undefined} aria-pressed={leer.includes(k.id)} onClick={() => alternarLeer(k.id)}>
+                <span className="punto" /> {k.nombre}{k.principal ? " (principal)" : ""}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <span className="nota">Leyendo tus calendarios… pulsa «Poner al día ahora» si no salen.</span>
+        )}
+      </div>
+
+      <div className="fila-ajuste" style={{ gridTemplateColumns: "1fr" }}>
+        <span style={{ fontSize: "var(--fs-sm)" }}><strong>Dónde se guarda lo que agendas de cada sombrero</strong></span>
+        <div className="destinos">
+          {sombreros.map((s) => (
+            <label key={s.id} className="destino" style={{ "--s": s.color }}>
+              <span><span className="punto" /> {s.nombre}</span>
+              <select className="campo" value={eventosDe.includes(s.id) ? destino(s.id) : ""} onChange={(e) => ponerEventos(s.id, e.target.value)}>
+                <option value="">No guardar en Google</option>
+                {(escribibles.length ? escribibles : [{ id: "primary", nombre: "Calendario principal" }]).map((k) => (
+                  <option key={k.id} value={k.id}>{k.nombre}</option>
+                ))}
+              </select>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      <div className="fila-ajuste" style={{ gridTemplateColumns: "1fr" }}>
+        <span style={{ fontSize: "var(--fs-sm)" }}><strong>Tareas que van a Google Tasks</strong> (salen en tu Google Calendar el día que tocan)</span>
+        <div className="filtro-sombreros" role="group" aria-label="Tareas que van a Google Tasks">
+          {sombreros.filter((s) => s.fuente !== "juancito-ads").map((s) => (
+            <button key={s.id} type="button" className="chip-boton" style={estiloDe(s.id, sombreros)} aria-pressed={tareasDe.includes(s.id)} onClick={() => alternar(c, "tareasDe", s.id)}>
+              <span className="punto" /> {s.nombre}
+            </button>
+          ))}
+        </div>
+        {sombreros.some((s) => s.fuente === "juancito-ads") && <span className="nota">Las tareas de {sombreros.find((s) => s.fuente === "juancito-ads").nombre} van a Juancito Ads; sus reuniones sí van a Google Calendar.</span>}
+      </div>
+    </div>
   );
 }
 

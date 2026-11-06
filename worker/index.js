@@ -385,7 +385,18 @@ async function api(req, env, ctx) {
           const ajustes = { ...(c.datos.ajustes ?? {}) };
           if (lista(q.eventosDe)) ajustes.eventosDe = lista(q.eventosDe);
           if (lista(q.tareasDe)) ajustes.tareasDe = lista(q.tareasDe);
-          await almacen.guardarConexion(servicio, { ...c.datos, ajustes });
+          // Qué calendarios se ven (null: los que la cuenta enseña en Google Calendar) y dónde se guarda cada sombrero.
+          const cals = c.datos.lista ?? [];
+          if (q.leer === null) delete ajustes.leer;
+          else if (Array.isArray(q.leer)) ajustes.leer = q.leer.filter((x) => cals.some((k) => k.id === x)).slice(0, 15);
+          if (q.guardarEn && typeof q.guardarEn === "object" && !Array.isArray(q.guardarEn)) {
+            ajustes.guardarEn = Object.fromEntries(
+              Object.entries({ ...(ajustes.guardarEn ?? {}), ...q.guardarEn }).filter(([s, cal]) => ids.includes(s) && cals.some((k) => k.id === cal && k.escribir)),
+            );
+          }
+          await almacen.guardarConexion(servicio, { ...c.datos, ajustes }, { error: c.error ?? null });
+          // Lo que se ve cambió: se vuelve a leer en la siguiente lectura.
+          if (q.leer !== undefined) await google.sincronizar(env, almacen, { hoy: hoyDe(p.ajustes), forzar: true }).catch(() => null);
           return json({ ok: true });
         }
       }
