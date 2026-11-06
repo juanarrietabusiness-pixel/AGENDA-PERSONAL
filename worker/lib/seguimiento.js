@@ -29,8 +29,9 @@ import { planDelDia, deHoy, eventosDelDia } from "../../src/lib/hoy.js";
 import { planDeAvisos, avisosDelDia, horaDelCierre, preguntasDeHoy, preguntada } from "../../src/lib/avisos.js";
 import { resumenDeLaManana, cierreDelDia, textoDeAviso, preguntaCompletaste, bloqueVersiculo } from "../../src/lib/mensajes.js";
 import { elegirVersiculo } from "../../src/lib/versiculos.js";
-import { seguimientoDe } from "../../src/lib/ajustes.js";
-import { reunionesDelPeriodo } from "../../src/lib/agenda.js";
+import { seguimientoDe, diasParaBorrar } from "../../src/lib/ajustes.js";
+import { reunionesDelPeriodo, enfoqueDelDia } from "../../src/lib/agenda.js";
+import { sombrerosDe } from "../../src/lib/sombreros.js";
 import { RITMO_BASE } from "../../src/lib/ritmo.js";
 
 export const APP = "https://agenda.juancitoads.com";
@@ -70,6 +71,9 @@ export function queToca({ estado, ahora, hoy }) {
   const { resumen, mensajes } = avisosDelDia(avisosHoy, { dia: hoy, ajustes: aj, eventos: todos });
   if (seg.resumen && enVentana(ahora, horaResumen, VENTANA.resumen)) {
     const plan = planDelDia({ dia: hoy, eventos: todos, acciones, ajustes: aj });
+    // Tus 3 de hoy, con la misma regla que la pantalla.
+    const enfoque = enfoqueDelDia(acciones, { hoy, proyectos: estado.proyectos ?? [], sombreros: sombrerosDe(aj) });
+    plan.tres = { escogidas: enfoque.tres.filter((a) => a.enfoque === hoy), sugeridas: enfoque.tres.filter((a) => a.enfoque !== hoy) };
     const versiculo = elegirVersiculo({ momento: "manana", hoy, frecuencia: aj.frecuenciaVersiculos });
     const extra = resumen.map((a) => {
       const acc = acciones.find((x) => x.id === a.accionId);
@@ -111,7 +115,10 @@ export function queToca({ estado, ahora, hoy }) {
     if (seg.cierre) {
       const hechas = acciones.filter((a) => a.estado === "hecha" && a.hechaEl === hoy);
       const pendientes = deHoy(acciones, hoy).filter((a) => a.lista === "siguientes");
-      const texto = hechas.length || pendientes.length ? cierreDelDia({ dia: hoy, hechas, pendientes, versiculo: elegirVersiculo({ momento: "descanso", hoy, frecuencia: aj.frecuenciaVersiculos }) }) : "Hoy no quedó nada pendiente. Descansa bien.";
+      const base = hechas.length || pendientes.length ? cierreDelDia({ dia: hoy, hechas, pendientes, versiculo: elegirVersiculo({ momento: "descanso", hoy, frecuencia: aj.frecuenciaVersiculos }) }) : "Hoy no quedó nada pendiente. Descansa bien.";
+      const tres = acciones.filter((a) => a.enfoque === hoy);
+      const deTus3 = tres.length ? `De tus ${tres.length} de hoy hiciste ${tres.filter((a) => a.estado === "hecha").length}.` : "";
+      const texto = [deTus3, base].filter(Boolean).join("\n\n");
       out.push({ clave: `cierre:${hoy}`, texto });
     }
     if (seg.preguntas) {
@@ -149,7 +156,12 @@ export async function vuelta(env, momento = new Date()) {
     // Lo de fuera primero, para que el resumen ya sepa lo que se marcó allá.
     await juancito.sincronizar(env, almacen, { hoy }).catch(() => null);
     await google.sincronizar(env, almacen, { hoy }).catch(() => null);
-    if (ahora === "03:00") await almacen.purgarAvisos().catch(() => null);
+    // Una vez al día, de madrugada: lo viejo se borra (los avisos ya mandados y lo hecho hace más de N días).
+    if (ahora >= "03:00" && (await almacen.reclamarAviso(`purga:${hoy}`).catch(() => false))) {
+      await almacen.purgarAvisos().catch(() => null);
+      const dias = diasParaBorrar(estado.ajustes);
+      if (dias > 0) await almacen.purgarHechas(sumarDias(hoy, -dias)).catch(() => null);
+    }
     if (!hayTelegram(env)) continue;
     const chat = await chatDe(db, owner);
     if (!chat) continue;

@@ -11,7 +11,7 @@ const TEXTO_URGENCIA = { vencida: "Se pasó", hoy: "Vence hoy", mañana: "Vence 
  * Una tarea o un recordatorio: el círculo para marcarla (o desmarcarla), el título —que abre la edición— y lo que hay
  * que saber de ella sin abrirla.
  */
-export default function Fila({ accion, hoy, sombreros, proyectos = [], onHecha, onAbrir, mostrarDia = true, children }) {
+export default function Fila({ accion, hoy, sombreros, proyectos = [], onHecha, onAbrir, onEnfoque, mostrarDia = true, children }) {
   const s = sombrero(accion.sombrero, sombreros);
   const u = urgencia(accion, hoy);
   const hecha = accion.estado === "hecha";
@@ -57,9 +57,16 @@ export default function Fila({ accion, hoy, sombreros, proyectos = [], onHecha, 
         </div>
         {children && <div className="accion-acciones">{children}</div>}
       </div>
-      <button type="button" className="editar-fila" aria-label={`Editar: ${accion.titulo}`} title="Editar: cambiar el tipo, el día, las notas…" onClick={() => onAbrir?.(accion)}>
-        <Icon name="pencil" size={15} />
-      </button>
+      <div className="fila-botones">
+        {onEnfoque && !hecha && (accion.clase ?? "tarea") === "tarea" && (
+          <button type="button" className="editar-fila fijar" aria-pressed={accion.enfoque === hoy} aria-label={accion.enfoque === hoy ? `Quitar de tus 3 de hoy: ${accion.titulo}` : `Una de tus 3 de hoy: ${accion.titulo}`} title="Una de tus 3 de hoy" onClick={() => onEnfoque(accion.id)}>
+            <Icon name="star" size={15} />
+          </button>
+        )}
+        <button type="button" className="editar-fila" aria-label={`Editar: ${accion.titulo}`} title="Editar: cambiar el tipo, el día, las notas…" onClick={() => onAbrir?.(accion)}>
+          <Icon name="pencil" size={15} />
+        </button>
+      </div>
     </li>
   );
 }

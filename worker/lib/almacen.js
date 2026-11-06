@@ -260,6 +260,17 @@ export function crearAlmacen(db, ownerId) {
       await db.prepare("delete from avisos_enviados where owner_id = ? and clave = ?").bind(ownerId, clave).run();
     },
 
+    /** Borra lo hecho o soltado antes de `antesDe` (AAAA-MM-DD). Sólo aquí: no toca Google ni Juancito Ads. */
+    async purgarHechas(antesDe) {
+      const r = await db
+        .prepare(
+          "delete from elementos where owner_id = ? and tipo = 'accion' and json_extract(datos, '$.estado') in ('hecha', 'soltada') and json_extract(datos, '$.hechaEl') < ?",
+        )
+        .bind(ownerId, antesDe)
+        .run();
+      return r.meta?.changes ?? 0;
+    },
+
     async purgarAvisos(dias = 21) {
       await db.prepare("delete from avisos_enviados where owner_id = ? and enviado < ?").bind(ownerId, new Date(Date.now() - dias * 86_400_000).toISOString()).run();
     },

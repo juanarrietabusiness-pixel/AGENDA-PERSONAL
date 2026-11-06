@@ -97,7 +97,8 @@ export default function App() {
   const servidor = modo === "servidor";
 
   /** Marcar hecha (o reabrir) una acción. Si se repite, nace la siguiente. */
-  const onHecha = (id) => {
+  /** Marcar hecha (o reabrir). Con `fijar`, queda también en tus 3 de hoy (lo hecho desde el enfoque sigue a la vista). */
+  const onHecha = (id, { fijar = false } = {}) => {
     const a = estado.acciones.find((x) => x.id === id);
     if (!a) return;
     if (a.estado !== "abierta") {
@@ -105,13 +106,25 @@ export default function App() {
       avisar(`Reabierta: «${a.titulo}».`);
       return;
     }
-    const { hecha, siguiente } = completar(a, hoy);
+    const { hecha, siguiente } = completar(fijar ? { ...a, enfoque: hoy } : a, hoy);
     conAcciones((lista) => [...lista.map((x) => (x.id === id ? hecha : x)), ...(siguiente ? [siguiente] : [])]);
     avisar(siguiente ? `Hecha. La siguiente queda para ${textoLargo(siguiente.cuando ?? siguiente.limite)}.` : `Hecha: «${a.titulo}».`, {
       accion: "Deshacer",
       alPulsar: () => conAcciones((lista) => lista.filter((x) => x.id !== siguiente?.id).map((x) => (x.id === id ? a : x))),
     });
   };
+
+  /** ★: una de tus 3 de hoy (o ya no). */
+  const onEnfoque = (id) => {
+    const a = estado.acciones.find((x) => x.id === id);
+    if (!a) return;
+    const fija = a.enfoque === hoy;
+    conAcciones((lista) => lista.map((x) => (x.id === id ? { ...x, enfoque: fija ? null : hoy, noHoy: null } : x)));
+    avisar(fija ? `Quité «${a.titulo}» de tus 3 de hoy.` : `«${a.titulo}» es una de tus 3 de hoy.`);
+  };
+
+  /** «Hoy no»: la agenda deja de proponerla para el enfoque de hoy (sigue en su lista). */
+  const onNoHoy = (id) => conAcciones((lista) => lista.map((x) => (x.id === id ? { ...x, noHoy: hoy, enfoque: x.enfoque === hoy ? null : x.enfoque } : x)));
 
   const onDecidir = (id, opcion) =>
     conAcciones((lista) => lista.map((x) => {
@@ -191,7 +204,7 @@ export default function App() {
           </a>
         </nav>
         <main className="contenido" id="contenido">
-          {pantalla === "hoy" && <Hoy {...comunes} cambiar={cambiar} hora={hora} onDecidir={onDecidir} onAsistente={() => (servidor ? setAsistente(true) : estado.bandeja[0] && setAclarando(estado.bandeja[0]))} />}
+          {pantalla === "hoy" && <Hoy {...comunes} cambiar={cambiar} hora={hora} onDecidir={onDecidir} onEnfoque={onEnfoque} onNoHoy={onNoHoy} onAsistente={() => (servidor ? setAsistente(true) : estado.bandeja[0] && setAclarando(estado.bandeja[0]))} />}
           {pantalla === "plan" && <Plan {...comunes} cambiar={cambiar} />}
           {pantalla === "mentor" && <Mentor {...comunes} cambiar={cambiar} recargar={almacen.recargar} servidor={servidor} />}
           {pantalla === "ajustes" && (

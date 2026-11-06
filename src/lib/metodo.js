@@ -154,7 +154,8 @@ export const listaDeDestino = (destino) =>
  *   · modo «despues»: cuenta desde hoy, el día en que se hizo.
  */
 export function completar(accion, hoy) {
-  const hecha = { ...accion, estado: "hecha", hechaEl: hoy, enfoque: null };
+  // «enfoque» se queda: lo hecho de tus 3 de hoy sigue a la vista (tachado) el resto del día.
+  const hecha = { ...accion, estado: "hecha", hechaEl: hoy };
   if (!accion.repite?.regla) return { hecha, siguiente: null };
   const { regla, modo = "calendario", inicio } = accion.repite;
   const ancla = accion.cuando ?? accion.limite ?? hoy;

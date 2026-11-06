@@ -3,7 +3,7 @@ import worker from "../worker/index.js";
 import { d1EnMemoria } from "./utils/d1Memoria.js";
 import { leerTareas, leerClientes, cambiosDesdeJuancito } from "../worker/lib/juancito.js";
 import { deEventoGoogle, aEventoGoogle, aTareaGoogle, cambiosDesdeGoogle, cifrar, descifrar, deCalendarioGoogle, calendariosALeer, calendarioParaGuardar } from "../worker/lib/google.js";
-import { queToca } from "../worker/lib/seguimiento.js";
+import { queToca, vuelta } from "../worker/lib/seguimiento.js";
 import { leerClasificacion, pedidoDeClasificar } from "../worker/lib/clasificar.js";
 import { nuevaAccion } from "../src/lib/metodo.js";
 import { AJUSTES_BASE } from "../src/lib/ajustes.js";
@@ -594,5 +594,30 @@ describe("el seguimiento: qué se manda y cuándo", () => {
     expect(pregunta).toBeTruthy();
     expect(pregunta.botones[0].map((b) => b.callback_data)).toEqual([`h:${a.id}`, `m:${a.id}`, `s:${a.id}`]);
     expect(pregunta.marcar[0].id).toBe(a.id);
+  });
+});
+
+describe("lo hecho se borra solo", () => {
+  it("de madrugada, una vez al día: lo hecho hace más de una semana; lo reciente y lo abierto se quedan", async () => {
+    await darDeAlta();
+    const vieja = { ...nuevaAccion({ id: "v1", titulo: "Hecha hace un mes", lista: "siguientes", google: { id: "g1", servicio: "google:x" } }, "2026-10-01"), estado: "hecha", hechaEl: "2026-10-05" };
+    const reciente = { ...nuevaAccion({ id: "v2", titulo: "Hecha ayer", lista: "siguientes" }, "2026-11-01"), estado: "hecha", hechaEl: "2026-11-08" };
+    const soltada = { ...nuevaAccion({ id: "v3", titulo: "Ya no aplica", lista: "siguientes" }, "2026-10-01"), estado: "soltada", hechaEl: "2026-10-02" };
+    const abierta = nuevaAccion({ id: "v4", titulo: "Abierta vieja", lista: "siguientes", cuando: "2026-10-01" }, "2026-10-01");
+    for (const a of [vieja, reciente, soltada, abierta]) await pedir(`/api/elementos/accion/${a.id}`, { metodo: "PUT", datos: a });
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("{}", { status: 500 })));
+    // 9 de noviembre de 2026, 3:05 a. m. en Panamá.
+    await vuelta(env, new Date("2026-11-09T08:05:00Z"));
+    let ids = (await estado()).acciones.map((a) => a.id).sort();
+    expect(ids).toEqual(["v2", "v4"]);
+    // No se tocó Google (el borrado es sólo de la agenda).
+    expect(fetch).not.toHaveBeenCalled();
+    // Con «nunca», no se borra.
+    await pedir("/api/perfil", { metodo: "PUT", datos: { ajustes: { ...(await estado()).ajustes, borrarHechas: 0 } } });
+    const otra = { ...nuevaAccion({ id: "v5", titulo: "Hecha hace un mes 2", lista: "siguientes" }, "2026-10-01"), estado: "hecha", hechaEl: "2026-10-05" };
+    await pedir(`/api/elementos/accion/${otra.id}`, { metodo: "PUT", datos: otra });
+    await vuelta(env, new Date("2026-11-10T08:05:00Z"));
+    ids = (await estado()).acciones.map((a) => a.id).sort();
+    expect(ids).toContain("v5");
   });
 });

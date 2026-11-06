@@ -48,6 +48,10 @@ export const AJUSTES_BASE = Object.freeze({
   // El seguimiento por Telegram: qué te escribe el asistente por su cuenta. Todo se apaga desde Ajustes.
   seguimiento: { activo: true, resumen: true, avisos: true, cierre: true, preguntas: true, revision: true, reuniones: true },
 
+  // Lo hecho (y lo que «ya no aplica») se borra solo pasados estos días. 0 = nunca. Sólo de la agenda: no de Google Tasks
+  // ni de Juancito Ads.
+  borrarHechas: 7,
+
   // La revisión semanal (GTD). El sábado, que no se madruga tanto.
   revision: { dia: 6, hora: "08:30", minutos: 30 },
 
@@ -166,3 +170,7 @@ export const PARTES_SEGUIMIENTO = Object.freeze({
 
 /** El seguimiento con sus valores de partida (para ajustes guardados antes de que existiera). */
 export const seguimientoDe = (a) => ({ ...AJUSTES_BASE.seguimiento, ...(a?.seguimiento ?? {}) });
+
+/** Cuántos días se guarda lo hecho (0 = siempre). */
+export const DIAS_BORRAR = Object.freeze({ 1: "Al día siguiente", 7: "A la semana", 30: "Al mes", 90: "A los tres meses", 0: "Nunca" });
+export const diasParaBorrar = (a) => (Object.hasOwn(a ?? {}, "borrarHechas") && Number(a.borrarHechas) in DIAS_BORRAR ? Number(a.borrarHechas) : AJUSTES_BASE.borrarHechas);

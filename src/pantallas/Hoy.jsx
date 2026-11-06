@@ -6,7 +6,7 @@ import { sombrerosDe, estiloDe, nombreDe } from "../lib/sombreros.js";
 import { elegirVersiculo, ATRIBUCION } from "../lib/versiculos.js";
 import { variante } from "../lib/mensajes.js";
 import { nuevaAccion } from "../lib/metodo.js";
-import { PERIODOS, ORDENES, rango, mover, tituloDe, accionesDelPeriodo, sinFecha, reunionesDelPeriodo, especialesDelMes, rutinaDelPeriodo, ordenarPor } from "../lib/agenda.js";
+import { PERIODOS, ORDENES, rango, mover, tituloDe, accionesDelPeriodo, sinFecha, reunionesDelPeriodo, especialesDelMes, rutinaDelPeriodo, ordenarPor, enfoqueDelDia, TRES } from "../lib/agenda.js";
 
 const SALUDO = ["Buenos días", "Buen día", "Arrancamos"];
 const saludo = (hora, dia) => (hora < "12:00" ? variante(SALUDO, dia) : hora < "19:00" ? "Buenas tardes" : "Buenas noches");
@@ -39,7 +39,7 @@ const recordado = (k, base, validos) => {
  * ya los sabes); con las reuniones, los recordatorios y los eventos especiales del mes, de todos los sombreros, en el
  * día, la semana o el mes.
  */
-export default function Hoy({ estado, hoy, hora, onHecha, onAbrir, onDecidir, onAsistente, cambiar }) {
+export default function Hoy({ estado, hoy, hora, onHecha, onAbrir, onDecidir, onAsistente, cambiar, onEnfoque, onNoHoy }) {
   const { acciones, eventos, proyectos, ajustes, bandeja = [], externos = [] } = estado;
   const sombreros = sombrerosDe(ajustes);
   const [periodo, setPeriodo] = useState(() => recordado("periodo", "dia", Object.keys(PERIODOS)));
@@ -50,6 +50,7 @@ export default function Hoy({ estado, hoy, hora, onHecha, onAbrir, onDecidir, on
   const [verHechas, setVerHechas] = useState(false);
   const [verSinFecha, setVerSinFecha] = useState(false);
   const [verRutina, setVerRutina] = useState(false);
+  const [verReserva, setVerReserva] = useState(false);
 
   const r = rango(periodo, dia);
   const ctx = { hoy, proyectos, sombreros };
@@ -70,6 +71,7 @@ export default function Hoy({ estado, hoy, hora, onHecha, onAbrir, onDecidir, on
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [acciones, eventos, externos, periodo, dia, orden, filtro, hoy, proyectos, ajustes]);
 
+  const enfoque = useMemo(() => enfoqueDelDia(acciones, { hoy, proyectos, sombreros }), [acciones, hoy, proyectos, sombreros]);
   const v = elegirVersiculo({ momento: "manana", hoy, frecuencia: ajustes.frecuenciaVersiculos });
   const hechasHoy = acciones.filter((a) => a.estado === "hecha" && a.hechaEl === hoy).length;
   const cuenta = { tareas: datos.tareas.length, reuniones: datos.reuniones.length, recordatorios: datos.recordatorios.length, especiales: datos.especiales.length };
@@ -84,10 +86,10 @@ export default function Hoy({ estado, hoy, hora, onHecha, onAbrir, onDecidir, on
     recordar("orden", o);
   };
 
-  const filas = (lista, { conDecidir = false } = {}) => (
+  const filas = (lista, { conDecidir = false, conEstrella = false } = {}) => (
     <ul className="lista">
       {lista.map((a) => (
-        <Fila key={a.id} accion={a} hoy={hoy} sombreros={sombreros} proyectos={proyectos} onHecha={onHecha} onAbrir={(x) => onAbrir("accion", x)} mostrarDia={variosDias || a.cuando !== hoy}>
+        <Fila key={a.id} accion={a} hoy={hoy} sombreros={sombreros} proyectos={proyectos} onHecha={onHecha} onAbrir={(x) => onAbrir("accion", x)} onEnfoque={conEstrella ? onEnfoque : undefined} mostrarDia={variosDias || a.cuando !== hoy}>
           {conDecidir && a.estado === "abierta" && a.cuando && a.cuando < hoy && (
             <div className="botones">
               <button type="button" className="boton" onClick={() => onDecidir(a.id, "hoy")}>Hoy</button>
@@ -125,13 +127,13 @@ export default function Hoy({ estado, hoy, hora, onHecha, onAbrir, onDecidir, on
     tareas: (
       <>
         {cambiar && <AnadirRapido sombreros={sombreros} inicial={filtro} onAnadir={anadir} />}
-        {datos.tareas.length ? filas(datos.tareas, { conDecidir: true }) : vacio(periodo === "dia" ? "Nada planeado para este día. Mira «Sin fecha» o pídele algo al asistente." : "Nada planeado en este periodo.")}
+        {datos.tareas.length ? filas(datos.tareas, { conDecidir: true, conEstrella: Boolean(onEnfoque) }) : vacio(periodo === "dia" ? "Nada planeado para este día. Mira «Sin fecha» o pídele algo al asistente." : "Nada planeado en este periodo.")}
         {datos.libres.length > 0 && (
           <div className="plegable">
             <button type="button" className="boton fantasma" aria-expanded={verSinFecha} onClick={() => setVerSinFecha((x) => !x)}>
               <Icon name={verSinFecha ? "chevronUp" : "chevronDown"} size={16} /> Sin fecha ({datos.libres.length})
             </button>
-            {verSinFecha && filas(datos.libres)}
+            {verSinFecha && filas(datos.libres, { conEstrella: Boolean(onEnfoque) })}
           </div>
         )}
         {datos.hechas.length > 0 && (
@@ -237,6 +239,50 @@ export default function Hoy({ estado, hoy, hora, onHecha, onAbrir, onDecidir, on
           <Icon name="inbox" size={18} />
           <span>{bandeja.length} cosa{bandeja.length === 1 ? "" : "s"} que el asistente no pudo ordenar. Ábrelo para volver a intentarlo o aclararla{bandeja.length === 1 ? "" : "s"}.</span>
         </button>
+      )}
+
+      {(enfoque.tres.length > 0 || enfoque.reserva.length > 0) && (
+        <section className="tarjeta enfoque" aria-labelledby="enfoque-t">
+          <div className="seccion-cabeza">
+            <h2 id="enfoque-t"><Icon name="target" size={14} /> Tus {TRES} de hoy</h2>
+            <span className="nota">{enfoque.tres.filter((a) => a.estado === "hecha").length} de {enfoque.tres.length} hechas</span>
+          </div>
+          <ul className="lista">
+            {enfoque.tres.map((a) => (
+              <Fila key={a.id} accion={a} hoy={hoy} sombreros={sombreros} proyectos={proyectos} onHecha={(id) => onHecha(id, { fijar: true })} onAbrir={(x) => onAbrir("accion", x)} mostrarDia={a.cuando !== hoy}>
+                {a.estado === "abierta" && (
+                  <div className="botones">
+                    {a.enfoque === hoy ? (
+                      <button type="button" className="boton fantasma" onClick={() => onEnfoque?.(a.id)}>Quitar de mis 3</button>
+                    ) : (
+                      <>
+                        <span className="chip">Te la propongo</span>
+                        <button type="button" className="boton fantasma" onClick={() => onEnfoque?.(a.id)}><Icon name="star" size={14} /> Fijar</button>
+                        <button type="button" className="boton fantasma" onClick={() => onNoHoy?.(a.id)}>Hoy no</button>
+                      </>
+                    )}
+                  </div>
+                )}
+              </Fila>
+            ))}
+          </ul>
+          {enfoque.reserva.length > 0 && (
+            enfoque.todasHechas ? (
+              <>
+                <p className="enfoque-logro" role="status">¡Hiciste tus {enfoque.tres.length}! Si te queda tiempo, lo siguiente:</p>
+                {filas(enfoque.reserva, { conEstrella: Boolean(onEnfoque) })}
+              </>
+            ) : (
+              <div className="plegable">
+                <button type="button" className="boton fantasma" aria-expanded={verReserva} onClick={() => setVerReserva((x) => !x)}>
+                  <Icon name={verReserva ? "chevronUp" : "chevronDown"} size={16} /> Si te sobra tiempo ({enfoque.reserva.length})
+                </button>
+                {verReserva && filas(enfoque.reserva, { conEstrella: Boolean(onEnfoque) })}
+              </div>
+            )
+          )}
+          {enfoque.todasHechas && !enfoque.reserva.length && <p className="enfoque-logro" role="status">¡Hiciste tus {enfoque.tres.length}! No queda nada urgente ni de valor alto. Descansa o adelanta algo de «Sin fecha».</p>}
+        </section>
       )}
 
       <div className="controles-agenda">

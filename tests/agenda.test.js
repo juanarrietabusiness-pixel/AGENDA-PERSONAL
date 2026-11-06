@@ -1,9 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { rango, mover, ordenarPor, accionesDelPeriodo, sinFecha, especialesDelMes, reunionesDelPeriodo, eventosDelPeriodo, loQueMasVale, porDelegar, bajoValor, repartoAbierto, valorDe, claseDeGoogle, rutinaDelPeriodo, convertir } from "../src/lib/agenda.js";
+import { rango, mover, ordenarPor, accionesDelPeriodo, sinFecha, especialesDelMes, reunionesDelPeriodo, eventosDelPeriodo, loQueMasVale, porDelegar, bajoValor, repartoAbierto, valorDe, claseDeGoogle, rutinaDelPeriodo, convertir, enfoqueDelDia } from "../src/lib/agenda.js";
 import { aplicarSombrero, limpiarSombreros, sombrerosDe, prioridadDe, idPara, SOMBREROS, ErrorSombrero } from "../src/lib/sombreros.js";
 import { buscar, paraElAsistente, limpiarAprendizajes, limpiarNota } from "../src/lib/cerebro.js";
 import { leerOrden, aplicarOrden, deshacerOrden, tarjeta } from "../src/lib/agente.js";
-import { nuevaAccion } from "../src/lib/metodo.js";
+import { nuevaAccion, completar } from "../src/lib/metodo.js";
 import { AJUSTES_BASE } from "../src/lib/ajustes.js";
 import { RITMO_BASE } from "../src/lib/ritmo.js";
 
@@ -285,5 +285,48 @@ describe("cambiar QUÉ ES algo, a mano", () => {
     const rep = accion({ titulo: "Planificar la célula", repite: { regla: "FREQ=WEEKLY;BYDAY=MO", modo: "calendario", inicio: "2026-11-02" }, hora: "20:00" });
     const ev = convertir(rep, "accion", "reunion", HOY).obj;
     expect(ev).toMatchObject({ fecha: null, repite: { regla: "FREQ=WEEKLY;BYDAY=MO", inicio: "2026-11-02" }, inicio: "20:00" });
+  });
+});
+
+describe("tus 3 de hoy", () => {
+  const ctx = { hoy: HOY, sombreros: SOMBREROS, proyectos: [] };
+  const lista = () => [
+    accion({ id: "vence", titulo: "Vence hoy", sombrero: "personal", limite: HOY }),
+    accion({ id: "alto", titulo: "Valor alto", sombrero: "artistico", valor: "alto" }),
+    accion({ id: "hoy1", titulo: "Planeada hoy", sombrero: "iglesia", cuando: HOY }),
+    accion({ id: "hoy2", titulo: "Planeada hoy 2", sombrero: "personal", cuando: HOY, valor: "bajo" }),
+    accion({ id: "rec", titulo: "Recordatorio", clase: "recordatorio", cuando: HOY, valor: "alto" }),
+    accion({ id: "del", titulo: "Delegable", cuando: HOY, delegable: { a: "Ana" } }),
+    accion({ id: "luego", titulo: "Para la otra semana", cuando: "2026-11-20" }),
+  ];
+
+  it("propone 3 por prioridad (sin recordatorios ni delegables) y deja 2 de reserva", () => {
+    const r = enfoqueDelDia(lista(), ctx);
+    expect(r.tres.map((a) => a.id)).toHaveLength(3);
+    expect(r.tres.map((a) => a.id)).not.toContain("rec");
+    expect(r.tres.map((a) => a.id)).not.toContain("del");
+    expect(r.tres.map((a) => a.id)).not.toContain("luego");
+    expect(r.reserva).toHaveLength(1);
+    expect([...r.tres, ...r.reserva].map((a) => a.id).sort()).toEqual(["alto", "hoy1", "hoy2", "vence"]);
+  });
+
+  it("las fijadas van primero; «hoy no» la saca; lo hecho desde ahí sigue a la vista", () => {
+    const xs = lista().map((a) => (a.id === "luego" ? { ...a, enfoque: HOY } : a.id === "vence" ? { ...a, noHoy: HOY } : a));
+    const r = enfoqueDelDia(xs, ctx);
+    expect(r.tres[0].id).toBe("luego");
+    expect(r.tres.map((a) => a.id)).not.toContain("vence");
+    const { hecha } = completar(xs.find((a) => a.id === "luego"), HOY);
+    const r2 = enfoqueDelDia(xs.map((a) => (a.id === "luego" ? hecha : a)), ctx);
+    expect(r2.tres[0]).toMatchObject({ id: "luego", estado: "hecha" });
+  });
+
+  it("si terminas las 3, lo dice y la reserva propone lo siguiente", () => {
+    const xs = lista();
+    let r = enfoqueDelDia(xs, ctx);
+    const hechas = r.tres.map((a) => ({ ...completar({ ...a, enfoque: HOY }, HOY).hecha }));
+    const resto = xs.filter((a) => !hechas.some((h) => h.id === a.id));
+    r = enfoqueDelDia([...resto, ...hechas], ctx);
+    expect(r.todasHechas).toBe(true);
+    expect(r.reserva.length).toBeGreaterThan(0);
   });
 });

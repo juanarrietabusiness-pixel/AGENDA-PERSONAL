@@ -453,3 +453,16 @@ button.dia-item { width: 100%; background: none; border: 0; text-align: left; fo
 .anadir-hoy-opciones select { flex: 1; min-width: 0; min-height: var(--tap-sm); padding: 0 var(--sp-3); }
 .anadir-hoy .campo { min-height: var(--tap-sm); }
 @media (min-width: 560px) { .anadir-hoy { grid-template-columns: 1fr auto; align-items: center; } .anadir-hoy-opciones select { flex: 0 1 10rem; } }
+
+/* Tus 3 de hoy */
+.enfoque { margin-top: var(--sp-5); border-top: 4px solid var(--acento); }
+.enfoque .lista { margin-top: var(--sp-2); }
+.enfoque-logro { margin: var(--sp-3) 0 var(--sp-2); font-weight: 600; font-size: var(--fs-sm); }
+.fila-botones { display: flex; gap: 2px; margin: -6px -6px -6px 0; }
+.fila-botones .editar-fila { margin: 0; }
+.editar-fila.fijar[aria-pressed="true"] { color: var(--acento); }
+.editar-fila.fijar[aria-pressed="true"] svg { fill: currentColor; }
+.enfoque .seccion-cabeza h2 { display: inline-flex; align-items: center; gap: 6px; }
+.enfoque .accion-acciones .botones { gap: var(--sp-1) var(--sp-2); align-items: center; }
+.enfoque .accion-acciones .boton { min-height: 32px; padding: 0 var(--sp-2); font-size: var(--fs-xs); }
+.enfoque .accion-acciones .chip { font-size: var(--fs-3xs); }

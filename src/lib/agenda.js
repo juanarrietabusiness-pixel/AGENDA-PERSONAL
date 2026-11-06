@@ -305,3 +305,38 @@ export function convertir(obj, tipo, clase, hoy) {
     ),
   };
 }
+
+// ------------------------------------------------------------
+// Tus 3 de hoy (y 2 de reserva)
+// ------------------------------------------------------------
+
+export const TRES = 3;
+export const RESERVA = 2;
+
+/**
+ * El enfoque del día. Las que fijaste (★) van primero —también las que ya hiciste hoy, para que veas lo logrado—, y si
+ * faltan, la agenda propone hasta completar 3: lo que vence o ya venció (fecha límite real), lo planeado para hoy o
+ * antes, y lo de valor alto sin fecha; en orden de prioridad (valor, urgencia, el sombrero que va primero). Sólo tareas
+ * (los recordatorios tienen su columna), sin lo delegable ni lo que dijiste «hoy no».
+ * Devuelve { tres, reserva, todasHechas }: si terminas las 3, la reserva sigue proponiendo lo siguiente.
+ */
+export function enfoqueDelDia(acciones, { hoy, proyectos = [], sombreros = [] }) {
+  const ctx = { hoy, proyectos, sombreros };
+  const fijadas = acciones.filter((a) => a.enfoque === hoy && (a.estado === "abierta" || (a.estado === "hecha" && a.hechaEl === hoy)));
+  const ids = new Set(fijadas.map((a) => a.id));
+  const candidatas = acciones.filter(
+    (a) =>
+      a.estado === "abierta" &&
+      a.lista === "siguientes" &&
+      (a.clase ?? "tarea") === "tarea" &&
+      !ids.has(a.id) &&
+      a.noHoy !== hoy &&
+      !a.delegable?.a &&
+      ((a.cuando && a.cuando <= hoy) || (a.limite && a.limite <= sumarDias(hoy, 2)) || (!a.cuando && valorDe(a, ctx) === "alto")),
+  );
+  const ordenadas = ordenarPor(candidatas, "prioridad", ctx);
+  const sugeridas = ordenadas.slice(0, Math.max(0, TRES - fijadas.length));
+  const tres = [...fijadas, ...sugeridas];
+  const todasHechas = tres.length > 0 && tres.every((a) => a.estado === "hecha");
+  return { tres, reserva: ordenadas.slice(sugeridas.length, sugeridas.length + RESERVA), todasHechas };
+}

@@ -6,7 +6,7 @@ import { MODELOS, FUNCIONES, PROVEEDORES, modeloEscogido, advertencias, costo } 
 import { FUERA_DE_CONTEXTO, ATRIBUCION } from "../lib/versiculos.js";
 import Telegram from "../componentes/Telegram.jsx";
 import Conexiones from "../componentes/Conexiones.jsx";
-import { PARTES_SEGUIMIENTO, seguimientoDe } from "../lib/ajustes.js";
+import { PARTES_SEGUIMIENTO, seguimientoDe, DIAS_BORRAR, diasParaBorrar } from "../lib/ajustes.js";
 import { sombrerosDe } from "../lib/sombreros.js";
 import { DIAS } from "../lib/fechas.js";
 
@@ -54,6 +54,19 @@ export default function Ajustes({ estado, cambiar, reiniciar, salir, servidor = 
       </section>
 
       {servidor && <Seguimiento ajustes={ajustes} poner={poner} />}
+
+      <section className="tarjeta seccion" aria-labelledby={`${id}-hechas`}>
+        <div className="seccion-cabeza">
+          <h2 id={`${id}-hechas`}><Icon name="trash" size={14} /> Lo que ya hiciste</h2>
+          <span className="nota">Se borra solo de la agenda; en Google Tasks y Juancito Ads se queda</span>
+        </div>
+        <div className="fila-ajuste" style={{ borderTop: 0 }}>
+          <label htmlFor={`${id}-borrar`}>Borrar lo hecho (y lo que «ya no aplica»)</label>
+          <select id={`${id}-borrar`} className="campo" style={{ width: "auto" }} value={diasParaBorrar(ajustes)} onChange={(e) => poner((a) => ({ ...a, borrarHechas: Number(e.target.value) }))}>
+            {[1, 7, 30, 90, 0].map((d) => <option key={d} value={d}>{DIAS_BORRAR[d]}</option>)}
+          </select>
+        </div>
+      </section>
       {servidor && <Telegram />}
       {servidor && <Conexiones estado={estado} sombreros={sombrerosDe(ajustes)} recargar={recargar} avisar={avisar} />}
 
