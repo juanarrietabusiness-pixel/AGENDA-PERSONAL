@@ -1,4 +1,5 @@
-import { useId } from "react";
+import { useId, useState } from "react";
+import * as api from "../lib/api.js";
 import Icon from "../componentes/Icon.jsx";
 import { TEMAS, OTROS_NOMBRES } from "../lib/temas.js";
 import { MODELOS, FUNCIONES, PROVEEDORES, modeloEscogido, advertencias, costo } from "../lib/ia.js";
@@ -132,6 +133,8 @@ export default function Ajustes({ estado, cambiar, reiniciar, salir, servidor = 
         </ul>
       </section>
 
+      {servidor && <TuContrasena avisar={avisar} />}
+
       <div className="botones seccion">
         {reiniciar && <button type="button" className="boton" onClick={reiniciar}><Icon name="refresh" size={16} /> Volver a los datos de ejemplo</button>}
         {salir && <button type="button" className="boton" onClick={salir}><Icon name="logout" size={16} /> Salir</button>}
@@ -205,6 +208,70 @@ function Seguimiento({ ajustes, poner }) {
           </div>
           <p className="vacio">Necesita Telegram conectado (más abajo). Nada suena durante tu oración, la Palabra, los servicios, la célula ni el estudio.</p>
         </>
+      )}
+    </section>
+  );
+}
+
+/** Cambiar la contraseña con la sesión abierta: pide la de ahora; las sesiones de tus otros aparatos se cierran. */
+function TuContrasena({ avisar }) {
+  const id = useId();
+  const [abierta, setAbierta] = useState(false);
+  const [datos, setDatos] = useState({ actual: "", nueva: "", otra: "" });
+  const [error, setError] = useState("");
+  const [enviando, setEnviando] = useState(false);
+  const campo = (k) => ({ value: datos[k], onChange: (e) => setDatos((d) => ({ ...d, [k]: e.target.value })) });
+
+  const guardar = async (e) => {
+    e.preventDefault();
+    if (datos.nueva !== datos.otra) {
+      setError("Las dos contraseñas nuevas no coinciden.");
+      return;
+    }
+    setEnviando(true);
+    setError("");
+    try {
+      const r = await api.cambiarContrasena(datos.actual, datos.nueva);
+      if (r.ok) {
+        setDatos({ actual: "", nueva: "", otra: "" });
+        setAbierta(false);
+        avisar("Contraseña cambiada. Las sesiones de tus otros aparatos se cerraron.");
+      } else setError(r.error ?? "No se pudo.");
+    } catch {
+      setError("No hay conexión con el servidor.");
+    } finally {
+      setEnviando(false);
+    }
+  };
+
+  return (
+    <section className="tarjeta seccion" aria-labelledby={`${id}-t`}>
+      <div className="seccion-cabeza">
+        <h2 id={`${id}-t`}>Tu contraseña</h2>
+        <span className="nota">Si la olvidas, en la entrada: «¿Olvidaste tu contraseña?» (por Telegram o con tu código de alta)</span>
+      </div>
+      {!abierta ? (
+        <button type="button" className="boton" onClick={() => setAbierta(true)}>Cambiar mi contraseña</button>
+      ) : (
+        <form onSubmit={guardar}>
+          <label className="etiqueta" htmlFor={`${id}-a`}>La de ahora</label>
+          <input id={`${id}-a`} className="campo" type="password" autoComplete="current-password" required {...campo("actual")} />
+          <div className="campos-2">
+            <div>
+              <label className="etiqueta" htmlFor={`${id}-n`}>La nueva (10 caracteres o más)</label>
+              <input id={`${id}-n`} className="campo" type="password" autoComplete="new-password" required minLength={10} {...campo("nueva")} />
+            </div>
+            <div>
+              <label className="etiqueta" htmlFor={`${id}-o`}>Repítela</label>
+              <input id={`${id}-o`} className="campo" type="password" autoComplete="new-password" required minLength={10} {...campo("otra")} />
+            </div>
+          </div>
+          {error && <p role="alert" className="aviso rojo" style={{ marginTop: "var(--sp-3)" }}>{error}</p>}
+          <div className="botones" style={{ marginTop: "var(--sp-3)" }}>
+            <button type="submit" className="boton primario" disabled={enviando}>{enviando ? "Un momento…" : "Guardar"}</button>
+            <button type="button" className="boton fantasma" onClick={() => { setAbierta(false); setError(""); }}>Cancelar</button>
+          </div>
+        </form>
       )}
     </section>
   );

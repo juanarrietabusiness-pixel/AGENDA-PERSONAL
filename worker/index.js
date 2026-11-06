@@ -18,6 +18,8 @@
 //   POST   /api/capturas/:id/ordenar     volver a intentarlo
 //   POST   /api/capturas/:id/deshacer
 //   DELETE /api/capturas/:id
+//   POST   /api/recuperar/telegram · enlace · codigo   ¿olvidaste tu contraseña? (sin sesión)
+//   PUT    /api/contrasena               cambiarla con la sesión abierta
 //   PUT    /api/cerebro/:id · DELETE     lo que el asistente sabe de ti
 //   POST   /api/mentor                   el consejo del mentor
 //   GET    /api/telegram · POST conectar · POST desconectar
@@ -35,9 +37,10 @@ import { json, error, noEncontrado, cuerpo } from "./lib/respuesta.js";
 import {
   usuarioDeLaPeticion, abrirSesion, cerrarSesion, cookieSesion, cookieBorrada, entrar, darDeAlta, hayUsuarios,
   ipDe, demasiadosFallos, apuntarFallo, olvidarFallos, VENTANA_FALLOS_MIN, igualSeguro,
-  clienteMCP, crearCodigoMCP, conexionesMCP, desconectarMCP,
+  clienteMCP, crearCodigoMCP, conexionesMCP, desconectarMCP, chatDe,
+  cuentaUnica, crearRecuperacion, duenoDeRecuperacion, ponerContrasena, contrasenaDe, MINUTOS_RECUPERAR, MIN_CONTRASENA,
 } from "./lib/sesion.js";
-import { hayTelegram, secretoWebhook, procesar, conectar, ErrorTelegram } from "./lib/telegram.js";
+import { hayTelegram, secretoWebhook, procesar, conectar, ErrorTelegram, llamar as llamarTelegram } from "./lib/telegram.js";
 import { crearAlmacen, perfilInicial, TIPOS_ELEMENTO } from "./lib/almacen.js";
 import { ordenarCaptura, deshacerCaptura } from "./lib/ordenar.js";
 import { llaves, ErrorIA } from "./lib/modelo.js";
@@ -112,6 +115,43 @@ async function api(req, env, ctx) {
     await olvidarFallos(db, ip);
     const testigo = await abrirSesion(db, id);
     return json({ ok: true }, 200, { "Set-Cookie": cookieSesion(testigo) });
+  }
+
+  // ¿Olvidaste tu contraseña? Sin sesión, con el mismo tope que la entrada (worker/lib/sesion.js lo explica).
+  if (recurso === "recuperar" && req.method === "POST") {
+    const ip = ipDe(req);
+    if (await demasiadosFallos(db, ip)) return bloqueada();
+    const datos = (await cuerpo(req)) ?? {};
+    if (a === "telegram") {
+      const dueno = await cuentaUnica(db);
+      const chat = dueno && hayTelegram(env) ? await chatDe(db, dueno) : null;
+      if (!chat) return error("Telegram no está conectado a tu agenda. Usa tu código de alta.", 409);
+      const testigo = await crearRecuperacion(db, dueno);
+      if (!testigo) return json({ ok: true, yaEnviado: true });
+      try {
+        await llamarTelegram(env, "sendMessage", {
+          chat_id: chat,
+          text: `Para poner una contraseña nueva en tu agenda, abre este enlace (vale ${MINUTOS_RECUPERAR} minutos y sirve una sola vez):\n${url.origin}/recuperar?t=${testigo}\n\nSi no lo pediste tú, no hagas nada: tu contraseña sigue igual.`,
+          link_preview_options: { is_disabled: true },
+        });
+      } catch {
+        return error("Telegram no aceptó el mensaje. Prueba con tu código de alta.", 502);
+      }
+      return json({ ok: true });
+    }
+    if (a === "enlace" || a === "codigo") {
+      let dueno = null;
+      if (a === "enlace") dueno = await duenoDeRecuperacion(db, datos.token);
+      else if (env.CODIGO_ALTA && igualSeguro(String(datos.codigo ?? ""), env.CODIGO_ALTA)) dueno = await cuentaUnica(db);
+      if (!dueno) {
+        await apuntarFallo(db, ip);
+        return error(a === "enlace" ? "El enlace caducó o ya se usó. Pide otro." : "El código de alta no es correcto.", 403);
+      }
+      if (String(datos.contrasena ?? "").length < MIN_CONTRASENA) return error(`La contraseña necesita al menos ${MIN_CONTRASENA} caracteres.`, 400);
+      await ponerContrasena(db, dueno, datos.contrasena);
+      await olvidarFallos(db, ip);
+      return json({ ok: true }, 200, { "Set-Cookie": cookieSesion(await abrirSesion(db, dueno)) });
+    }
   }
 
   // Telegram avisa sin sesión: vale su secreto (con el mismo tope que la entrada). Siempre contesta 200 tras procesar,
@@ -190,6 +230,20 @@ async function api(req, env, ctx) {
       }
       return json({ ok: true });
     }
+  }
+
+  // Cambiar la contraseña con la sesión abierta: pide la de ahora y cierra las demás sesiones.
+  if (recurso === "contrasena" && req.method === "PUT") {
+    const ip = ipDe(req);
+    if (await demasiadosFallos(db, ip)) return bloqueada();
+    const { actual, nueva } = (await cuerpo(req)) ?? {};
+    if (!(await contrasenaDe(db, usuario.id, actual))) {
+      await apuntarFallo(db, ip);
+      return error("Tu contraseña de ahora no es esa.", 403);
+    }
+    if (String(nueva ?? "").length < MIN_CONTRASENA) return error(`La contraseña necesita al menos ${MIN_CONTRASENA} caracteres.`, 400);
+    await ponerContrasena(db, usuario.id, nueva);
+    return json({ ok: true }, 200, { "Set-Cookie": cookieSesion(await abrirSesion(db, usuario.id)) });
   }
 
   if (recurso === "perfil" && req.method === "PUT") {

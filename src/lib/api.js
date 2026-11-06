@@ -28,6 +28,10 @@ export const arranque = () => pedir("arranque");
 export const alta = (datos) => pedir("alta", { metodo: "POST", datos });
 export const entrar = (email, contrasena) => pedir("acceso", { metodo: "POST", datos: { email, contrasena } });
 export const salir = () => pedir("salir", { metodo: "POST", datos: {} });
+export const recuperarPorTelegram = () => pedir("recuperar/telegram", { metodo: "POST", datos: {} });
+export const recuperarConEnlace = (token, contrasena) => pedir("recuperar/enlace", { metodo: "POST", datos: { token, contrasena } });
+export const recuperarConCodigo = (codigo, contrasena) => pedir("recuperar/codigo", { metodo: "POST", datos: { codigo, contrasena } });
+export const cambiarContrasena = (actual, nueva) => pedir("contrasena", { metodo: "PUT", datos: { actual, nueva } });
 export const estado = () => pedir("estado");
 export const guardarElemento = (tipo, obj) =>
   pedir(`elementos/${tipo}/${encodeURIComponent(tipo === "persona" ? obj.nombre : obj.id)}`, { metodo: "PUT", datos: obj });

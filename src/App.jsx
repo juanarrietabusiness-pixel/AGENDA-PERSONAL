@@ -9,6 +9,7 @@ import Mentor from "./pantallas/Mentor.jsx";
 import Ajustes from "./pantallas/Ajustes.jsx";
 import Entrar from "./pantallas/Entrar.jsx";
 import Autorizar from "./pantallas/Autorizar.jsx";
+import Recuperar from "./pantallas/Recuperar.jsx";
 import { useAlmacen } from "./hooks/useAlmacen.js";
 import { hoyEn, horaEn, sumarDias, textoLargo } from "./lib/fechas.js";
 import { completar, posponer, soltar } from "./lib/metodo.js";
@@ -53,7 +54,7 @@ export default function App() {
   // Al volver de dar un permiso (Juancito Ads, Google), el servidor dice qué pasó en ?aviso=…
   const [mensaje, setMensaje] = useState(() => {
     const aviso = new URLSearchParams(window.location.search).get("aviso");
-    return aviso && window.location.pathname !== "/autorizar" ? { texto: aviso } : null;
+    return aviso && window.location.pathname === "/" ? { texto: aviso } : null;
   });
   const autorizando = window.location.pathname === "/autorizar";
 
@@ -85,6 +86,8 @@ export default function App() {
   const conAcciones = useCallback((fn) => cambiar((e) => ({ ...e, acciones: fn(e.acciones) })), [cambiar]);
 
   if (modo === "cargando") return <div className="pantalla-entrada" role="status">Cargando…</div>;
+  // El enlace de «¿Olvidaste tu contraseña?» se abre sin sesión.
+  if (window.location.pathname === "/recuperar") return <Recuperar servidor={modo !== "prototipo"} />;
   if (modo === "acceso" || modo === "alta") return <Entrar modo={modo} almacen={almacen} />;
   if (autorizando) return modo === "servidor" ? <Autorizar /> : <div className="pantalla-entrada">El permiso de Claude necesita el servidor.</div>;
 

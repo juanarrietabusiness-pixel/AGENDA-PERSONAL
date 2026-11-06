@@ -56,6 +56,11 @@ Abre `https://agenda.juancitoads.com`. La primera vez pide **crear la cuenta** c
 (10 caracteres o más) y el código de alta. Es la única cuenta: después nadie más puede darse de alta, y la pantalla sólo
 pide entrar.
 
+**Si olvidas la contraseña:** en la entrada, **¿Olvidaste tu contraseña?** → **Mandarme el enlace por Telegram** (llega
+al chat del bot; vale 15 minutos y sirve una vez). Sin Telegram, con el **código de alta**; si también lo olvidaste,
+pon uno nuevo en Cloudflare (**Settings → Variables and Secrets → CODIGO_ALTA → Edit**) y úsalo. Poner una contraseña
+nueva cierra las sesiones de tus otros aparatos. Con la sesión abierta, se cambia en **Ajustes → Tu contraseña**.
+
 ## 4. Conectar Telegram
 
 Con `TELEGRAM_BOT_TOKEN` puesto: en la agenda, **Ajustes → Telegram → Conectar Telegram → Abrir Telegram**, y en el

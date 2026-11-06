@@ -112,4 +112,7 @@ Bandeja con su error. Lo que devuelve el modelo lo comprueba `src/lib/agente.js`
 - **La entrada tiene tope** (`demasiadosFallos` en worker/lib/sesion.js): 5 fallos por IP o 30 en total en 15 minutos
   dan 429, y se mira ANTES de calcular la contraseña. Una ruta nueva que compruebe un secreto (Telegram, el MCP) tiene
   que pasar por lo mismo.
+- **Recuperar la contraseña sin correo** (`crearRecuperacion`, `ponerContrasena` en worker/lib/sesion.js): un enlace de un
+  solo uso por Telegram al chat atado (15 min, uno cada 2 min, en `oauth_pendientes` con servicio «recuperar», sólo su
+  huella) o el `CODIGO_ALTA`. Las dos rutas pasan por el tope de intentos; poner una contraseña cierra TODAS las sesiones.
 - La NVI está escogida, pero el banco sigue en RVR1960 hasta tener sus textos exactos: nunca de memoria.

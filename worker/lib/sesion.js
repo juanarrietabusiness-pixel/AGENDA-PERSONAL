@@ -129,6 +129,67 @@ export async function darDeAlta(db, env, { codigo, email, nombre, contrasena }) 
   return { id };
 }
 
+// ── Recuperar la contraseña ─────────────────────────────────
+//
+// La aplicación no manda correos. Hay dos caminos, los dos sin que nadie más pueda:
+//   · un ENLACE por Telegram, al chat atado a la cuenta (un solo uso, 15 minutos; uno cada 2 minutos como mucho, para
+//     que nadie llene el chat de enlaces);
+//   · el CÓDIGO DE ALTA, que es un secreto del Worker y se puede cambiar en Cloudflare si también se olvidó.
+// El enlace se guarda en `oauth_pendientes` (servicio «recuperar», sólo su huella). Poner una contraseña nueva cierra
+// todas las sesiones abiertas.
+
+export const MINUTOS_RECUPERAR = 15;
+const RECUPERAR = "recuperar";
+
+/** La cuenta (la aplicación es de una persona: la primera que se creó). */
+export async function cuentaUnica(db) {
+  return (await db.prepare("select id from usuarios order by creado limit 1").first("id")) ?? null;
+}
+
+/** Un enlace de un solo uso. Devuelve el testigo, o null si ya se pidió otro hace menos de 2 minutos. */
+export async function crearRecuperacion(db, ownerId) {
+  const ahora = Date.now();
+  const reciente = await db
+    .prepare("select 1 as hay from oauth_pendientes where owner_id = ? and servicio = ? and caduca > ?")
+    .bind(ownerId, RECUPERAR, new Date(ahora + (MINUTOS_RECUPERAR - 2) * 60_000).toISOString())
+    .first("hay");
+  if (reciente) return null;
+  const testigo = aleatorio(32);
+  await db.batch([
+    db.prepare("delete from oauth_pendientes where servicio = ? and (owner_id = ? or caduca < ?)").bind(RECUPERAR, ownerId, new Date(ahora).toISOString()),
+    db
+      .prepare("insert into oauth_pendientes (estado_hash, owner_id, servicio, verificador, caduca) values (?, ?, ?, '-', ?)")
+      .bind(await huella(testigo), ownerId, RECUPERAR, new Date(ahora + MINUTOS_RECUPERAR * 60_000).toISOString()),
+  ]);
+  return testigo;
+}
+
+/** De quién es un enlace que sigue valiendo, o null. No lo gasta: lo gasta `ponerContrasena`. */
+export async function duenoDeRecuperacion(db, testigo) {
+  if (!/^[0-9a-f]{64}$/.test(String(testigo ?? ""))) return null;
+  return (
+    (await db
+      .prepare("select owner_id from oauth_pendientes where estado_hash = ? and servicio = ? and caduca > ?")
+      .bind(await huella(testigo), RECUPERAR, new Date().toISOString())
+      .first("owner_id")) ?? null
+  );
+}
+
+/** Pone una contraseña nueva, cierra TODAS las sesiones y gasta los enlaces de recuperación. */
+export async function ponerContrasena(db, ownerId, contrasena) {
+  await db.batch([
+    db.prepare("update usuarios set hash = ? where id = ?").bind(await hashearContrasena(String(contrasena)), ownerId),
+    db.prepare("delete from sesiones where usuario_id = ?").bind(ownerId),
+    db.prepare("delete from oauth_pendientes where owner_id = ? and servicio = ?").bind(ownerId, RECUPERAR),
+  ]);
+}
+
+/** ¿Es esta su contraseña de ahora? (para cambiarla con la sesión abierta) */
+export async function contrasenaDe(db, ownerId, contrasena) {
+  const hash = await db.prepare("select hash from usuarios where id = ?").bind(ownerId).first("hash");
+  return Boolean(hash) && (await contrasenaCorrecta(String(contrasena ?? ""), hash));
+}
+
 // ── El tope de intentos ──────────────────────────────────────
 
 /** La IP de quien pide (Cloudflare la pone en `CF-Connecting-IP`). */
