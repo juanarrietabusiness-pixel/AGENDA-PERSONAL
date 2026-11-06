@@ -4,6 +4,10 @@ import { TEMAS, OTROS_NOMBRES } from "../lib/temas.js";
 import { MODELOS, FUNCIONES, PROVEEDORES, modeloEscogido, advertencias, costo } from "../lib/ia.js";
 import { FUERA_DE_CONTEXTO, ATRIBUCION } from "../lib/versiculos.js";
 import Telegram from "../componentes/Telegram.jsx";
+import Conexiones from "../componentes/Conexiones.jsx";
+import { PARTES_SEGUIMIENTO, seguimientoDe } from "../lib/ajustes.js";
+import { sombrerosDe } from "../lib/sombreros.js";
+import { DIAS } from "../lib/fechas.js";
 
 const FRECUENCIAS = [
   { id: "normal", texto: "Normal" },
@@ -13,7 +17,7 @@ const FRECUENCIAS = [
 
 const mensual = (m) => 900 * costo(m, { entrada: 6000, salida: 1000 });
 
-export default function Ajustes({ estado, cambiar, reiniciar, salir, servidor = false }) {
+export default function Ajustes({ estado, cambiar, reiniciar, salir, servidor = false, recargar, avisar }) {
   const id = useId();
   const { ajustes } = estado;
   const ia = ajustes.ia;
@@ -48,7 +52,9 @@ export default function Ajustes({ estado, cambiar, reiniciar, salir, servidor = 
         <p style={{ margin: "var(--sp-3) 0 0", fontSize: "var(--fs-xs)", color: "var(--texto-3)" }}>Otros nombres posibles: {OTROS_NOMBRES.join(", ")}.</p>
       </section>
 
+      {servidor && <Seguimiento ajustes={ajustes} poner={poner} />}
       {servidor && <Telegram />}
+      {servidor && <Conexiones estado={estado} sombreros={sombrerosDe(ajustes)} recargar={recargar} avisar={avisar} />}
 
       <section className="tarjeta seccion" aria-labelledby={`${id}-ia`}>
         <div className="seccion-cabeza"><h2 id={`${id}-ia`}>Quién piensa: Claude o Meta</h2></div>
@@ -131,5 +137,75 @@ export default function Ajustes({ estado, cambiar, reiniciar, salir, servidor = 
         {salir && <button type="button" className="boton" onClick={salir}><Icon name="logout" size={16} /> Salir</button>}
       </div>
     </>
+  );
+}
+
+/** Ajustes → Seguimiento: qué te escribe el asistente por Telegram y a qué hora. */
+function Seguimiento({ ajustes, poner }) {
+  const id = useId();
+  const seg = seguimientoDe(ajustes);
+  const ponerSeg = (k, v) => poner((a) => ({ ...a, seguimiento: { ...seguimientoDe(a), [k]: v } }));
+  const ponerAviso = (fn) => poner((a) => ({ ...a, avisos: fn(structuredClone(a.avisos)) }));
+  const hora = (valor, onCambio, etiqueta) => (
+    <input type="time" className="campo hora-corta" aria-label={etiqueta} value={valor ?? ""} onChange={(e) => e.target.value && onCambio(e.target.value)} />
+  );
+  return (
+    <section className="tarjeta seccion" aria-labelledby={`${id}-seg`}>
+      <div className="seccion-cabeza">
+        <h2 id={`${id}-seg`}><Icon name="bell" size={14} /> Seguimiento</h2>
+        <span className="nota">Lo que el asistente te escribe por Telegram, sin que se lo pidas</span>
+      </div>
+      <label className="casilla fuerte">
+        <input type="checkbox" checked={seg.activo} onChange={(e) => ponerSeg("activo", e.target.checked)} /> Que me dé seguimiento
+      </label>
+      {seg.activo && (
+        <>
+          {Object.entries(PARTES_SEGUIMIENTO).map(([k, texto]) => (
+            <label key={k} className="casilla">
+              <input type="checkbox" checked={Boolean(seg[k])} onChange={(e) => ponerSeg(k, e.target.checked)} /> {texto}
+            </label>
+          ))}
+          <div className="fila-ajuste">
+            <div><strong>Resumen de la mañana</strong><br /><small>Después de tu oración, cada día a su hora.</small></div>
+            <div className="horas-semana">
+              {[1, 2, 3, 4, 5, 6, 0].map((d) => (
+                <label key={d}>
+                  <span>{DIAS[d].slice(0, 3)}</span>
+                  {hora(ajustes.avisos?.resumen?.[d], (v) => ponerAviso((x) => ({ ...x, resumen: { ...x.resumen, [d]: v } })), `Resumen del ${DIAS[d]}`)}
+                </label>
+              ))}
+            </div>
+          </div>
+          <div className="fila-ajuste">
+            <div><strong>Cierre del día</strong><br /><small>Si cae en algo protegido (la célula, un servicio), sale al terminar.</small></div>
+            {hora(ajustes.avisos?.cierre, (v) => ponerAviso((x) => ({ ...x, cierre: v })), "Hora del cierre")}
+          </div>
+          <div className="fila-ajuste">
+            <div><strong>Silencio</strong><br /><small>Nada suena en esas horas: va al resumen del día siguiente.</small></div>
+            <div className="botones" style={{ alignItems: "center" }}>
+              {hora(ajustes.avisos?.silencio?.desde, (v) => ponerAviso((x) => ({ ...x, silencio: { ...x.silencio, desde: v } })), "Silencio desde")}
+              <span>a</span>
+              {hora(ajustes.avisos?.silencio?.hasta, (v) => ponerAviso((x) => ({ ...x, silencio: { ...x.silencio, hasta: v } })), "Silencio hasta")}
+            </div>
+          </div>
+          <div className="fila-ajuste">
+            <div><strong>Avisos al día, como mucho</strong><br /><small>Lo que pase de ahí se junta.</small></div>
+            <select className="campo" aria-label="Avisos al día" value={ajustes.avisos?.tope ?? 8} onChange={(e) => ponerAviso((x) => ({ ...x, tope: Number(e.target.value) }))}>
+              {[3, 5, 8, 12, 20].map((n) => <option key={n} value={n}>{n}</option>)}
+            </select>
+          </div>
+          <div className="fila-ajuste">
+            <div><strong>Revisión semanal</strong><br /><small>Vaciar la bandeja, mirar cada sombrero y escoger las piedras grandes.</small></div>
+            <div className="botones" style={{ alignItems: "center" }}>
+              <select className="campo" aria-label="Día de la revisión" value={ajustes.revision?.dia ?? 6} onChange={(e) => poner((a) => ({ ...a, revision: { ...a.revision, dia: Number(e.target.value) } }))}>
+                {[1, 2, 3, 4, 5, 6, 0].map((d) => <option key={d} value={d}>{DIAS[d]}</option>)}
+              </select>
+              {hora(ajustes.revision?.hora, (v) => poner((a) => ({ ...a, revision: { ...a.revision, hora: v } })), "Hora de la revisión")}
+            </div>
+          </div>
+          <p className="vacio">Necesita Telegram conectado (más abajo). Nada suena durante tu oración, la Palabra, los servicios, la célula ni el estudio.</p>
+        </>
+      )}
+    </section>
   );
 }

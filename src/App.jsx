@@ -1,30 +1,33 @@
 import { useCallback, useEffect, useState } from "react";
 import Icon from "./componentes/Icon.jsx";
-import Capturar from "./componentes/Capturar.jsx";
 import Aclarar from "./componentes/Aclarar.jsx";
+import Editar from "./componentes/Editar.jsx";
+import Burbuja from "./componentes/Burbuja.jsx";
 import Hoy from "./pantallas/Hoy.jsx";
-import Semana from "./pantallas/Semana.jsx";
-import Sombreros from "./pantallas/Sombreros.jsx";
-import Asistente from "./pantallas/Asistente.jsx";
+import Plan from "./pantallas/Plan.jsx";
+import Mentor from "./pantallas/Mentor.jsx";
 import Ajustes from "./pantallas/Ajustes.jsx";
 import Entrar from "./pantallas/Entrar.jsx";
-import * as api from "./lib/api.js";
+import Autorizar from "./pantallas/Autorizar.jsx";
 import { useAlmacen } from "./hooks/useAlmacen.js";
 import { hoyEn, horaEn, sumarDias, textoLargo } from "./lib/fechas.js";
 import { completar, posponer, soltar } from "./lib/metodo.js";
+import { sombrerosDe } from "./lib/sombreros.js";
 import { tema as temaDe } from "./lib/temas.js";
 
 const PANTALLAS = [
   { id: "hoy", nombre: "Hoy", icono: "sun" },
-  { id: "semana", nombre: "Semana", icono: "calendar" },
-  { id: "sombreros", nombre: "Sombreros", icono: "layers" },
-  { id: "asistente", nombre: "Asistente", icono: "messageCircle" },
+  { id: "plan", nombre: "Plan", icono: "calendar" },
+  { id: "mentor", nombre: "Mentor", icono: "brain" },
 ];
+// Las direcciones de antes siguen llevando a algún sitio.
+const ANTES = { semana: "plan", sombreros: "plan", asistente: "hoy" };
 
 const mayuscula = (t) => t.charAt(0).toUpperCase() + t.slice(1);
 
 const pantallaDeLaDireccion = () => {
-  const h = window.location.hash.replace("#", "");
+  const h = window.location.hash.replace("#", "").split("?")[0];
+  if (ANTES[h]) return ANTES[h];
   return [...PANTALLAS.map((p) => p.id), "ajustes"].includes(h) ? h : "hoy";
 };
 
@@ -44,15 +47,33 @@ export default function App() {
   const almacen = useAlmacen(hoy);
   const { estado, cambiar, reiniciar, modo } = almacen;
   const [pantalla, setPantalla] = useState(pantallaDeLaDireccion);
-  const [capturando, setCapturando] = useState(false);
   const [aclarando, setAclarando] = useState(null);
-  const [mensaje, setMensaje] = useState("");
+  const [editando, setEditando] = useState(null);
+  const [asistente, setAsistente] = useState(false);
+  // Al volver de dar un permiso (Juancito Ads, Google), el servidor dice qué pasó en ?aviso=…
+  const [mensaje, setMensaje] = useState(() => {
+    const aviso = new URLSearchParams(window.location.search).get("aviso");
+    return aviso && window.location.pathname !== "/autorizar" ? { texto: aviso } : null;
+  });
+  const autorizando = window.location.pathname === "/autorizar";
 
   useEffect(() => {
     const alCambiar = () => setPantalla(pantallaDeLaDireccion());
     window.addEventListener("hashchange", alCambiar);
     return () => window.removeEventListener("hashchange", alCambiar);
   }, []);
+
+  const avisar = useCallback((texto, extra = {}) => {
+    setMensaje({ texto, ...extra });
+    setTimeout(() => setMensaje((m) => (m?.texto === texto ? null : m)), extra.accion ? 9000 : 4500);
+  }, []);
+
+  useEffect(() => {
+    if (!new URLSearchParams(window.location.search).get("aviso") || autorizando) return undefined;
+    window.history.replaceState(null, "", `${window.location.pathname}${window.location.hash}`);
+    const t = setTimeout(() => setMensaje(null), 8000);
+    return () => clearTimeout(t);
+  }, [autorizando]);
 
   const tema = temaDe(estado?.ajustes?.tema);
   useEffect(() => {
@@ -62,86 +83,72 @@ export default function App() {
   }, [tema]);
 
   const conAcciones = useCallback((fn) => cambiar((e) => ({ ...e, acciones: fn(e.acciones) })), [cambiar]);
-  const avisar = (texto) => {
-    setMensaje(texto);
-    setTimeout(() => setMensaje(""), 4000);
-  };
 
   if (modo === "cargando") return <div className="pantalla-entrada" role="status">Cargando…</div>;
   if (modo === "acceso" || modo === "alta") return <Entrar modo={modo} almacen={almacen} />;
+  if (autorizando) return modo === "servidor" ? <Autorizar /> : <div className="pantalla-entrada">El permiso de Claude necesita el servidor.</div>;
 
-  const accionesUI = {
-    hecha: (id) => {
-      const a = estado.acciones.find((x) => x.id === id);
-      if (!a) return;
-      const { hecha, siguiente } = completar(a, hoy);
-      conAcciones((lista) => [...lista.map((x) => (x.id === id ? hecha : x)), ...(siguiente ? [siguiente] : [])]);
-      avisar(siguiente ? `Hecha. La siguiente queda para ${textoLargo(siguiente.cuando ?? siguiente.limite)}.` : `Hecha: «${a.titulo}».`);
-    },
-    deshacer: (id) => conAcciones((lista) => lista.map((x) => (x.id === id ? { ...x, estado: "abierta", hechaEl: null } : x))),
-    escoger: (id) => conAcciones((lista) => {
-      const yaSon = lista.filter((x) => x.enfoque === hoy).length;
-      if (yaSon >= 3) {
-        avisar("Ya tienes tus 3 de hoy. Si cambias una, quita otra primero.");
-        return lista;
-      }
-      return lista.map((x) => (x.id === id ? { ...x, enfoque: hoy } : x));
-    }),
-    decidir: (id, opcion) => conAcciones((lista) => lista.map((x) => {
+  const sombreros = sombrerosDe(estado.ajustes);
+  const servidor = modo === "servidor";
+
+  /** Marcar hecha (o reabrir) una acción. Si se repite, nace la siguiente. */
+  const onHecha = (id) => {
+    const a = estado.acciones.find((x) => x.id === id);
+    if (!a) return;
+    if (a.estado !== "abierta") {
+      conAcciones((lista) => lista.map((x) => (x.id === id ? { ...x, estado: "abierta", hechaEl: null } : x)));
+      avisar(`Reabierta: «${a.titulo}».`);
+      return;
+    }
+    const { hecha, siguiente } = completar(a, hoy);
+    conAcciones((lista) => [...lista.map((x) => (x.id === id ? hecha : x)), ...(siguiente ? [siguiente] : [])]);
+    avisar(siguiente ? `Hecha. La siguiente queda para ${textoLargo(siguiente.cuando ?? siguiente.limite)}.` : `Hecha: «${a.titulo}».`, {
+      accion: "Deshacer",
+      alPulsar: () => conAcciones((lista) => lista.filter((x) => x.id !== siguiente?.id).map((x) => (x.id === id ? a : x))),
+    });
+  };
+
+  const onDecidir = (id, opcion) =>
+    conAcciones((lista) => lista.map((x) => {
       if (x.id !== id) return x;
       if (opcion === "hoy") return posponer(x, hoy);
       if (opcion === "manana") return posponer(x, sumarDias(hoy, 1));
       if (opcion === "algun-dia") return { ...x, lista: "algun-dia", cuando: null };
       return soltar(x, hoy);
-    })),
-    aceptarBloque: (b) => {
-      conAcciones((lista) => lista.map((x) => (x.id === b.accionId ? { ...x, cuando: hoy, hora: b.inicio } : x)));
-      avisar(`«${b.titulo}» quedó agendada a las ${b.inicio}.`);
-    },
+    }));
+
+  const onAbrir = (tipo, obj) => setEditando({ tipo, obj });
+
+  const guardarEdicion = (obj) => {
+    const lista = editando.tipo === "accion" ? "acciones" : "eventos";
+    cambiar((e) => ({ ...e, [lista]: e[lista].map((x) => (x.id === obj.id ? obj : x)) }));
+    setEditando(null);
+    avisar("Guardado.");
   };
 
-  /**
-   * Con servidor: la captura va al asistente, que la ordena; se enseña su tarjeta con «Deshacer».
-   * Sin servidor (prototipo): queda en la Bandeja para aclararla a mano.
-   */
-  const guardarCaptura = async (texto, canal) => {
-    if (modo !== "servidor") {
-      cambiar((e) => ({ ...e, bandeja: [{ id: `c-${Date.now()}`, texto, canal, creada: hoy }, ...e.bandeja] }));
-      return { tarjeta: "Guardado en la Bandeja. En el prototipo la IA no está conectada: lo aclaras tú." };
-    }
-    const r = await api.capturar(texto, canal);
-    await almacen.recargar();
-    if (!r.ok && !r.resultado) return { tarjeta: `Quedó en la Bandeja: ${r.error ?? "el asistente no pudo ordenarlo."}`, error: true };
-    return { tarjeta: r.resultado.tarjeta, capturaId: r.captura?.id, pregunta: r.resultado.pregunta };
+  const borrarEdicion = (id) => {
+    const lista = editando.tipo === "accion" ? "acciones" : "eventos";
+    cambiar((e) => ({ ...e, [lista]: e[lista].filter((x) => x.id !== id) }));
+    setEditando(null);
+    avisar("Borrado.");
   };
 
-  const deshacerCaptura = async (id) => {
-    const r = await api.deshacer(id);
-    await almacen.recargar();
-    return r.ok;
-  };
-
-  const reintentar = async (id) => {
-    const r = await api.reordenar(id);
-    await almacen.recargar();
-    avisar(r.ok ? r.resultado.tarjeta.split("\n").slice(0, 2).join(" ") : `Sigue en la Bandeja: ${r.error}`);
+  const enPrototipo = (texto) => {
+    cambiar((e) => ({ ...e, bandeja: [{ id: `c-${Date.now()}`, texto, canal: "app", creada: hoy }, ...e.bandeja] }));
+    avisar("Guardado en la Bandeja: en el prototipo la IA no está conectada. Lo aclaras tú.");
   };
 
   const terminarAclarar = (accion) => {
     const captura = aclarando;
-    cambiar((e) => ({
-      ...e,
-      bandeja: e.bandeja.filter((c) => c.id !== captura.id),
-      acciones: accion ? [...e.acciones, accion] : e.acciones,
-    }));
+    cambiar((e) => ({ ...e, bandeja: e.bandeja.filter((c) => c.id !== captura.id), acciones: accion ? [...e.acciones, accion] : e.acciones }));
     setAclarando(null);
     avisar(accion ? `Listo: «${accion.titulo}».` : "Borrado.");
   };
 
-  const props = { estado, hoy, hora, acciones: accionesUI };
+  const comunes = { estado, hoy, onHecha, onAbrir, avisar };
 
   return (
-    <div className="app">
+    <div className={`app${asistente ? " con-asistente" : ""}`}>
       <header className="cabecera">
         <div className="marca"><span className="marca-punto" aria-hidden="true" />{tema.nombre}</div>
         {modo === "prototipo" && <span className="chip">Prototipo</span>}
@@ -155,30 +162,31 @@ export default function App() {
               {p.nombre}
             </a>
           ))}
-          <a className="nav-ajustes" href="#ajustes" aria-current={pantalla === "ajustes" ? "page" : undefined}>
+          <a href="#ajustes" aria-current={pantalla === "ajustes" ? "page" : undefined}>
             <Icon name="settings" size={22} /> Ajustes
           </a>
         </nav>
         <main className="contenido" id="contenido">
-          {pantalla === "hoy" && <Hoy {...props} />}
-          {pantalla === "semana" && <Semana {...props} />}
-          {pantalla === "sombreros" && <Sombreros {...props} />}
-          {pantalla === "asistente" && <Asistente {...props} onAclarar={setAclarando} onReintentar={modo === "servidor" ? reintentar : null} />}
-          {pantalla === "ajustes" && <Ajustes estado={estado} cambiar={cambiar} reiniciar={modo === "prototipo" ? reiniciar : null} salir={modo === "servidor" ? almacen.salir : null} servidor={modo === "servidor"} />}
-          {pantalla !== "ajustes" && (
-            <p style={{ marginTop: "var(--sp-6)", textAlign: "center" }}>
-              <a href="#ajustes" style={{ color: "var(--texto-3)", fontSize: "var(--fs-sm)" }}>Ajustes: nombre, color, IA y versículos</a>
-            </p>
+          {pantalla === "hoy" && <Hoy {...comunes} hora={hora} onDecidir={onDecidir} onAsistente={() => (servidor ? setAsistente(true) : estado.bandeja[0] && setAclarando(estado.bandeja[0]))} />}
+          {pantalla === "plan" && <Plan {...comunes} cambiar={cambiar} />}
+          {pantalla === "mentor" && <Mentor {...comunes} cambiar={cambiar} recargar={almacen.recargar} servidor={servidor} />}
+          {pantalla === "ajustes" && (
+            <Ajustes estado={estado} cambiar={cambiar} reiniciar={modo === "prototipo" ? reiniciar : null} salir={servidor ? almacen.salir : null} servidor={servidor} recargar={almacen.recargar} avisar={avisar} />
           )}
         </main>
       </div>
 
-      <button type="button" className="capturar-boton" onClick={() => setCapturando(true)}>
-        <Icon name="plus" size={22} strokeWidth={2.5} /> Capturar
-      </button>
+      <Burbuja estado={estado} servidor={servidor} recargar={almacen.recargar} avisar={avisar} abierta={asistente} setAbierta={setAsistente} onPrototipo={enPrototipo} />
 
-      <div role="status" aria-live="polite" className={mensaje ? "aviso" : "solo-lector"} style={mensaje ? { position: "fixed", left: "50%", transform: "translateX(-50%)", top: 72, zIndex: 60, boxShadow: "var(--elev-2)" } : undefined}>
-        {mensaje}
+      <div role="status" aria-live="polite" className={mensaje ? "aviso toast" : "solo-lector"}>
+        {mensaje && (
+          <>
+            <span>{mensaje.texto}</span>
+            {mensaje.accion && (
+              <button type="button" className="boton" onClick={() => { mensaje.alPulsar?.(); setMensaje(null); }}>{mensaje.accion}</button>
+            )}
+          </>
+        )}
       </div>
 
       {almacen.fallo && (
@@ -187,8 +195,19 @@ export default function App() {
           <button type="button" className="boton fantasma" onClick={almacen.limpiarFallo}>Cerrar</button>
         </div>
       )}
-      {capturando && <Capturar onGuardar={guardarCaptura} onDeshacer={deshacerCaptura} onCerrar={() => setCapturando(false)} />}
       {aclarando && <Aclarar captura={aclarando} hoy={hoy} onListo={terminarAclarar} onCerrar={() => setAclarando(null)} />}
+      {editando && (
+        <Editar
+          tipo={editando.tipo}
+          obj={editando.obj}
+          sombreros={sombreros}
+          proyectos={estado.proyectos}
+          hoy={hoy}
+          onGuardar={guardarEdicion}
+          onBorrar={editando.obj.fuente === "google" ? null : borrarEdicion}
+          onCerrar={() => setEditando(null)}
+        />
+      )}
     </div>
   );
 }

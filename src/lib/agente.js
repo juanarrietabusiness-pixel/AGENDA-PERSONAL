@@ -1,8 +1,9 @@
 // ============================================================
 // Lo que el asistente dice que hay que hacer, comprobado por el código
 //
-// El modelo lee la captura y devuelve un JSON (FORMA_DE_ORDENAR en
-// personalidad.js). Aquí no se le cree nada sin mirarlo:
+// El modelo lee lo que dijo Juan (una captura o un mensaje del chat) y
+// devuelve un JSON (FORMA_DE_ORDENAR en personalidad.js). Aquí no se le cree
+// nada sin mirarlo:
 //
 //   · un tipo, un sombrero, una fecha o una hora que no existen, fuera;
 //   · una regla de repetición que no se entiende, fuera (la tarea se queda);
@@ -11,20 +12,28 @@
 //     día de la semana: pasó en el calendario de marketing);
 //   · una fecha que ya pasó no se guarda: se pregunta;
 //   · los cambios de horario y del ritmo pasan por aplicarAjuste y
-//     aplicarRitmo, que los comprueban.
+//     aplicarRitmo, y los de los sombreros por aplicarSombrero;
+//   · una OPERACIÓN sobre algo que ya existe (completar, mover, editar,
+//     borrar, delegar) sólo vale con un id que esté en las listas: el modelo
+//     no puede inventarse a qué se refiere;
+//   · lo que APRENDE pasa por limpiarAprendizajes (sin repetir, sin nada
+//     confidencial, tres como mucho).
 //
 // Y la TARJETA la escribe el código con lo que DE VERDAD se hizo, no con lo
-// que el modelo dice que hizo.
+// que el modelo dice que hizo. Todo se puede deshacer.
 // ============================================================
 
 import { esFecha, esHora, sumarDias, diaSemana, minutos, aHora, textoCorto, textoHora, DIAS } from "./fechas.js";
 import { leerRegla } from "./recurrencia.js";
-import { nuevaAccion, nuevoId, limpiarTitulo, DURACIONES } from "./metodo.js";
-import { esSombrero, sombrero } from "./sombreros.js";
+import { nuevaAccion, nuevoId, limpiarTitulo, DURACIONES, completar, posponer, soltar, VALORES } from "./metodo.js";
+import { SOMBREROS, esSombrero, nombreDe, aplicarSombrero } from "./sombreros.js";
 import { aplicarAjuste, CLAVES_AJUSTE } from "./ajustes.js";
 import { aplicarRitmo } from "./ritmo.js";
+import { limpiarAprendizajes } from "./cerebro.js";
 
-export const TIPOS = Object.freeze(["accion", "evento", "recordatorio", "idea", "fecha-especial", "referencia", "ajuste", "ritmo"]);
+export const TIPOS = Object.freeze(["accion", "evento", "recordatorio", "idea", "fecha-especial", "referencia", "ajuste", "ritmo", "sombrero"]);
+export const OPERACIONES = Object.freeze(["completar", "reabrir", "posponer", "editar", "borrar", "soltar", "delegar"]);
+const CLASES_EVENTO = ["reunion", "evento", "especial"];
 
 const sinTildes = (s) => String(s ?? "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 
@@ -62,23 +71,35 @@ function proyectoPara(nombre, sombreroId, proyectos) {
     ?? null;
 }
 
+/** El nombre exacto de un cliente de Juancito Ads, si el modelo nombró uno que existe. */
+const clientePara = (nombre, clientes) => {
+  if (!nombre) return null;
+  const n = sinTildes(nombre).trim();
+  return clientes.find((c) => sinTildes(c).trim() === n) ?? clientes.find((c) => sinTildes(c).includes(n) || n.includes(sinTildes(c))) ?? null;
+};
+
+const texto = (v, max) => String(v ?? "").replace(/\s+/g, " ").trim().slice(0, max);
+
 /**
  * La respuesta del modelo → los cambios comprobados, sin aplicar todavía.
- *   ctx: { hoy, texto (lo que dijo la persona), proyectos, personas }
- * Devuelve { ok, error?, acciones, eventos, proyectos, ajustes, ritmo, personas, pregunta, respuesta, versiculo, avisos }.
+ *   ctx: { hoy, texto (lo que dijo la persona), proyectos, personas, sombreros, acciones, eventos, clientes, cerebro }
+ * Devuelve { ok, error?, acciones, eventos, proyectos, ajustes, ritmo, sombreros, personas, operaciones, aprendizajes,
+ * pregunta, respuesta, versiculo, avisos, hoy }.
  */
-export function leerOrden(respuesta, { hoy, texto = "", proyectos = [], personas = [] } = {}) {
+export function leerOrden(respuesta, ctx = {}) {
+  const { hoy, proyectos = [], personas = [], sombreros = SOMBREROS, acciones = [], eventos = [], clientes = [], cerebro = [] } = ctx;
+  const dicho = ctx.texto ?? "";
   const datos = typeof respuesta === "string" ? sacarJSON(respuesta) : respuesta;
-  const vacio = { acciones: [], eventos: [], proyectos: [], ajustes: [], ritmo: [], personas: [], avisos: [] };
-  if (!datos || typeof datos !== "object") return { ok: false, error: "La respuesta del asistente no se pudo leer.", ...vacio };
+  const vacio = { acciones: [], eventos: [], proyectos: [], ajustes: [], ritmo: [], sombreros: [], personas: [], operaciones: [], aprendizajes: [], avisos: [] };
+  if (!datos || typeof datos !== "object") return { ok: false, error: "La respuesta del asistente no se pudo leer.", ...vacio, hoy };
 
-  const r = { ok: true, ...vacio, pregunta: null, respuesta: String(datos.respuesta ?? "").slice(0, 400), versiculo: datos.versiculo ?? null };
+  const r = { ok: true, ...vacio, hoy, pregunta: null, respuesta: texto(datos.respuesta, 700), versiculo: datos.versiculo ?? null };
   const preguntas = [];
-  if (datos.pregunta) preguntas.push(String(datos.pregunta).slice(0, 300));
-  const nombrados = diasNombrados(texto);
+  if (datos.pregunta) preguntas.push(texto(datos.pregunta, 300));
+  const nombrados = diasNombrados(dicho);
   const todosLosProyectos = [...proyectos];
 
-  const fechaSegura = (f, titulo) => {
+  const fechaSegura = (f, titulo, { pasadaVale = false } = {}) => {
     if (!f) return null;
     if (!esFecha(f)) {
       r.avisos.push(`«${titulo}»: la fecha «${f}» no se entendió; quedó sin fecha.`);
@@ -89,6 +110,10 @@ export function leerOrden(respuesta, { hoy, texto = "", proyectos = [], personas
       const bien = proximo(hoy, nombrados[0]);
       r.avisos.push(`«${titulo}»: lo puse el ${DIAS[nombrados[0]]} ${textoCorto(bien, hoy)}.`);
       return bien;
+    }
+    if (!pasadaVale && f < hoy) {
+      preguntas.push(`«${titulo}» quedó para el ${textoCorto(f, hoy)}, que ya pasó. ¿Es del año que viene?`);
+      return null;
     }
     return f;
   };
@@ -111,46 +136,50 @@ export function leerOrden(respuesta, { hoy, texto = "", proyectos = [], personas
       r.ritmo.push({ ...e });
       continue;
     }
+    if (e.tipo === "sombrero") {
+      if (!["crear", "editar", "mover", "quitar"].includes(e.accion)) {
+        r.avisos.push("No entendí qué hacer con el sombrero.");
+        continue;
+      }
+      r.sombreros.push({ accion: e.accion, id: e.id ?? null, nombre: e.nombre, detalle: e.detalle, color: e.color, a: e.a });
+      continue;
+    }
 
     const titulo = limpiarTitulo(e.titulo);
     if (!titulo) {
       r.avisos.push("Un elemento venía sin título; lo dejé fuera.");
       continue;
     }
-    const s = esSombrero(e.sombrero) ? e.sombrero : null;
-    let cuando = fechaSegura(e.cuando, titulo);
-    let limite = fechaSegura(e.limite, titulo);
+    const s = esSombrero(e.sombrero, sombreros) ? e.sombrero : null;
     const repiteValida = (() => {
       if (!e.repite?.regla) return null;
       try {
         leerRegla(e.repite.regla);
-        return { regla: e.repite.regla, modo: e.repite.modo === "despues" ? "despues" : "calendario", inicio: cuando ?? limite ?? hoy };
+        return { regla: e.repite.regla, modo: e.repite.modo === "despues" ? "despues" : "calendario" };
       } catch {
         r.avisos.push(`«${titulo}»: no entendí cada cuánto se repite; quedó sin repetir.`);
         return null;
       }
     })();
-    if (!repiteValida && e.tipo !== "fecha-especial") {
-      for (const [campo, valor] of [["cuando", cuando], ["limite", limite]]) {
-        if (valor && valor < hoy) {
-          preguntas.push(`«${titulo}» quedó para el ${textoCorto(valor, hoy)}, que ya pasó. ¿Es del año que viene?`);
-          if (campo === "cuando") cuando = null;
-          else limite = null;
-        }
-      }
-    }
+    const vale = Boolean(repiteValida) || e.tipo === "fecha-especial";
+    const cuando = fechaSegura(e.cuando, titulo, { pasadaVale: vale });
+    const limite = fechaSegura(e.limite, titulo, { pasadaVale: vale });
+    if (repiteValida) repiteValida.inicio = cuando ?? limite ?? hoy;
     const hora = esHora(e.hora) ? e.hora : null;
     const minutosPedidos = DURACIONES.includes(Number(e.minutos)) ? Number(e.minutos) : null;
+    const notas = texto(e.notas, 1000);
+    const valor = VALORES.includes(e.valor) ? e.valor : null;
+    const cliente = clientePara(e.cliente, clientes);
 
     // El proyecto: uno que ya existe, o uno nuevo si trae subtareas o fecha límite.
     let proyecto = proyectoPara(e.proyecto, s, todosLosProyectos);
     const subtareas = (Array.isArray(e.subtareas) ? e.subtareas : []).map((x) => ({ titulo: limpiarTitulo(x?.titulo), cuando: esFecha(x?.cuando) && x.cuando >= hoy ? x.cuando : null })).filter((x) => x.titulo).slice(0, 12);
     if (!proyecto && subtareas.length) {
-      proyecto = { id: nuevoId("p"), nombre: e.proyecto ? limpiarTitulo(e.proyecto) : titulo, sombrero: s, tipo: "proyecto", limite: limite ?? cuando ?? null, estado: "activo" };
+      proyecto = { id: nuevoId("p"), nombre: e.proyecto ? limpiarTitulo(e.proyecto) : titulo, sombrero: s, tipo: "proyecto", limite: limite ?? cuando ?? null, estado: "activo", prioridad: valor === "alto" ? "alta" : "media" };
       r.proyectos.push(proyecto);
       todosLosProyectos.push(proyecto);
     } else if (!proyecto && e.proyecto && s) {
-      proyecto = { id: nuevoId("p"), nombre: limpiarTitulo(e.proyecto), sombrero: s, tipo: limite ? "proyecto" : "responsabilidad", limite, estado: "activo" };
+      proyecto = { id: nuevoId("p"), nombre: limpiarTitulo(e.proyecto), sombrero: s, tipo: limite ? "proyecto" : "responsabilidad", limite, estado: "activo", prioridad: "media" };
       r.proyectos.push(proyecto);
       todosLosProyectos.push(proyecto);
     }
@@ -161,17 +190,24 @@ export function leerOrden(respuesta, { hoy, texto = "", proyectos = [], personas
         id: nuevoId("e"),
         titulo,
         sombrero: s,
+        clase: CLASES_EVENTO.includes(e.clase) ? e.clase : /reuni[oó]n|cita|llamada|junta/i.test(titulo) ? "reunion" : "evento",
         fecha: repiteValida ? null : cuando,
         repite: repiteValida,
         inicio: hora,
         fin: aHora(Math.min(minutos(hora) + dura, 23 * 60 + 59)),
         protegido: false,
         fuente: "asistente",
-        personas: Array.isArray(e.personas) ? e.personas.slice(0, 8) : [],
+        notas,
+        personas: Array.isArray(e.personas) ? e.personas.slice(0, 8).map((p) => texto(p, 60)) : [],
       });
+    } else if (e.tipo === "evento" && e.clase === "especial" && cuando) {
+      // Un evento especial sin hora (una boda, un concierto) vale como evento de todo el día.
+      r.eventos.push({ id: nuevoId("e"), titulo, sombrero: s, clase: "especial", fecha: cuando, repite: null, inicio: "00:00", fin: "23:59", protegido: false, fuente: "asistente", notas, personas: [] });
     } else {
       const base = {
         titulo,
+        notas,
+        clase: e.tipo === "recordatorio" || e.clase === "recordatorio" ? "recordatorio" : "tarea",
         sombrero: s,
         proyectoId: proyecto?.id ?? null,
         cuando,
@@ -179,10 +215,12 @@ export function leerOrden(respuesta, { hoy, texto = "", proyectos = [], personas
         hora,
         minutos: minutosPedidos ?? 30,
         importante: Boolean(e.importante),
-        personas: Array.isArray(e.personas) ? e.personas.slice(0, 8) : [],
+        valor,
+        personas: Array.isArray(e.personas) ? e.personas.slice(0, 8).map((p) => texto(p, 60)) : [],
         repite: repiteValida,
         confidencial: Boolean(e.confidencial),
-        delegable: e.delegable?.a ? { a: String(e.delegable.a).slice(0, 80), porque: String(e.delegable.porque ?? "").slice(0, 200) } : null,
+        delegable: e.delegable?.a ? { a: texto(e.delegable.a, 80), porque: texto(e.delegable.porque, 200) } : null,
+        cliente,
         origen: "asistente",
       };
       let lista = ["siguientes", "espera", "algun-dia", "referencia"].includes(e.lista) ? e.lista : "siguientes";
@@ -194,42 +232,126 @@ export function leerOrden(respuesta, { hoy, texto = "", proyectos = [], personas
           preguntas.push(`¿Qué día es «${titulo}»?`);
           continue;
         }
-        Object.assign(base, { cuando: null, limite: dia, importante: true, minutos: 15, repite: { regla: "FREQ=YEARLY", modo: "calendario", inicio: dia } });
+        Object.assign(base, { clase: "recordatorio", cuando: null, limite: dia, importante: true, minutos: 15, repite: { regla: "FREQ=YEARLY", modo: "calendario", inicio: dia } });
       }
       if (e.espera_de || lista === "espera") {
         lista = "espera";
-        base.espera = { persona: String(e.espera_de ?? "alguien").slice(0, 60), desde: hoy, preguntar: limite && limite > hoy ? sumarDias(limite, -1) : sumarDias(hoy, 3) };
+        base.espera = { persona: texto(e.espera_de ?? "alguien", 60), desde: hoy, preguntar: limite && limite > hoy ? sumarDias(limite, -1) : sumarDias(hoy, 3) };
       }
       if (e.tipo === "evento") r.avisos.push(`«${titulo}» no traía hora: la dejé como tarea de ese día.`);
       // Un proyecto nuevo hecho de este elemento no se repite como acción: sus pasos son las subtareas.
       if (!(subtareas.length && r.proyectos.some((p) => p.nombre === titulo))) r.acciones.push(nuevaAccion({ ...base, lista }, hoy));
     }
     for (const st of subtareas) {
-      r.acciones.push(nuevaAccion({ titulo: st.titulo, sombrero: s, proyectoId: proyecto?.id ?? null, lista: "siguientes", cuando: st.cuando, origen: "asistente" }, hoy));
+      r.acciones.push(nuevaAccion({ titulo: st.titulo, sombrero: s, proyectoId: proyecto?.id ?? null, lista: "siguientes", cuando: st.cuando, cliente, origen: "asistente" }, hoy));
     }
   }
 
-  for (const p of Array.isArray(datos.personas_nuevas) ? datos.personas_nuevas : []) {
-    const nombre = String(p?.nombre ?? "").trim().slice(0, 60);
-    if (!nombre || personas.some((x) => sinTildes(x.nombre) === sinTildes(nombre))) continue;
-    r.personas.push({ nombre, relacion: String(p.relacion ?? "").slice(0, 80), sombrero: esSombrero(p.sombrero) ? p.sombrero : null });
+  // ── Lo que cambia sobre lo que ya existe ──
+  const buscarPorId = (id, tipo) => {
+    const listas = { accion: acciones, evento: eventos, proyecto: proyectos };
+    if (tipo && listas[tipo]) return listas[tipo].some((x) => x.id === id) ? tipo : null;
+    return Object.keys(listas).find((t) => listas[t].some((x) => x.id === id)) ?? null;
+  };
+  for (const o of Array.isArray(datos.operaciones) ? datos.operaciones : []) {
+    if (!o || !OPERACIONES.includes(o.op)) {
+      if (o?.op) r.avisos.push(`No sé hacer «${o.op}».`);
+      continue;
+    }
+    const id = String(o.id ?? "");
+    const tipo = buscarPorId(id, o.tipo);
+    if (!tipo) {
+      r.avisos.push("No encontré a qué te referías; no cambié nada de eso.");
+      continue;
+    }
+    const obj = { accion: acciones, evento: eventos, proyecto: proyectos }[tipo].find((x) => x.id === id);
+    const nombre = obj.titulo ?? obj.nombre;
+    if (["completar", "reabrir", "soltar", "delegar"].includes(o.op) && tipo !== "accion") {
+      r.avisos.push(`«${nombre}» no es una tarea: no se puede ${o.op === "delegar" ? "delegar" : "marcar"}.`);
+      continue;
+    }
+    if (o.op === "posponer") {
+      const a = fechaSegura(o.a, nombre);
+      if (!a) continue;
+      if (tipo === "evento" && !obj.fecha) {
+        r.avisos.push(`«${nombre}» se repite: cambia su día en tu semana, no aquí.`);
+        continue;
+      }
+      r.operaciones.push({ op: "posponer", tipo, id, a });
+      continue;
+    }
+    if (o.op === "delegar") {
+      const persona = texto(o.a ?? o.cambios?.a, 60);
+      if (!persona) {
+        preguntas.push(`¿A quién le paso «${nombre}»?`);
+        continue;
+      }
+      r.operaciones.push({ op: "delegar", tipo, id, a: persona });
+      continue;
+    }
+    if (o.op === "editar") {
+      const c = o.cambios && typeof o.cambios === "object" ? o.cambios : {};
+      const cambios = {};
+      if (c.titulo !== undefined && limpiarTitulo(c.titulo)) cambios[tipo === "proyecto" ? "nombre" : "titulo"] = limpiarTitulo(c.titulo);
+      if (c.nombre !== undefined && tipo === "proyecto" && limpiarTitulo(c.nombre)) cambios.nombre = limpiarTitulo(c.nombre);
+      if (c.notas !== undefined) cambios.notas = texto(c.notas, 1000);
+      if (c.sombrero !== undefined && esSombrero(c.sombrero, sombreros)) cambios.sombrero = c.sombrero;
+      if (tipo === "accion") {
+        for (const k of ["cuando", "limite"]) if (c[k] !== undefined) cambios[k] = c[k] === null ? null : fechaSegura(c[k], nombre);
+        if (c.hora !== undefined) cambios.hora = c.hora === null ? null : esHora(c.hora) ? c.hora : obj.hora;
+        if (VALORES.includes(c.valor)) cambios.valor = c.valor;
+        if (typeof c.importante === "boolean") cambios.importante = c.importante;
+        if (["tarea", "recordatorio"].includes(c.clase)) cambios.clase = c.clase;
+        if (["siguientes", "algun-dia"].includes(c.lista)) cambios.lista = c.lista;
+        if (c.delegable === null) cambios.delegable = null;
+        else if (c.delegable?.a) cambios.delegable = { a: texto(c.delegable.a, 80), porque: texto(c.delegable.porque, 200) };
+        if (c.proyecto !== undefined) cambios.proyectoId = proyectoPara(c.proyecto, cambios.sombrero ?? obj.sombrero, todosLosProyectos)?.id ?? obj.proyectoId;
+      }
+      if (tipo === "evento") {
+        if (c.fecha !== undefined && obj.fecha) {
+          const f = fechaSegura(c.fecha, nombre);
+          if (f) cambios.fecha = f;
+        }
+        if (esHora(c.inicio)) cambios.inicio = c.inicio;
+        if (esHora(c.fin)) cambios.fin = c.fin;
+        if (CLASES_EVENTO.includes(c.clase)) cambios.clase = c.clase;
+      }
+      if (tipo === "proyecto") {
+        if (["alta", "media", "baja"].includes(c.prioridad)) cambios.prioridad = c.prioridad;
+        if (["activo", "terminado", "pausado"].includes(c.estado)) cambios.estado = c.estado;
+        if (c.limite !== undefined) cambios.limite = c.limite === null ? null : fechaSegura(c.limite, nombre);
+      }
+      if (!Object.keys(cambios).length) continue;
+      r.operaciones.push({ op: "editar", tipo, id, cambios });
+      continue;
+    }
+    r.operaciones.push({ op: o.op, tipo, id });
   }
 
+  for (const p of Array.isArray(datos.personas_nuevas) ? datos.personas_nuevas : []) {
+    const nombre = texto(p?.nombre, 60);
+    if (!nombre || personas.some((x) => sinTildes(x.nombre) === sinTildes(nombre))) continue;
+    r.personas.push({ nombre, relacion: texto(p.relacion, 80), sombrero: esSombrero(p.sombrero, sombreros) ? p.sombrero : null });
+  }
+
+  r.aprendizajes = limpiarAprendizajes(datos.aprendizajes, cerebro, { sombreros });
   r.pregunta = preguntas[0] ?? null;
   return r;
 }
 
 /**
  * Aplica los cambios a un estado { acciones, eventos, proyectos, personas, ajustes, ritmo }. Puro.
- * Devuelve { estado, hecho, deshacer, problemas }: `hecho` es lo que de verdad entró (para la tarjeta) y `deshacer`,
- * lo necesario para volver atrás.
+ * Devuelve { estado, hecho, deshacer, problemas }: `hecho` es lo que de verdad entró (para la tarjeta),
+ * `deshacer`, lo necesario para volver atrás, y `cambiados`/`borrados`, lo que hay que escribir o quitar.
  */
 export function aplicarOrden(estado, orden) {
+  const hoy = orden.hoy;
   const problemas = [];
   let ajustes = estado.ajustes;
   let ritmo = estado.ritmo ?? [];
   const ajustesHechos = [];
   const ritmoHecho = [];
+  const sombrerosHechos = [];
   for (const cambio of orden.ajustes) {
     try {
       ajustes = aplicarAjuste(ajustes, cambio);
@@ -248,70 +370,162 @@ export function aplicarOrden(estado, orden) {
       problemas.push(e.message);
     }
   }
+  for (const cambio of orden.sombreros ?? []) {
+    try {
+      if (cambio.accion === "quitar" && [...(estado.acciones ?? []), ...(estado.proyectos ?? [])].some((x) => x.sombrero === cambio.id && x.estado !== "hecha")) {
+        throw new Error("Ese sombrero todavía tiene cosas abiertas: muévelas antes de quitarlo.");
+      }
+      const r = aplicarSombrero(ajustes.sombreros, cambio);
+      ajustes = { ...ajustes, sombreros: r.lista };
+      sombrerosHechos.push({ accion: cambio.accion, sombrero: r.sombrero, a: cambio.a });
+    } catch (e) {
+      problemas.push(e.message);
+    }
+  }
+
+  let acciones = [...estado.acciones, ...orden.acciones];
+  let eventos = [...(estado.eventos ?? []), ...orden.eventos];
+  let proyectos = [...(estado.proyectos ?? []), ...orden.proyectos];
+  const antes = [];
+  const borrados = [];
+  const creadosPorOp = [];
+  const opsHechas = [];
+  const listaDe = (tipo) => (tipo === "accion" ? acciones : tipo === "evento" ? eventos : proyectos);
+  const ponerLista = (tipo, l) => {
+    if (tipo === "accion") acciones = l;
+    else if (tipo === "evento") eventos = l;
+    else proyectos = l;
+  };
+  for (const o of orden.operaciones ?? []) {
+    const lista = listaDe(o.tipo);
+    const prev = lista.find((x) => x.id === o.id);
+    if (!prev) continue;
+    if (!antes.some((x) => x.tipo === o.tipo && x.obj.id === o.id) && !borrados.some((x) => x.obj.id === o.id)) antes.push({ tipo: o.tipo, obj: prev });
+    const titulo = prev.titulo ?? prev.nombre;
+    let nuevo = prev;
+    let detalle = "";
+    if (o.op === "completar") {
+      if (prev.estado === "hecha") continue;
+      const { hecha, siguiente } = completar(prev, hoy);
+      nuevo = hecha;
+      if (siguiente) {
+        acciones = [...acciones, siguiente];
+        creadosPorOp.push(siguiente.id);
+        detalle = `la siguiente, ${textoCorto(siguiente.cuando ?? siguiente.limite, hoy)}`;
+      }
+    } else if (o.op === "reabrir") nuevo = { ...prev, estado: "abierta", hechaEl: null };
+    else if (o.op === "soltar") nuevo = soltar(prev, hoy);
+    else if (o.op === "posponer") {
+      nuevo = o.tipo === "evento" ? { ...prev, fecha: o.a } : prev.limite && !prev.cuando ? { ...posponer(prev, null), cuando: null, limite: o.a } : posponer(prev, o.a);
+      detalle = textoCorto(o.a, hoy);
+    } else if (o.op === "delegar") {
+      nuevo = { ...prev, lista: "espera", delegable: null, espera: { persona: o.a, desde: hoy, preguntar: prev.limite && prev.limite > hoy ? sumarDias(prev.limite, -1) : sumarDias(hoy, 3) } };
+      detalle = o.a;
+    } else if (o.op === "editar") {
+      nuevo = { ...prev, ...o.cambios };
+      detalle = Object.keys(o.cambios).map((k) => CAMPOS[k] ?? k).join(", ");
+    } else if (o.op === "borrar") {
+      ponerLista(o.tipo, listaDe(o.tipo).filter((x) => x.id !== o.id));
+      borrados.push({ tipo: o.tipo, obj: prev });
+      const i = antes.findIndex((x) => x.obj.id === o.id);
+      if (i >= 0) antes.splice(i, 1);
+      opsHechas.push({ op: o.op, tipo: o.tipo, titulo, detalle });
+      continue;
+    }
+    ponerLista(o.tipo, listaDe(o.tipo).map((x) => (x.id === o.id ? nuevo : x)));
+    opsHechas.push({ op: o.op, tipo: o.tipo, titulo, detalle });
+  }
+
   const nuevo = {
     ...estado,
-    acciones: [...estado.acciones, ...orden.acciones],
-    eventos: [...(estado.eventos ?? []), ...orden.eventos],
-    proyectos: [...(estado.proyectos ?? []), ...orden.proyectos],
+    acciones,
+    eventos,
+    proyectos,
     personas: [...(estado.personas ?? []), ...orden.personas],
     ajustes,
     ritmo,
   };
+  const tocados = (tipo) => antes.filter((x) => x.tipo === tipo).map((x) => listaDe(tipo).find((y) => y.id === x.obj.id)).filter(Boolean);
+  const cambioPerfil = ajustesHechos.length || ritmoHecho.length || sombrerosHechos.length;
   return {
     estado: nuevo,
-    hecho: { acciones: orden.acciones, eventos: orden.eventos, proyectos: orden.proyectos, personas: orden.personas, ajustes: ajustesHechos, ritmo: ritmoHecho },
+    hecho: { acciones: orden.acciones, eventos: orden.eventos, proyectos: orden.proyectos, personas: orden.personas, ajustes: ajustesHechos, ritmo: ritmoHecho, sombreros: sombrerosHechos, operaciones: opsHechas, aprendizajes: orden.aprendizajes ?? [] },
+    // Lo que hay que escribir en la base además de lo creado.
+    cambiados: { acciones: [...tocados("accion"), ...acciones.filter((a) => creadosPorOp.includes(a.id))], eventos: tocados("evento"), proyectos: tocados("proyecto") },
+    borrados,
     deshacer: {
-      acciones: orden.acciones.map((a) => a.id),
+      acciones: [...orden.acciones.map((a) => a.id), ...creadosPorOp],
       eventos: orden.eventos.map((e) => e.id),
       proyectos: orden.proyectos.map((p) => p.id),
       personas: orden.personas.map((p) => p.nombre),
-      ajustes: ajustesHechos.length || ritmoHecho.length ? estado.ajustes : null,
+      antes: [...antes, ...borrados],
+      ajustes: cambioPerfil ? estado.ajustes : null,
       ritmo: ritmoHecho.length ? estado.ritmo : null,
     },
     problemas,
   };
 }
 
+const CAMPOS = { titulo: "título", nombre: "nombre", notas: "notas", cuando: "día", limite: "fecha límite", hora: "hora", valor: "valor", importante: "importancia", clase: "tipo", lista: "lista", delegable: "a quién delegar", proyectoId: "proyecto", sombrero: "sombrero", fecha: "día", inicio: "inicio", fin: "fin", prioridad: "prioridad", estado: "estado" };
+
 /** Deshace lo que aplicó aplicarOrden. Puro. */
 export function deshacerOrden(estado, deshacer) {
   const fuera = (lista, ids, clave = "id") => (lista ?? []).filter((x) => !ids.includes(x[clave]));
+  const restaurar = (lista, tipo) => {
+    let l = lista;
+    for (const { tipo: t, obj } of deshacer.antes ?? []) {
+      if (t !== tipo) continue;
+      l = l.some((x) => x.id === obj.id) ? l.map((x) => (x.id === obj.id ? obj : x)) : [...l, obj];
+    }
+    return l;
+  };
   return {
     ...estado,
-    acciones: fuera(estado.acciones, deshacer.acciones),
-    eventos: fuera(estado.eventos, deshacer.eventos),
-    proyectos: fuera(estado.proyectos, deshacer.proyectos),
+    acciones: restaurar(fuera(estado.acciones, deshacer.acciones), "accion"),
+    eventos: restaurar(fuera(estado.eventos, deshacer.eventos), "evento"),
+    proyectos: restaurar(fuera(estado.proyectos, deshacer.proyectos), "proyecto"),
     personas: fuera(estado.personas, deshacer.personas, "nombre"),
     ajustes: deshacer.ajustes ?? estado.ajustes,
     ritmo: deshacer.ritmo ?? estado.ritmo,
   };
 }
 
-const nombreS = (id) => sombrero(id)?.nombre ?? "Sin sombrero";
+const VERBO = { completar: "Hecha", reabrir: "Reabierta", soltar: "Soltada", borrar: "Borré", posponer: "Moví", delegar: "Delegada", editar: "Cambié" };
 
 /** La tarjeta de confirmación, con lo que DE VERDAD se hizo. */
-export function tarjeta({ hecho, problemas = [] }, orden, hoy) {
+export function tarjeta({ hecho, problemas = [] }, orden, hoy, { sombreros = SOMBREROS } = {}) {
+  const nombreS = (id) => nombreDe(id, sombreros);
   const lineas = [];
   for (const e of hecho.eventos) {
-    const cuando = e.fecha ? `${textoCorto(e.fecha, hoy)}, ${textoHora(e.inicio)}` : `${textoHora(e.inicio)}, se repite`;
-    lineas.push(`• «${e.titulo}» · ${nombreS(e.sombrero)} · ${cuando}`);
+    const cuando = e.fecha ? (e.clase === "especial" && e.inicio === "00:00" ? textoCorto(e.fecha, hoy) : `${textoCorto(e.fecha, hoy)}, ${textoHora(e.inicio)}`) : `${textoHora(e.inicio)}, se repite`;
+    lineas.push(`• ${e.clase === "reunion" ? "Reunión" : e.clase === "especial" ? "Evento especial" : "Evento"}: «${e.titulo}» · ${nombreS(e.sombrero)} · ${cuando}`);
   }
   for (const p of hecho.proyectos) lineas.push(`• Proyecto nuevo: «${p.nombre}» · ${nombreS(p.sombrero)}`);
   for (const a of hecho.acciones) {
-    const partes = [`«${a.titulo}»`, nombreS(a.sombrero)];
+    const partes = [`${a.clase === "recordatorio" ? "Recordatorio" : "Tarea"}: «${a.titulo}»`, nombreS(a.sombrero)];
     if (a.lista === "algun-dia") partes.push("Algún día");
     if (a.lista === "espera") partes.push(`esperas a ${a.espera?.persona}`);
     if (a.cuando) partes.push(textoCorto(a.cuando, hoy) + (a.hora ? `, ${textoHora(a.hora)}` : ""));
-    if (a.limite) partes.push(`vence ${textoCorto(a.limite, hoy)}`);
-    if (a.sombrero === "trabajo") partes.push("irá a Juancito Ads");
+    if (a.limite) partes.push(`${a.repite?.regla === "FREQ=YEARLY" ? "cada año, el" : "vence"} ${textoCorto(a.limite, hoy)}`);
+    if (a.valor === "alto") partes.push("valor alto");
+    if (a.delegable?.a) partes.push(`puede hacerla ${a.delegable.a}`);
+    if (sombreros.find((s) => s.id === a.sombrero)?.fuente === "juancito-ads") partes.push(a.cliente ? `en Juancito Ads (${a.cliente})` : "en Juancito Ads");
     lineas.push(`• ${partes.join(" · ")}`);
   }
+  for (const o of hecho.operaciones ?? []) lineas.push(`• ${VERBO[o.op]}${o.op === "editar" || o.op === "posponer" || o.op === "borrar" ? "" : ":"} «${o.titulo}»${o.detalle ? (o.op === "posponer" ? ` al ${o.detalle}` : o.op === "delegar" ? ` a ${o.detalle}` : o.op === "editar" ? ` (${o.detalle})` : ` (${o.detalle})`) : ""}`);
   for (const c of hecho.ajustes) lineas.push(`• Ajusté: ${CLAVES_AJUSTE[c.clave].toLowerCase()} → ${Array.isArray(c.valor) ? c.valor.join(", ") : c.valor}`);
   for (const r of hecho.ritmo) {
     const b = r.bloque;
     if (r.accion === "quitar") lineas.push(`• Quité de tu semana: «${b.titulo}»`);
     else lineas.push(`• Tu semana: «${b.titulo}» de ${textoHora(b.inicio)} a ${textoHora(b.fin)}${r.accion === "agregar" ? " (nuevo)" : ""}`);
   }
+  for (const s of hecho.sombreros ?? []) {
+    const n = s.sombrero?.nombre;
+    lineas.push(s.accion === "crear" ? `• Sombrero nuevo: «${n}»` : s.accion === "quitar" ? `• Quité el sombrero «${n}»` : s.accion === "mover" ? `• «${n}» pasa al puesto ${s.a} de prioridad` : `• Sombrero «${n}» actualizado`);
+  }
   for (const p of hecho.personas) lineas.push(`• Recordaré que ${p.nombre} es ${p.relacion || "alguien de tu vida"}.`);
-  const cabeza = lineas.length ? "Listo:" : (orden.respuesta || "No guardé nada.");
+  for (const a of hecho.aprendizajes ?? []) lineas.push(`• Aprendí: ${a.titulo}.`);
+  const respuesta = (orden.respuesta ?? "").trim();
+  const cabeza = lineas.length ? (respuesta && !/^listo[.!]?$/i.test(respuesta) ? respuesta : "Listo:") : respuesta || "No guardé nada.";
   return [cabeza, ...lineas, ...orden.avisos.map((a) => `Ojo: ${a}`), ...problemas.map((p) => `No pude: ${p}`), ...(orden.pregunta ? [orden.pregunta] : [])].join("\n");
 }

@@ -11,9 +11,13 @@ Es privada, de una sola persona, y va aparte del calendario de la agencia
 (Juancito Ads), aunque lee de él las tareas de trabajo y de Google Calendar los
 eventos.
 
-**Estado:** fase 1A. Hay servidor (Worker de Cloudflare con D1), acceso con contraseña y
-un asistente que ordena lo capturado con Muse Spark o Claude. Sale en `agenda.juancitoads.com`; los pasos para
-desplegarla, sólo de navegador, están en [`DEPLOY.md`](DEPLOY.md). La propuesta completa, con lo que falta decidir, está en
+**Estado:** en línea en `agenda.juancitoads.com`, con servidor (Worker de Cloudflare con D1), acceso con contraseña y
+un asistente (Muse Spark o Claude) que ordena lo que le dices por la aplicación, por Telegram o desde Claude. Tres
+pantallas —**Hoy** (día, semana o mes, con tareas, reuniones, recordatorios y eventos especiales), **Plan** (tu semana y
+tus sombreros, que puedes renombrar, crear y ordenar por prioridad) y **Mentor** (qué vale más, qué delegar, qué
+soltar, y lo que el asistente sabe de ti)—, el asistente en una burbuja en todas, y conectada con **Juancito Ads**,
+**Google Calendar y Google Tasks** (las dos cuentas) y **Claude**. El seguimiento por Telegram se configura en Ajustes.
+Los pasos para desplegarla y conectar todo, sólo de navegador, están en [`DEPLOY.md`](DEPLOY.md); la propuesta, en
 [`docs/propuesta.md`](docs/propuesta.md).
 
 ```bash

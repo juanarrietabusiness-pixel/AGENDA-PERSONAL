@@ -28,7 +28,7 @@
 
 import { esFecha, sumarDias, diasEntre } from "./fechas.js";
 import { siguiente, siguienteDespuesDeHecha } from "./recurrencia.js";
-import { esSombrero } from "./sombreros.js";
+import { esIdSombrero } from "./sombreros.js";
 
 export const LISTAS = Object.freeze({
   bandeja: { nombre: "Bandeja", detalle: "Lo capturado que falta aclarar" },
@@ -47,6 +47,8 @@ export const MAX_POSPUESTAS = 3;
 /** Las duraciones que se estiman, en minutos: suficientes para acomodar el día sin pensar de más. */
 export const DURACIONES = Object.freeze([5, 15, 30, 60, 90, 120]);
 export const ENERGIAS = Object.freeze(["alta", "media", "baja"]);
+export const CLASES_ACCION = Object.freeze(["tarea", "recordatorio"]);
+export const VALORES = Object.freeze(["alto", "medio", "bajo"]);
 
 let contador = 0;
 export const nuevoId = (prefijo = "a") => `${prefijo}-${Date.now().toString(36)}-${(contador++).toString(36)}`;
@@ -56,8 +58,10 @@ export function nuevaAccion(datos = {}, hoy = null) {
   return {
     id: datos.id ?? nuevoId(),
     titulo: limpiarTitulo(datos.titulo),
-    notas: String(datos.notas ?? ""),
-    sombrero: esSombrero(datos.sombrero) ? datos.sombrero : null,
+    notas: String(datos.notas ?? "").slice(0, 4000),
+    // Tarea (algo que se HACE) o recordatorio (algo que hay que tener presente a su hora). Se ven aparte.
+    clase: CLASES_ACCION.includes(datos.clase) ? datos.clase : "tarea",
+    sombrero: esIdSombrero(datos.sombrero) ? datos.sombrero : null,
     proyectoId: datos.proyectoId ?? null,
     lista: IDS_LISTA.includes(datos.lista) ? datos.lista : "bandeja",
     estado: ESTADOS.includes(datos.estado) ? datos.estado : "abierta",
@@ -84,6 +88,9 @@ export function nuevaAccion(datos = {}, hoy = null) {
     origen: datos.origen ?? "app",
     // Lo que viene de Juancito Ads trae su cliente.
     cliente: datos.cliente ?? null,
+    // Dónde vive también: { id } en Juancito Ads; { cuenta, lista, id } en Google Tasks.
+    juancito: datos.juancito ?? null,
+    google: datos.google ?? null,
     creada: datos.creada ?? hoy,
     hechaEl: datos.hechaEl ?? null,
   };

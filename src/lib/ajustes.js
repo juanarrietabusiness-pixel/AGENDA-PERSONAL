@@ -45,6 +45,9 @@ export const AJUSTES_BASE = Object.freeze({
     domingoSoloIglesiaYPersonal: false,
   },
 
+  // El seguimiento por Telegram: qué te escribe el asistente por su cuenta. Todo se apaga desde Ajustes.
+  seguimiento: { activo: true, resumen: true, avisos: true, cierre: true, preguntas: true, revision: true, reuniones: true },
+
   // La revisión semanal (GTD). El sábado, que no se madruga tanto.
   revision: { dia: 6, hora: "08:30", minutos: 30 },
 
@@ -150,3 +153,16 @@ export function horariosParaLaIA(a) {
     `Revisión semanal: ${n[a.revision.dia]} a las ${a.revision.hora}.`,
   ].join("\n");
 }
+
+/** Lo que se puede encender o apagar del seguimiento, con su explicación (la pantalla de Ajustes). */
+export const PARTES_SEGUIMIENTO = Object.freeze({
+  resumen: "El resumen de la mañana, después de tu oración: lo de hoy, lo que vence y lo que quedó.",
+  avisos: "Los avisos a su hora: recordatorios, lo que se acerca, lo que vence y a quién le esperas respuesta.",
+  reuniones: "Media hora antes de cada reunión.",
+  cierre: "El cierre del día: lo que hiciste y qué hacemos con lo que quedó.",
+  preguntas: "«¿La completaste?» con lo que se pasó (como mucho tres veces por cosa).",
+  revision: "La revisión semanal, el día y la hora que escojas.",
+});
+
+/** El seguimiento con sus valores de partida (para ajustes guardados antes de que existiera). */
+export const seguimientoDe = (a) => ({ ...AJUSTES_BASE.seguimiento, ...(a?.seguimiento ?? {}) });

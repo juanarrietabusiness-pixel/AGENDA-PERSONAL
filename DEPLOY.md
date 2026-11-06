@@ -43,6 +43,8 @@ a leer).
 | `META_API_KEY` | La llave nueva de Meta para este asistente | Para usar Muse Spark |
 | `ANTHROPIC_API_KEY` | La llave de Anthropic | Para usar Claude (opcional) |
 | `TELEGRAM_BOT_TOKEN` | El token que da @BotFather al crear el bot | Para Telegram |
+| `GOOGLE_CLIENT_ID` | El «ID de cliente» de Google (paso 6) | Para Google Calendar y Tasks |
+| `GOOGLE_CLIENT_SECRET` | El «Secreto del cliente» de Google (paso 6) | Para Google Calendar y Tasks |
 
 Con una sola de las dos llaves de IA ya funciona. Al guardar, Cloudflare lo aplica en el momento.
 
@@ -62,6 +64,52 @@ al bot se ordena igual que en la aplicación, con su tarjeta y «Deshacer». El 
 
 Las notas de voz las transcribe **Workers AI** (Whisper) en tu misma cuenta de Cloudflare: no hace falta otra llave.
 
+## 5. Conectar Juancito Ads (sin llaves)
+
+La agenda entra al calendario de marketing **como entra Claude**: en la agenda, **Ajustes → Juancito Ads → Conectar
+Juancito Ads**. Se abre el calendario (con tu sesión de allá), dice que «Agenda personal» quiere conectarse y pulsas
+**Permitir**. Vuelves a la agenda con «Juancito Ads quedó conectado».
+
+Desde ahí: lo que agendes en el sombrero que dice «se guarda en Juancito Ads» se crea allá al momento; lo que marques
+hecho aquí se marca allá, y lo que marques allá se marca aquí (cada pocos minutos, o con «Poner al día ahora»). Lo nuevo
+de allá que es tuyo o no tiene a nadie asignado aparece aquí. Las dos aplicaciones hablan por dentro de Cloudflare (un
+«Service Binding»), sin salir a internet.
+
+## 6. Google Calendar y Google Tasks (las dos cuentas)
+
+Una sola vez, en <https://console.cloud.google.com> con la cuenta que quieras (vale la de la agencia, la del calendario
+de marketing ya tiene proyecto):
+
+1. **APIs y servicios → Biblioteca**: activa **Google Calendar API** y **Google Tasks API**.
+2. **Pantalla de consentimiento de OAuth**: tipo **Externo**, nombre «Agenda personal», tu correo. En **Permisos**
+   añade `…/auth/calendar` y `…/auth/tasks`. Pulsa **Publicar la app** (que diga **En producción**: «en prueba», el
+   permiso caduca a los 7 días y la agenda deja de leer tu calendario sin avisar).
+3. **Credenciales → Crear credenciales → ID de cliente de OAuth → Aplicación web**. En **URI de redireccionamiento
+   autorizados** pon, las dos:
+   - `https://agenda.juancitoads.com/api/google/vuelta`
+   - `https://agenda-personal.juanarrietabusiness.workers.dev/api/google/vuelta`
+4. Copia el **ID de cliente** y el **Secreto del cliente** a Cloudflare como `GOOGLE_CLIENT_ID` y
+   `GOOGLE_CLIENT_SECRET` (tipo **Secret**, paso 2).
+
+Después, en la agenda: **Ajustes → Google → Conectar Google** con la cuenta personal, y otra vez **Conectar otra
+cuenta** con la de la agencia. Google te avisará de que la app «no está verificada» (es tuya y sólo la usas tú):
+**Configuración avanzada → Ir a Agenda personal**. En cada cuenta escoges qué sombreros llevan sus eventos y sus tareas.
+Los permisos se guardan cifrados con el secreto del cliente.
+
+## 7. Conectar Claude
+
+En claude.ai: **Ajustes → Conectores → Añadir conector personalizado**, con la dirección
+`https://agenda.juancitoads.com/mcp` (está para copiar en **Ajustes → Claude** de la agenda). Claude abre la agenda,
+entras si hace falta y pulsas **Permitir**. Desde cualquier chat: «agéndame la reunión con Adolfo el sábado a las 10» o
+«¿qué tengo mañana?». Se desconecta en **Ajustes → Claude**.
+
+## 8. El seguimiento
+
+En **Ajustes → Seguimiento** escoges qué te escribe el asistente por Telegram: el resumen de la mañana (y a qué hora cada
+día), los avisos de lo que vence, media hora antes de cada reunión, el cierre del día, «¿la completaste?» con botones, y
+la revisión semanal. Lo revisa cada minuto (un «Cron Trigger» del Worker); nunca en lo protegido ni en tus horas de
+silencio. Necesita Telegram conectado (paso 4).
+
 ## Lo que la protege
 
 - Una sola cuenta, que sólo se crea con el código de alta.
@@ -73,16 +121,19 @@ Las notas de voz las transcribe **Workers AI** (Whisper) en tu misma cuenta de C
 - Los buscadores no la indexan.
 - Cloudflare sólo puede entrar al repositorio de la agenda (paso 1.2), y su llave para publicar no toca la base de
   datos.
+- Claude entra con su propio permiso (OAuth con PKCE, un código de un solo uso) que se corta desde Ajustes; a Juancito
+  Ads y a Google la agenda entra con los permisos que diste, y los de Google van cifrados.
 
 **Opcional, una segunda puerta: Cloudflare Access** (gratis). Antes de ver la pantalla de entrar, Cloudflare te pide un
 código que llega a tu correo. Se configura en **Zero Trust → Access → Applications** para `agenda.juancitoads.com` (y la
-de workers.dev), dejando fuera las rutas de Telegram y de Claude cuando existan, que llevan su propia firma.
+de workers.dev), dejando fuera `/api/telegram/*`, `/api/juancito/vuelta`, `/api/google/vuelta`, `/mcp`, `/oauth/*` y `/.well-known/*`,
+que llevan su propia firma (si no, Telegram, Google y Claude se quedarían en la puerta).
 
 ## Las migraciones de la base
 
 La llave que crea Cloudflare para publicar **no puede cambiar la base de datos** (a propósito). Por eso una migración
 nueva (`migraciones/d1/`) se aplica a la base ANTES de subir el cambio que la usa: desde una sesión de Claude con acceso
-a Cloudflare, o con `wrangler d1 migrations apply agenda-personal-db --remote`. Las que hay hoy (0001 a 0003) ya están
+a Cloudflare, o con `wrangler d1 migrations apply agenda-personal-db --remote`. Las que hay hoy (0001 a 0004) ya están
 aplicadas. Todo `create` lleva `if not exists`, así que aplicar dos veces no rompe nada.
 
 ## Si algo falla
@@ -96,6 +147,12 @@ aplicadas. Todo `create` lleva `if not exists`, así que aplicar dos veces no ro
 - **«No hay ninguna llave de IA»** en la Bandeja: falta `META_API_KEY` o `ANTHROPIC_API_KEY`. Lo capturado no se
   pierde: queda en la Bandeja y, con la llave puesta, «Que lo ordene el asistente» lo vuelve a intentar.
 - **«Demasiados intentos fallidos»**: espera 15 minutos.
+- **Juancito Ads «pidió volver a conectar»**: el permiso de allá se retiró o caducó. **Ajustes → Juancito Ads →
+  Conectar** otra vez; lo de aquí no se pierde y lo que no subió se sube en la siguiente vuelta.
+- **Google «retiró el permiso»**: la app de Google estaba «en prueba» (paso 6.2) o quitaste el acceso en tu cuenta.
+  Publícala y vuelve a conectar esa cuenta.
+- **El asistente no te escribe nunca**: mira **Ajustes → Seguimiento** (encendido), **Ajustes → Telegram** (conectado)
+  y que el Worker tenga el Cron Trigger (**Settings → Trigger events**: «* * * * *»).
 
 ## Alternativa: desplegar desde GitHub
 

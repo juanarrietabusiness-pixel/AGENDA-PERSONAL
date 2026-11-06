@@ -16,6 +16,9 @@
 import { huella, aleatorio, duenoDeChat, vincularChat } from "./sesion.js";
 import { crearAlmacen } from "./almacen.js";
 import { ordenarCaptura, deshacerCaptura } from "./ordenar.js";
+import { reflejar } from "./reflejar.js";
+import { completar, posponer, soltar } from "../../src/lib/metodo.js";
+import { hoyEn, sumarDias, textoCorto } from "../../src/lib/fechas.js";
 
 export const MODELO_VOZ = "@cf/openai/whisper-large-v3-turbo";
 export const MINUTOS_CODIGO = 15;
@@ -152,20 +155,45 @@ export async function procesar(env, update) {
   return enviar(env, chatId, antes + r.resultado.tarjeta, botones);
 }
 
+/** Lo que hace cada botón sobre una acción: Hecho, Mañana, Ya no aplica. */
+const BOTONES = {
+  h: (a, hoy) => ({ nuevo: completar(a, hoy), texto: "Hecho" }),
+  m: (a, hoy) => ({ nuevo: { hecha: posponer(a, sumarDias(hoy, 1)), siguiente: null }, texto: `Pasa a mañana, ${textoCorto(sumarDias(hoy, 1), hoy)}` }),
+  s: (a, hoy) => ({ nuevo: { hecha: soltar(a, hoy), siguiente: null }, texto: "Soltada: ya no aplica" }),
+};
+
 async function alPulsar(env, cq) {
   const chatId = cq.message?.chat?.id;
   const dueno = await duenoDeChat(env.DB, chatId);
   const [tipo, id] = String(cq.data ?? "").split(/:(.+)/);
-  if (!dueno || tipo !== "d" || !id) return llamar(env, "answerCallbackQuery", { callback_query_id: cq.id });
+  if (!dueno || !id || !(tipo === "d" || BOTONES[tipo])) return llamar(env, "answerCallbackQuery", { callback_query_id: cq.id });
   const almacen = crearAlmacen(env.DB, dueno);
-  const captura = await almacen.captura(id);
-  const r = captura ? await deshacerCaptura(almacen, captura) : { ok: false, error: "Esa captura ya no existe." };
-  await llamar(env, "answerCallbackQuery", { callback_query_id: cq.id, text: r.ok ? "Deshecho" : r.error });
+  const perfil = await almacen.perfil();
+  const hoy = hoyEn(perfil?.ajustes?.zona);
+  let r;
+  let linea;
+  if (tipo === "d") {
+    const captura = await almacen.captura(id);
+    r = captura ? await deshacerCaptura(env, almacen, captura, { hoy }) : { ok: false, error: "Esa captura ya no existe." };
+    linea = "Deshecho: no quedó nada guardado.";
+  } else {
+    const accion = await almacen.elemento("accion", id);
+    if (!accion || accion.estado !== "abierta") {
+      r = { ok: false, error: accion ? "Eso ya estaba cerrado." : "Esa tarea ya no existe." };
+    } else {
+      const { nuevo, texto: t } = BOTONES[tipo](accion, hoy);
+      await almacen.lote([almacen.sentenciaElemento("accion", nuevo.hecha), ...(nuevo.siguiente ? [almacen.sentenciaElemento("accion", nuevo.siguiente)] : [])]);
+      await reflejar(env, almacen, [{ tipo: "accion", antes: accion, despues: nuevo.hecha }, ...(nuevo.siguiente ? [{ tipo: "accion", antes: null, despues: nuevo.siguiente }] : [])], { hoy, ajustes: perfil?.ajustes }).catch(() => null);
+      r = { ok: true };
+      linea = `${t}.`;
+    }
+  }
+  await llamar(env, "answerCallbackQuery", { callback_query_id: cq.id, text: r.ok ? linea.replace(/[:.].*$/, "") : r.error });
   if (r.ok && cq.message?.message_id) {
     await llamar(env, "editMessageText", {
       chat_id: chatId,
       message_id: cq.message.message_id,
-      text: `${cq.message.text ?? ""}\n\nDeshecho: no quedó nada guardado.`.slice(0, MAX_TEXTO),
+      text: `${cq.message.text ?? ""}\n\n${linea}`.slice(0, MAX_TEXTO),
     }).catch(() => {});
   }
 }

@@ -469,16 +469,42 @@ Cloudflare como Secret `TELEGRAM_BOT_TOKEN`. Falta: el resumen de la mañana, lo
 final: con la aplicación en tu teléfono, una pasada de diseño sobre lo que uses de verdad. Para guiarla, cuéntame qué
 pantalla abres primero, qué te sobra y qué buscas y no encuentras.
 
-**Fase 2:** Google Calendar y Juancito Ads. **Fase 3:** el seguimiento completo. **Fase 4:** visión y metas. **Fase 5:**
-el cerebro que aprende.
+**Fase 2, hecha (lo que pediste después de usarla):**
+
+- **Más rápido**: tu mensaje sale al momento en la burbuja, puedes cerrarla mientras ordena y la respuesta llega con
+  un aviso. Una sola llamada al modelo. **El dictado** es el del calendario de marketing: escucha hasta que lo vuelves a
+  pulsar, enseña lo que va oyendo y se reenciende si el navegador lo corta.
+- **El asistente, una burbuja en todas las pantallas** (como en el calendario): a lo ancho se acopla a la derecha. Ve
+  TODO lo tuyo con sus ids, así que puede completar, mover, editar, borrar, soltar y delegar lo que ya existe, y crear
+  sombreros. La pestaña Asistente se quitó: la conversación vive en la burbuja (también lo de Telegram y Claude).
+- **El cerebro**: tu ficha (la editas en Mentor) va siempre al asistente, y lo que aprende de lo que le cuentas
+  queda como notas que puedes leer, corregir y borrar. Sólo entran las que tienen que ver con lo que dices.
+- **El mentor** (pestaña nueva): lo que más vale ahora, cómo va cada sombrero frente a su prioridad, qué puedes delegar
+  («Delegar a Ana» / «La hago yo»), lo de valor bajo («Soltar» / «Algún día» / «Sí vale») y «Pedir consejo» para la
+  semana, que lee tus listas, tus prioridades y tu ficha.
+- **Hoy**: día, semana o mes; tareas por prioridad (o por urgencia o fecha límite), y aparte reuniones, recordatorios y
+  los eventos especiales del MES; filtro por sombrero. La rutina fija ya no la satura (está en Plan).
+- **Plan** (era Semana; Sombreros se juntó aquí): tu semana día por día con tu rutina, el reparto del tiempo, y tus
+  sombreros con sus tareas listas para marcar. Los sombreros se renombran, se crean, se quitan y se ordenan: el orden
+  es la prioridad. Cada proyecto tiene la suya.
+- **Editar lo hecho**: toca el título de cualquier cosa (también lo hecho) para cambiarla o añadirle notas.
+- **Recordatorios aparte de las tareas.**
+- **Juancito Ads conectado en los dos sentidos** (como lo conecta Claude, sin llaves): lo que agendas aquí en su
+  sombrero se crea allá al momento; marcarlo en un lado lo marca en el otro.
+- **Google Calendar y Google Tasks**, las dos cuentas: sus eventos salen en Hoy, y lo que agendas en los sombreros que
+  escojas se crea allá. Falta que crees el cliente de Google (DEPLOY.md, paso 6).
+- **Claude**: la agenda es un conector de Claude; desde cualquier chat agenda, pregunta y marca hecho.
+- **El seguimiento, configurable** (Ajustes → Seguimiento) y por fin funcionando: el Worker revisa cada minuto qué toca
+  mandarte por Telegram.
+
+**Lo que queda:** visión y metas (dijiste «por el momento no»).
 
 ---
 
 ## 13. Decisiones pendientes
 
 1. **Nombre y color**: al final.
-2. **Las cuentas de Google**: ¿te sirve lo de compartir tus calendarios personales con la cuenta de la agencia
-   (sección 4)? Hace falta para la fase 2.
+2. **Las cuentas de Google**: resuelto conectando las dos cuentas a la vez (no hace falta compartir calendarios).
 3. **Los textos de la NVI**: el entorno donde trabajo no deja entrar a Bible Gateway, así que no los he podido traer
    (y no los escribo de memoria). O se permite ese dominio en el acceso a la red del entorno, o me pegas los versículos
    del banco. Mientras, salen en Reina-Valera 1960.

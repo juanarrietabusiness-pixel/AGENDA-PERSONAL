@@ -10,30 +10,46 @@
 //   POST   /api/acceso                   entrar
 //   POST   /api/salir                    salir
 //   ── con sesión ──
-//   GET    /api/estado                   todo lo de la persona
-//   PUT    /api/elementos/:tipo/:id      guardar una acción, proyecto, evento o persona
+//   GET    /api/estado                   todo lo de la persona (?desde&hasta: los eventos de Google del rango)
+//   PUT    /api/elementos/:tipo/:id      guardar una acción, proyecto, evento o persona (y reflejarlo fuera)
 //   DELETE /api/elementos/:tipo/:id
 //   PUT    /api/perfil                   ajustes y ritmo
-//   POST   /api/capturas                 capturar y que el asistente lo ordene
+//   POST   /api/capturas                 capturar o hablar con el asistente
 //   POST   /api/capturas/:id/ordenar     volver a intentarlo
 //   POST   /api/capturas/:id/deshacer
 //   DELETE /api/capturas/:id
-//   GET    /api/telegram                 ¿hay bot? ¿está conectado este chat?
-//   POST   /api/telegram/conectar        el enlace de un solo uso para atar el chat
-//   POST   /api/telegram/desconectar
+//   PUT    /api/cerebro/:id · DELETE     lo que el asistente sabe de ti
+//   POST   /api/mentor                   el consejo del mentor
+//   GET    /api/telegram · POST conectar · POST desconectar
+//   POST   /api/juancito/conectar · GET vuelta · POST sincronizar · PUT ajustes · POST desconectar
+//   POST   /api/google/conectar · GET vuelta · POST sincronizar · PUT :cuenta · DELETE :cuenta
+//   GET    /api/mcp/cliente · POST /api/mcp/autorizar · GET /api/mcp/conexiones · POST /api/mcp/desconectar
 //   ── sin sesión, firmado ──
 //   POST   /api/telegram/webhook         lo que manda Telegram (con su secreto)
+//   /mcp, /oauth/*, /.well-known/*       Claude (worker/lib/mcp.js)
+//   ── programado (cada minuto) ──
+//   el seguimiento por Telegram y la sincronización con Juancito Ads y Google
 // ============================================================
 
 import { json, error, noEncontrado, cuerpo } from "./lib/respuesta.js";
 import {
   usuarioDeLaPeticion, abrirSesion, cerrarSesion, cookieSesion, cookieBorrada, entrar, darDeAlta, hayUsuarios,
   ipDe, demasiadosFallos, apuntarFallo, olvidarFallos, VENTANA_FALLOS_MIN, igualSeguro,
+  clienteMCP, crearCodigoMCP, conexionesMCP, desconectarMCP,
 } from "./lib/sesion.js";
 import { hayTelegram, secretoWebhook, procesar, conectar, ErrorTelegram } from "./lib/telegram.js";
 import { crearAlmacen, perfilInicial, TIPOS_ELEMENTO } from "./lib/almacen.js";
 import { ordenarCaptura, deshacerCaptura } from "./lib/ordenar.js";
-import { llaves } from "./lib/modelo.js";
+import { llaves, ErrorIA } from "./lib/modelo.js";
+import { reflejar } from "./lib/reflejar.js";
+import * as juancito from "./lib/juancito.js";
+import * as google from "./lib/google.js";
+import { rutaMCP } from "./lib/mcp.js";
+import { consejo } from "./lib/mentor.js";
+import { vuelta } from "./lib/seguimiento.js";
+import { hoyEn, sumarDias } from "../src/lib/fechas.js";
+import { limpiarNota } from "../src/lib/cerebro.js";
+import { sombrerosDe } from "../src/lib/sombreros.js";
 
 const MAX_CAPTURA = 4000;
 
@@ -51,11 +67,15 @@ function peticionSegura(req) {
   return (req.headers.get("content-type") ?? "").includes("application/json");
 }
 
-async function api(req, env) {
+/** Volver a la aplicación después de dar un permiso (Juancito Ads, Google), con lo que pasó. */
+const volver = (url, aviso) => new Response(null, { status: 302, headers: { Location: `${url.origin}/?aviso=${encodeURIComponent(aviso)}#ajustes`, "Cache-Control": "no-store" } });
+
+async function api(req, env, ctx) {
   const url = new URL(req.url);
   const partes = url.pathname.replace(/^\/api\/?/, "").split("/").filter(Boolean);
   const [recurso, a, b] = partes;
   const db = env.DB;
+  const despues = ctx?.waitUntil ? (p) => ctx.waitUntil(p) : null;
   if (!peticionSegura(req)) return error("Petición no permitida.", 403);
 
   if (recurso === "salud" && req.method === "GET") return json({ ok: true });
@@ -120,14 +140,29 @@ async function api(req, env) {
 
   // ── Todo lo demás, con sesión ──
   const usuario = await usuarioDeLaPeticion(db, req);
-  if (!usuario) return error("No has entrado.", 401);
+  if (!usuario) {
+    // Volver de un permiso sin sesión (otro navegador): a la aplicación, que pedirá entrar.
+    if (req.method === "GET" && a === "vuelta") return volver(url, "Entra y vuelve a pulsar «Conectar».");
+    return error("No has entrado.", 401);
+  }
   const almacen = crearAlmacen(db, usuario.id);
+  const perfil = async () => (await almacen.perfil()) ?? perfilInicial(usuario.nombre);
+  const hoyDe = (aj) => hoyEn(aj?.zona);
 
   if (recurso === "estado" && req.method === "GET") {
-    return json({ ...(await almacen.estado()), usuario, llaves: llaves(env) });
+    const p = await perfil();
+    const hoy = hoyDe(p.ajustes);
+    const desde = /^\d{4}-\d{2}-\d{2}$/.test(url.searchParams.get("desde") ?? "") ? url.searchParams.get("desde") : sumarDias(hoy, -40);
+    const hasta = /^\d{4}-\d{2}-\d{2}$/.test(url.searchParams.get("hasta") ?? "") ? url.searchParams.get("hasta") : sumarDias(hoy, 70);
+    // Lo de fuera se pone al día sin hacer esperar: lo nuevo llega en la siguiente lectura.
+    const sync = Promise.all([juancito.sincronizar(env, almacen, { hoy }), google.sincronizar(env, almacen, { hoy })]).catch(() => null);
+    if (despues) despues(sync);
+    else await sync;
+    return json({ ...(await almacen.estado({ completo: true, desde, hasta })), usuario, llaves: llaves(env), servicios: { telegram: hayTelegram(env), google: google.hayGoogle(env) } });
   }
 
   if (recurso === "elementos" && a in TIPOS_ELEMENTO && b) {
+    const anterior = a === "accion" || a === "evento" ? await almacen.elemento(a, b) : null;
     if (req.method === "PUT") {
       const obj = await cuerpo(req);
       if (!obj || typeof obj !== "object" || Array.isArray(obj)) return error("Falta el elemento.");
@@ -137,14 +172,29 @@ async function api(req, env) {
       } catch (e) {
         return error(e.message);
       }
+      if (a === "accion" || a === "evento") {
+        const p = await perfil();
+        const r = reflejar(env, almacen, [{ tipo: a, antes: anterior, despues: obj }], { hoy: hoyDe(p.ajustes), ajustes: p.ajustes }).catch(() => null);
+        if (despues) despues(r);
+        else await r;
+      }
       return json({ ok: true });
     }
-    if (req.method === "DELETE") return (await almacen.borrarElemento(a, b)) ? json({ ok: true }) : noEncontrado("El elemento");
+    if (req.method === "DELETE") {
+      if (!(await almacen.borrarElemento(a, b))) return noEncontrado("El elemento");
+      if (anterior) {
+        const p = await perfil();
+        const r = reflejar(env, almacen, [{ tipo: a, antes: anterior, despues: null }], { hoy: hoyDe(p.ajustes), ajustes: p.ajustes }).catch(() => null);
+        if (despues) despues(r);
+        else await r;
+      }
+      return json({ ok: true });
+    }
   }
 
   if (recurso === "perfil" && req.method === "PUT") {
     const { ajustes, ritmo } = (await cuerpo(req)) ?? {};
-    const actual = (await almacen.perfil()) ?? perfilInicial(usuario.nombre);
+    const actual = await perfil();
     if (ajustes !== undefined && (typeof ajustes !== "object" || Array.isArray(ajustes) || !ajustes)) return error("Los ajustes no son válidos.");
     if (ritmo !== undefined && !Array.isArray(ritmo)) return error("El ritmo no es válido.");
     await almacen.guardarPerfil({ ajustes: ajustes ?? actual.ajustes, ritmo: ritmo ?? actual.ritmo });
@@ -159,7 +209,7 @@ async function api(req, env) {
       if (limpio.length > MAX_CAPTURA) return error(`Una captura tiene como mucho ${MAX_CAPTURA} caracteres.`);
       // Se guarda PRIMERO, tal cual: si la IA falla, queda en la Bandeja.
       const captura = await almacen.crearCaptura({ id: crypto.randomUUID(), texto: limpio, canal: ["app", "voz", "telegram", "claude"].includes(canal) ? canal : "app" });
-      const r = await ordenarCaptura(env, almacen, captura);
+      const r = await ordenarCaptura(env, almacen, captura, { despues });
       return json({ captura: { ...captura, estado: r.ok ? "ordenada" : "error" }, ...r }, r.ok ? 201 : 202);
     }
     if (a) {
@@ -167,17 +217,40 @@ async function api(req, env) {
       if (!captura) return noEncontrado("La captura");
       if (b === "ordenar" && req.method === "POST") {
         if (captura.estado === "ordenada") return error("Esa captura ya está ordenada.", 409);
-        const r = await ordenarCaptura(env, almacen, captura);
+        const r = await ordenarCaptura(env, almacen, captura, { despues });
         return json(r, r.ok ? 200 : 202);
       }
       if (b === "deshacer" && req.method === "POST") {
-        const r = await deshacerCaptura(almacen, captura);
+        const p = await perfil();
+        const r = await deshacerCaptura(env, almacen, captura, { hoy: hoyDe(p.ajustes) });
         return r.ok ? json(r) : error(r.error, 409);
       }
       if (!b && req.method === "DELETE") {
         await almacen.borrarCaptura(a);
         return json({ ok: true });
       }
+    }
+  }
+
+  if (recurso === "cerebro" && a) {
+    if (req.method === "PUT") {
+      const p = await perfil();
+      const nota = limpiarNota((await cuerpo(req)) ?? {}, { sombreros: sombrerosDe(p.ajustes) });
+      if (!nota.titulo || !nota.texto) return error("Una nota necesita título y texto.");
+      await almacen.guardarNota({ id: a, ...nota, origen: "yo" });
+      return json({ ok: true });
+    }
+    if (req.method === "DELETE") return (await almacen.borrarNota(a)) ? json({ ok: true }) : noEncontrado("La nota");
+  }
+
+  if (recurso === "mentor" && req.method === "POST") {
+    try {
+      const c = await consejo(env, almacen);
+      const p = await perfil();
+      await almacen.guardarPerfil({ ajustes: { ...p.ajustes, consejo: c }, ritmo: p.ritmo });
+      return json(c);
+    } catch (e) {
+      return error(e.message, e instanceof ErrorIA ? e.estado : 502);
     }
   }
 
@@ -197,20 +270,120 @@ async function api(req, env) {
     }
   }
 
+  if (recurso === "juancito") {
+    try {
+      if (a === "conectar" && req.method === "POST") return json({ url: await juancito.iniciar(env, almacen, url.origin) });
+      if (a === "vuelta" && req.method === "GET") {
+        if (url.searchParams.get("error")) return volver(url, "No diste permiso en Juancito Ads.");
+        await juancito.terminar(env, almacen, { code: url.searchParams.get("code"), state: url.searchParams.get("state") });
+        const p = await perfil();
+        await juancito.sincronizar(env, almacen, { hoy: hoyDe(p.ajustes), forzar: true });
+        return volver(url, "Juancito Ads quedó conectado.");
+      }
+      if (a === "sincronizar" && req.method === "POST") {
+        const p = await perfil();
+        return json(await juancito.sincronizar(env, almacen, { hoy: hoyDe(p.ajustes), forzar: true }));
+      }
+      if (a === "ajustes" && req.method === "PUT") {
+        const c = await almacen.conexion(juancito.SERVICIO);
+        if (!c) return noEncontrado("La conexión");
+        const { todas } = (await cuerpo(req)) ?? {};
+        await almacen.guardarConexion(juancito.SERVICIO, { ...c.datos, ajustes: { ...(c.datos.ajustes ?? {}), todas: Boolean(todas) } });
+        return json({ ok: true });
+      }
+      if (a === "desconectar" && req.method === "POST") {
+        await almacen.borrarConexion(juancito.SERVICIO);
+        return json({ ok: true });
+      }
+    } catch (e) {
+      if (a === "vuelta") return volver(url, e.message);
+      return error(e.message, 502);
+    }
+  }
+
+  if (recurso === "google") {
+    try {
+      if (a === "conectar" && req.method === "POST") return json({ url: await google.iniciar(env, almacen, url.origin) });
+      if (a === "vuelta" && req.method === "GET") {
+        if (url.searchParams.get("error")) return volver(url, "No diste permiso en Google.");
+        const cuenta = await google.terminar(env, almacen, { code: url.searchParams.get("code"), state: url.searchParams.get("state"), origen: url.origin });
+        const p = await perfil();
+        await google.sincronizar(env, almacen, { hoy: hoyDe(p.ajustes), forzar: true });
+        return volver(url, `Google (${cuenta}) quedó conectado.`);
+      }
+      if (a === "sincronizar" && req.method === "POST") {
+        const p = await perfil();
+        return json(await google.sincronizar(env, almacen, { hoy: hoyDe(p.ajustes), forzar: true }));
+      }
+      if (a && a !== "conectar" && a !== "vuelta" && a !== "sincronizar") {
+        const servicio = `${google.PREFIJO}${decodeURIComponent(a).toLowerCase()}`;
+        const c = await almacen.conexion(servicio);
+        if (!c) return noEncontrado("Esa cuenta");
+        if (req.method === "DELETE") {
+          await almacen.borrarConexion(servicio);
+          return json({ ok: true });
+        }
+        if (req.method === "PUT") {
+          const p = await perfil();
+          const ids = sombrerosDe(p.ajustes).map((s) => s.id);
+          const q = (await cuerpo(req)) ?? {};
+          const lista = (v) => (Array.isArray(v) ? v.filter((x) => ids.includes(x)) : undefined);
+          const ajustes = { ...(c.datos.ajustes ?? {}) };
+          if (lista(q.eventosDe)) ajustes.eventosDe = lista(q.eventosDe);
+          if (lista(q.tareasDe)) ajustes.tareasDe = lista(q.tareasDe);
+          await almacen.guardarConexion(servicio, { ...c.datos, ajustes });
+          return json({ ok: true });
+        }
+      }
+    } catch (e) {
+      if (a === "vuelta") return volver(url, e.message);
+      return error(e.message, 502);
+    }
+  }
+
+  if (recurso === "mcp") {
+    if (a === "cliente" && req.method === "GET") {
+      const c = await clienteMCP(db, url.searchParams.get("client_id"));
+      if (!c || !c.redirectUris.includes(url.searchParams.get("redirect_uri") ?? "")) return error("Esa aplicación no está registrada o la dirección de vuelta no es la suya.", 400);
+      return json({ nombre: c.nombre || "Una aplicación", vuelta: new URL(url.searchParams.get("redirect_uri")).host });
+    }
+    if (a === "autorizar" && req.method === "POST") {
+      const q = (await cuerpo(req)) ?? {};
+      const c = await clienteMCP(db, q.client_id);
+      if (!c || !c.redirectUris.includes(q.redirect_uri)) return error("La dirección de vuelta no es la que registró esa aplicación.", 400);
+      if (q.code_challenge_method !== "S256" || !/^[A-Za-z0-9_-]{43,128}$/.test(String(q.code_challenge ?? ""))) return error("Falta el reto PKCE (S256).", 400);
+      const codigo = await crearCodigoMCP(db, { clienteId: c.id, ownerId: usuario.id, redirectUri: q.redirect_uri, reto: q.code_challenge });
+      const vuelta = new URL(q.redirect_uri);
+      vuelta.searchParams.set("code", codigo);
+      if (q.state) vuelta.searchParams.set("state", String(q.state));
+      return json({ redireccion: vuelta.toString() });
+    }
+    if (a === "conexiones" && req.method === "GET") return json({ conexiones: await conexionesMCP(db, usuario.id) });
+    if (a === "desconectar" && req.method === "POST") {
+      await desconectarMCP(db, usuario.id);
+      return json({ ok: true });
+    }
+  }
+
   return noEncontrado("Esa ruta");
 }
 
 export default {
-  async fetch(req, env) {
+  async fetch(req, env, ctx) {
     const url = new URL(req.url);
-    if (url.pathname.startsWith("/api/") || url.pathname === "/api") {
-      try {
-        return await api(req, env);
-      } catch (e) {
-        console.error("api:", e?.stack ?? e);
-        return error("Error interno.", 500);
-      }
+    try {
+      const mcp = await rutaMCP(req, env, ctx);
+      if (mcp) return mcp;
+      if (url.pathname.startsWith("/api/") || url.pathname === "/api") return await api(req, env, ctx);
+    } catch (e) {
+      console.error("api:", e?.stack ?? e);
+      return error("Error interno.", 500);
     }
     return env.ASSETS.fetch(req);
+  },
+
+  /** Cada minuto: el seguimiento por Telegram y la sincronización con Juancito Ads y Google. */
+  async scheduled(evento, env, ctx) {
+    ctx.waitUntil(vuelta(env, new Date(evento?.scheduledTime ?? Date.now())).catch((e) => console.error("seguimiento:", e?.message ?? e)));
   },
 };

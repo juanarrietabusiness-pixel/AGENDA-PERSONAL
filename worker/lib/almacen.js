@@ -14,6 +14,7 @@ import { RITMO_BASE } from "../../src/lib/ritmo.js";
 import { AJUSTES_IA_BASE } from "../../src/lib/ia.js";
 
 export const TIPOS_ELEMENTO = Object.freeze({ accion: "acciones", proyecto: "proyectos", evento: "eventos", persona: "personas" });
+export const MAX_APRENDIDOS = 300;
 const MAX_JSON = 200_000;
 
 const ahora = () => new Date().toISOString();
@@ -71,14 +72,21 @@ export function crearAlmacen(db, ownerId) {
       await this.sentenciaPerfil(perfil).run();
     },
 
-    async estado() {
-      const [perfil, filas, bandeja] = await Promise.all([
+    /**
+     * Todo lo de la persona. Con `completo`, también el cerebro, la conversación, las conexiones (sin sus llaves) y
+     * los eventos de Google del rango: lo que pide la pantalla.
+     */
+    async estado({ completo = false, desde = null, hasta = null } = {}) {
+      const [perfil, filas, bandeja, extra] = await Promise.all([
         this.perfil(),
         db.prepare("select tipo, datos from elementos where owner_id = ?").bind(ownerId).all(),
         db
           .prepare("select id, texto, canal, estado, error, creada from capturas where owner_id = ? and estado in ('pendiente', 'error') order by creada desc limit 100")
           .bind(ownerId)
           .all(),
+        completo
+          ? Promise.all([this.cerebro(), this.conversacion(30), this.conexiones(), desde && hasta ? this.externosEntre(desde, hasta) : []])
+          : null,
       ]);
       const base = perfil ?? perfilInicial();
       const salida = { ajustes: base.ajustes, ritmo: base.ritmo, acciones: [], proyectos: [], eventos: [], personas: [] };
@@ -88,7 +96,16 @@ export function crearAlmacen(db, ownerId) {
         if (lista && obj) salida[lista].push(obj);
       }
       salida.bandeja = (bandeja.results ?? []).map((c) => ({ ...c }));
+      if (extra) {
+        const [cerebro, conversacion, conexiones, externos] = extra;
+        Object.assign(salida, { cerebro, conversacion, conexiones: conexiones.map(({ servicio, sincronizado, error, datos }) => ({ servicio, sincronizado, error, conectada: Boolean(datos?.conectada || datos?.renovacion), cuenta: datos?.cuenta ?? null, ajustes: datos?.ajustes ?? {} })), externos });
+      }
       return salida;
+    },
+
+    async elemento(tipo, id) {
+      const f = await db.prepare("select datos from elementos where owner_id = ? and tipo = ? and id = ?").bind(ownerId, tipo, String(id)).first();
+      return f ? leerJSON(f.datos, null) : null;
     },
 
     sentenciaElemento,
@@ -165,6 +182,148 @@ export function crearAlmacen(db, ownerId) {
 
     async desvincularTelegram() {
       await db.prepare("delete from telegram where owner_id = ?").bind(ownerId).run();
+    },
+
+    /** Lo último que se habló con el asistente (por cualquier canal), lo más viejo primero. */
+    async conversacion(n = 30) {
+      const r = await db
+        .prepare("select id, texto, canal, estado, resultado, error, creada from capturas where owner_id = ? order by creada desc limit ?")
+        .bind(ownerId, n)
+        .all();
+      return (r.results ?? []).reverse().map((c) => {
+        const res = c.resultado ? leerJSON(c.resultado, null) : null;
+        return { id: c.id, texto: c.texto, canal: c.canal, estado: c.estado, error: c.error, creada: c.creada, tarjeta: res?.tarjeta ?? null, deshecha: Boolean(res?.deshecha), puedeDeshacer: c.estado === "ordenada" && Boolean(res?.deshacer) };
+      });
+    },
+
+    /** Las últimas capturas ordenadas en `minutos`, para que el asistente siga la conversación. */
+    async historial(minutos = 180, n = 6) {
+      const desde = new Date(Date.now() - minutos * 60_000).toISOString();
+      const r = await db
+        .prepare("select id, texto, resultado from capturas where owner_id = ? and estado = 'ordenada' and creada > ? order by creada desc limit ?")
+        .bind(ownerId, desde, n)
+        .all();
+      return (r.results ?? []).reverse().map((f) => ({ ...f, resultado: f.resultado ? leerJSON(f.resultado, null) : null }));
+    },
+
+    // ── El cerebro ──
+    async cerebro() {
+      const r = await db.prepare("select id, tipo, titulo, texto, sombrero, origen, usos, creado, actualizado from cerebro where owner_id = ? order by tipo, actualizado desc").bind(ownerId).all();
+      return (r.results ?? []).map((x) => ({ ...x }));
+    },
+
+    sentenciaNota({ id, tipo, titulo, texto, sombrero = null, origen = "yo" }) {
+      return db
+        .prepare(
+          "insert into cerebro (owner_id, id, tipo, titulo, texto, sombrero, origen, actualizado) values (?, ?, ?, ?, ?, ?, ?, ?) " +
+            "on conflict (owner_id, id) do update set tipo = excluded.tipo, titulo = excluded.titulo, texto = excluded.texto, sombrero = excluded.sombrero, actualizado = excluded.actualizado",
+        )
+        .bind(ownerId, id, tipo, titulo, texto, sombrero, origen, ahora());
+    },
+
+    async guardarNota(nota) {
+      await this.sentenciaNota(nota).run();
+    },
+
+    sentenciaBorrarNota(id) {
+      return db.prepare("delete from cerebro where owner_id = ? and id = ?").bind(ownerId, String(id));
+    },
+
+    async borrarNota(id) {
+      const r = await this.sentenciaBorrarNota(id).run();
+      return (r.meta?.changes ?? 0) > 0;
+    },
+
+    /** Lo aprendido de más se va (lo menos usado y más viejo primero): el cerebro no crece sin fin. */
+    async recortarAprendidos(max = MAX_APRENDIDOS) {
+      await db
+        .prepare(
+          "delete from cerebro where owner_id = ? and tipo = 'aprendido' and id in (select id from cerebro where owner_id = ? and tipo = 'aprendido' order by usos asc, actualizado asc limit max(0, (select count(*) from cerebro where owner_id = ? and tipo = 'aprendido') - ?))",
+        )
+        .bind(ownerId, ownerId, ownerId, max)
+        .run();
+    },
+
+    async sumarUsos(ids) {
+      if (!ids?.length) return;
+      await db.batch(ids.map((id) => db.prepare("update cerebro set usos = usos + 1 where owner_id = ? and id = ?").bind(ownerId, id)));
+    },
+
+    // ── Lo que ya se avisó ──
+    /** Reserva un aviso antes de mandarlo: true si nadie lo había mandado (dos vueltas a la vez no lo mandan dos veces). */
+    async reclamarAviso(clave) {
+      const r = await db.prepare("insert or ignore into avisos_enviados (owner_id, clave) values (?, ?)").bind(ownerId, clave).run();
+      return (r.meta?.changes ?? 0) > 0;
+    },
+
+    async soltarAviso(clave) {
+      await db.prepare("delete from avisos_enviados where owner_id = ? and clave = ?").bind(ownerId, clave).run();
+    },
+
+    async purgarAvisos(dias = 21) {
+      await db.prepare("delete from avisos_enviados where owner_id = ? and enviado < ?").bind(ownerId, new Date(Date.now() - dias * 86_400_000).toISOString()).run();
+    },
+
+    // ── Conexiones (Juancito Ads, Google) ──
+    async conexiones() {
+      const r = await db.prepare("select servicio, datos, sincronizado, error from conexiones where owner_id = ? order by servicio").bind(ownerId).all();
+      return (r.results ?? []).map((c) => ({ ...c, datos: leerJSON(c.datos, {}) }));
+    },
+
+    async conexion(servicio) {
+      const c = await db.prepare("select servicio, datos, sincronizado, error from conexiones where owner_id = ? and servicio = ?").bind(ownerId, servicio).first();
+      return c ? { ...c, datos: leerJSON(c.datos, {}) } : null;
+    },
+
+    async guardarConexion(servicio, datos, { sincronizado, error } = {}) {
+      await db
+        .prepare(
+          "insert into conexiones (owner_id, servicio, datos, sincronizado, error, actualizado) values (?, ?, ?, ?, ?, ?) " +
+            "on conflict (owner_id, servicio) do update set datos = excluded.datos, sincronizado = coalesce(excluded.sincronizado, conexiones.sincronizado), error = excluded.error, actualizado = excluded.actualizado",
+        )
+        .bind(ownerId, servicio, JSON.stringify(datos), sincronizado ?? null, error ?? null, ahora())
+        .run();
+    },
+
+    async marcarConexion(servicio, { sincronizado = null, error = null }) {
+      await db.prepare("update conexiones set sincronizado = coalesce(?, sincronizado), error = ? where owner_id = ? and servicio = ?").bind(sincronizado, error, ownerId, servicio).run();
+    },
+
+    async borrarConexion(servicio) {
+      await db.batch([
+        db.prepare("delete from conexiones where owner_id = ? and servicio = ?").bind(ownerId, servicio),
+        db.prepare("delete from externos where owner_id = ? and fuente = ?").bind(ownerId, servicio),
+      ]);
+    },
+
+    // ── El «state» de un permiso a medio dar ──
+    async crearPendiente({ estadoHash, servicio, verificador, caduca }) {
+      await db.prepare("insert into oauth_pendientes (estado_hash, owner_id, servicio, verificador, caduca) values (?, ?, ?, ?, ?)").bind(estadoHash, ownerId, servicio, verificador, caduca).run();
+    },
+
+    /** Lee y BORRA (sirve una vez); null si no es de esta persona o caducó. */
+    async tomarPendiente(estadoHash) {
+      const f = await db.prepare("select servicio, verificador, caduca from oauth_pendientes where owner_id = ? and estado_hash = ?").bind(ownerId, estadoHash).first();
+      await db.prepare("delete from oauth_pendientes where owner_id = ? and (estado_hash = ? or caduca < ?)").bind(ownerId, estadoHash, ahora()).run();
+      return f && f.caduca > ahora() ? { servicio: f.servicio, verificador: f.verificador } : null;
+    },
+
+    // ── Lo leído de Google Calendar ──
+    async externosEntre(desde, hasta) {
+      const r = await db.prepare("select fuente, id, tipo, dia, datos from externos where owner_id = ? and dia >= ? and dia <= ? order by dia").bind(ownerId, desde, hasta).all();
+      return (r.results ?? []).map((x) => ({ ...leerJSON(x.datos, {}), fuente: x.fuente, id: x.id, tipo: x.tipo, dia: x.dia }));
+    },
+
+    /** Repone lo de una fuente en un rango: borra lo que había y escribe lo nuevo, de una vez. */
+    async reemplazarExternos(fuente, { desde, hasta }, filas) {
+      await db.batch([
+        db.prepare("delete from externos where owner_id = ? and fuente = ? and dia >= ? and dia <= ?").bind(ownerId, fuente, desde, hasta),
+        ...filas.map((x) =>
+          db
+            .prepare("insert or replace into externos (owner_id, fuente, id, tipo, dia, datos) values (?, ?, ?, ?, ?, ?)")
+            .bind(ownerId, fuente, String(x.id), x.tipo ?? "evento", x.dia, JSON.stringify(x)),
+        ),
+      ]);
     },
 
     async registrarConsumo({ modelo, funcion, entrada, salida, costo }) {

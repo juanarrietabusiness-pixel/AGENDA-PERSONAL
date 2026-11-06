@@ -129,7 +129,7 @@ describe("aplicar, deshacer y la tarjeta", () => {
     const t = tarjeta(r, orden, HOY);
     expect(t).toMatch(/^Listo:/);
     expect(t).toContain("«Reunión con Adolfo» · Iglesia · sáb 7 nov, 10:00 a. m.");
-    expect(t).toContain("irá a Juancito Ads");
+    expect(t).toContain("en Juancito Ads");
     expect(t).toContain("No pude:");
     const atras = deshacerOrden(r.estado, r.deshacer);
     expect(atras.eventos).toHaveLength(0);

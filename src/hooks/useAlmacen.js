@@ -49,6 +49,8 @@ export function useAlmacen(hoy) {
   const [estado, setEstado] = useState(null);
   const [fallo, setFallo] = useState("");
   const ref = useRef(null);
+  // Escrituras en camino: mientras haya alguna, no se relee (la lectura traería lo de antes y lo pisaría en pantalla).
+  const enCamino = useRef(0);
 
   const poner = (e) => {
     ref.current = e;
@@ -56,6 +58,7 @@ export function useAlmacen(hoy) {
   };
 
   const cargar = useCallback(async () => {
+    if (enCamino.current > 0) return;
     const r = await api.estado();
     if (r.estado === 401) {
       setModo("acceso");
@@ -103,12 +106,30 @@ export function useAlmacen(hoy) {
       const despues = fn(antes);
       poner(despues);
       if (modo !== "servidor") return;
-      api.aplicarCambios(api.cambiosEntre(antes, despues)).then((fallos) => {
+      const ops = api.cambiosEntre(antes, despues);
+      if (!ops.length) return;
+      enCamino.current++;
+      api.aplicarCambios(ops).then((fallos) => {
+        enCamino.current--;
         if (fallos.length) setFallo(`No se guardó todo: ${fallos[0]}`);
       });
     },
     [modo],
   );
+
+  // Lo que entra por Telegram, Claude, Juancito Ads o Google aparece sin recargar: cada minuto, si se está mirando.
+  useEffect(() => {
+    if (modo !== "servidor") return undefined;
+    const t = setInterval(() => {
+      if (document.visibilityState === "visible") cargar().catch(() => {});
+    }, 60_000);
+    const alVolver = () => document.visibilityState === "visible" && cargar().catch(() => {});
+    document.addEventListener("visibilitychange", alVolver);
+    return () => {
+      clearInterval(t);
+      document.removeEventListener("visibilitychange", alVolver);
+    };
+  }, [modo, cargar]);
 
   const reiniciar = useCallback(() => {
     if (modo === "prototipo") poner(inicial(hoy));

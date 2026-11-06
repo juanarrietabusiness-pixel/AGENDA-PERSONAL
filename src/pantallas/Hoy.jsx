@@ -1,36 +1,189 @@
+import { useMemo, useState } from "react";
 import Icon from "../componentes/Icon.jsx";
-import FilaAccion from "../componentes/FilaAccion.jsx";
-import { planDelDia, ahora } from "../lib/hoy.js";
-import { textoHora, textoLargo, minutos } from "../lib/fechas.js";
-import { sombrero } from "../lib/sombreros.js";
+import Fila from "../componentes/Fila.jsx";
+import { textoLargo, textoCorto, textoHora, sumarDias } from "../lib/fechas.js";
+import { sombrerosDe, estiloDe, nombreDe } from "../lib/sombreros.js";
 import { elegirVersiculo, ATRIBUCION } from "../lib/versiculos.js";
 import { variante } from "../lib/mensajes.js";
-import { pideDecision } from "../lib/metodo.js";
-import { RITMO_BASE } from "../lib/ritmo.js";
+import { PERIODOS, ORDENES, rango, mover, tituloDe, accionesDelPeriodo, sinFecha, reunionesDelPeriodo, especialesDelMes, ordenarPor } from "../lib/agenda.js";
 
 const SALUDO = ["Buenos días", "Buen día", "Arrancamos"];
 const saludo = (hora, dia) => (hora < "12:00" ? variante(SALUDO, dia) : hora < "19:00" ? "Buenas tardes" : "Buenas noches");
 
-const duracion = (min) => (min < 60 ? `${min} min` : `${Math.floor(min / 60)} h${min % 60 ? ` ${min % 60}` : ""}`);
+const COLUMNAS = [
+  { id: "tareas", nombre: "Tareas", icono: "checkSquare" },
+  { id: "reuniones", nombre: "Reuniones", icono: "users" },
+  { id: "recordatorios", nombre: "Recordatorios", icono: "bell" },
+  { id: "especiales", nombre: "Eventos especiales", icono: "star" },
+];
 
-export default function Hoy({ estado, hoy, hora, acciones: accionesUI }) {
-  const { acciones, eventos, ajustes, bandeja } = estado;
-  const plan = planDelDia({ dia: hoy, eventos: [...(estado.ritmo ?? RITMO_BASE), ...eventos], acciones, ajustes, ahora: hora });
-  const { actual } = ahora(plan, hora);
-  const v = elegirVersiculo({ momento: "manana", hoy, historial: estado.historialVersiculos, frecuencia: ajustes.frecuenciaVersiculos });
-  const tres = [...plan.tres.escogidas, ...plan.tres.sugeridas];
-  const hechasHoy = acciones.filter((a) => a.estado === "hecha" && a.hechaEl === hoy);
+const recordar = (k, v) => {
+  try {
+    localStorage.setItem(`hoy-${k}`, v);
+  } catch {
+    /* sin almacenamiento: sólo no se recuerda */
+  }
+};
+const recordado = (k, base, validos) => {
+  try {
+    const v = localStorage.getItem(`hoy-${k}`);
+    return validos.includes(v) ? v : base;
+  } catch {
+    return base;
+  }
+};
 
-  const linea = [
-    ...plan.fijos.map((f) => ({ ...f, tipo: "fijo" })),
-    ...plan.propuesta.map((b) => ({ ...b, tipo: "propuesta", id: `p-${b.accionId}` })),
-  ].sort((a, b) => a.inicio.localeCompare(b.inicio));
+/**
+ * Hoy: lo que hay que hacer, por prioridad, y lo que viene. Sin la rutina fija de cada día (la oración, los servicios:
+ * ya los sabes); con las reuniones, los recordatorios y los eventos especiales del mes, de todos los sombreros, en el
+ * día, la semana o el mes.
+ */
+export default function Hoy({ estado, hoy, hora, onHecha, onAbrir, onDecidir, onAsistente }) {
+  const { acciones, eventos, proyectos, ajustes, bandeja = [], externos = [] } = estado;
+  const sombreros = sombrerosDe(ajustes);
+  const [periodo, setPeriodo] = useState(() => recordado("periodo", "dia", Object.keys(PERIODOS)));
+  const [orden, setOrden] = useState(() => recordado("orden", "prioridad", Object.keys(ORDENES)));
+  const [dia, setDia] = useState(hoy);
+  const [filtro, setFiltro] = useState(null);
+  const [columna, setColumna] = useState("tareas");
+  const [verHechas, setVerHechas] = useState(false);
+  const [verSinFecha, setVerSinFecha] = useState(false);
+
+  const r = rango(periodo, dia);
+  const ctx = { hoy, proyectos, sombreros };
+  const deFiltro = (x) => !filtro || x.sombrero === filtro;
+  const datos = useMemo(() => {
+    const t = accionesDelPeriodo(acciones, { ...r, hoy, clase: "tarea" });
+    const rc = accionesDelPeriodo(acciones, { ...r, hoy, clase: "recordatorio" });
+    return {
+      tareas: ordenarPor(t.abiertas.filter(deFiltro), orden, ctx),
+      hechas: t.hechas.filter(deFiltro),
+      recordatorios: ordenarPor(rc.abiertas.filter(deFiltro), "limite", ctx),
+      recordatoriosHechos: rc.hechas.filter(deFiltro),
+      libres: ordenarPor(sinFecha(acciones).filter(deFiltro), orden, ctx),
+      reuniones: reunionesDelPeriodo(eventos, externos, r).filter((e) => !filtro || e.sombrero === filtro || e.fuente === "google"),
+      especiales: especialesDelMes(acciones, eventos, dia).filter(deFiltro),
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [acciones, eventos, externos, periodo, dia, orden, filtro, hoy, proyectos, ajustes]);
+
+  const v = elegirVersiculo({ momento: "manana", hoy, frecuencia: ajustes.frecuenciaVersiculos });
+  const hechasHoy = acciones.filter((a) => a.estado === "hecha" && a.hechaEl === hoy).length;
+  const cuenta = { tareas: datos.tareas.length, reuniones: datos.reuniones.length, recordatorios: datos.recordatorios.length, especiales: datos.especiales.length };
+  const variosDias = periodo !== "dia";
+
+  const ponerPeriodo = (p) => {
+    setPeriodo(p);
+    recordar("periodo", p);
+  };
+  const ponerOrden = (o) => {
+    setOrden(o);
+    recordar("orden", o);
+  };
+
+  const filas = (lista, { conDecidir = false } = {}) => (
+    <ul className="lista">
+      {lista.map((a) => (
+        <Fila key={a.id} accion={a} hoy={hoy} sombreros={sombreros} proyectos={proyectos} onHecha={onHecha} onAbrir={(x) => onAbrir("accion", x)} mostrarDia={variosDias || a.cuando !== hoy}>
+          {conDecidir && a.estado === "abierta" && a.cuando && a.cuando < hoy && (
+            <div className="botones">
+              <button type="button" className="boton" onClick={() => onDecidir(a.id, "hoy")}>Hoy</button>
+              <button type="button" className="boton" onClick={() => onDecidir(a.id, "manana")}>Mañana</button>
+              <button type="button" className="boton fantasma" onClick={() => onDecidir(a.id, "algun-dia")}>Algún día</button>
+              <button type="button" className="boton fantasma" onClick={() => onDecidir(a.id, "soltar")}>Ya no aplica</button>
+            </div>
+          )}
+        </Fila>
+      ))}
+    </ul>
+  );
+
+  const porDia = (lista, pintar) => {
+    if (!variosDias) return pintar(lista);
+    const grupos = new Map();
+    for (const x of lista) grupos.set(x.dia, [...(grupos.get(x.dia) ?? []), x]);
+    return [...grupos.entries()].map(([d, xs]) => (
+      <div key={d} className="grupo-dia">
+        <h4 className={d === hoy ? "es-hoy" : undefined}>{d === hoy ? "Hoy" : textoCorto(d, hoy)}</h4>
+        {pintar(xs)}
+      </div>
+    ));
+  };
+
+  const vacio = (texto) => <p className="vacio">{texto}</p>;
+
+  const contenido = {
+    tareas: (
+      <>
+        {datos.tareas.length ? filas(datos.tareas, { conDecidir: true }) : vacio(periodo === "dia" ? "Nada planeado para este día. Mira «Sin fecha» o pídele algo al asistente." : "Nada planeado en este periodo.")}
+        {datos.libres.length > 0 && (
+          <div className="plegable">
+            <button type="button" className="boton fantasma" aria-expanded={verSinFecha} onClick={() => setVerSinFecha((x) => !x)}>
+              <Icon name={verSinFecha ? "chevronUp" : "chevronDown"} size={16} /> Sin fecha ({datos.libres.length})
+            </button>
+            {verSinFecha && filas(datos.libres)}
+          </div>
+        )}
+        {datos.hechas.length > 0 && (
+          <div className="plegable">
+            <button type="button" className="boton fantasma" aria-expanded={verHechas} onClick={() => setVerHechas((x) => !x)}>
+              <Icon name={verHechas ? "chevronUp" : "chevronDown"} size={16} /> Hechas ({datos.hechas.length})
+            </button>
+            {verHechas && filas(datos.hechas)}
+          </div>
+        )}
+      </>
+    ),
+    reuniones: datos.reuniones.length
+      ? porDia(datos.reuniones, (xs) => (
+          <ul className="lista">
+            {xs.map((e) => (
+              <li key={e.clave ?? `${e.fuente ?? "aqui"}:${e.id}:${e.dia}`} className="evento" style={estiloDe(e.sombrero, sombreros)}>
+                <span className="evento-hora">{e.inicio ? textoHora(e.inicio) : "Todo el día"}</span>
+                <div>
+                  {e.fuente === "google" ? (
+                    e.enlace ? <a className="evento-titulo enlace" href={e.enlace} target="_blank" rel="noopener noreferrer">{e.titulo}</a> : <span className="evento-titulo">{e.titulo}</span>
+                  ) : (
+                    <button type="button" className="evento-titulo enlace" onClick={() => onAbrir("evento", eventos.find((x) => x.id === e.id) ?? e)}>{e.titulo}</button>
+                  )}
+                  <div className="accion-meta">
+                    {e.fuente === "google" ? <span className="chip">Google · {e.cuenta}</span> : <span>{nombreDe(e.sombrero, sombreros)}</span>}
+                    {e.fin && e.inicio && <span>hasta {textoHora(e.fin)}</span>}
+                    {e.lugar && <span>{e.lugar}</span>}
+                    {e.notas && <span title={e.notas}><Icon name="file" size={11} style={{ display: "inline", verticalAlign: "-1px" }} /> Notas</span>}
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        ))
+      : vacio("Sin reuniones ni citas."),
+    recordatorios: (
+      <>
+        {datos.recordatorios.length ? filas(datos.recordatorios) : vacio("Sin recordatorios.")}
+        {datos.recordatoriosHechos.length > 0 && <p className="vacio">{datos.recordatoriosHechos.length} ya tenido{datos.recordatoriosHechos.length === 1 ? "" : "s"} en cuenta.</p>}
+      </>
+    ),
+    especiales: datos.especiales.length ? (
+      <ul className="lista">
+        {datos.especiales.map((e) => (
+          <li key={`${e.tipo}:${e.id}:${e.dia}`} className="evento" style={estiloDe(e.sombrero, sombreros)}>
+            <span className="evento-hora">{textoCorto(e.dia, hoy)}</span>
+            <div>
+              <button type="button" className="evento-titulo enlace" onClick={() => onAbrir(e.tipo, (e.tipo === "accion" ? acciones : eventos).find((x) => x.id === e.id) ?? e)}>{e.titulo}</button>
+              <div className="accion-meta"><span>{nombreDe(e.sombrero, sombreros)}</span>{e.dia === hoy && <span className="chip acento">Hoy</span>}</div>
+            </div>
+          </li>
+        ))}
+      </ul>
+    ) : vacio("Ningún cumpleaños ni evento especial este mes."),
+  };
 
   return (
     <>
       <h1 className="titulo-pantalla">{saludo(hora, hoy)}, {ajustes.nombre}.</h1>
-      <p className="subtitulo" style={{ textTransform: "none" }}>
-        Hoy es {textoLargo(hoy)}. {hechasHoy.length > 0 && `Llevas ${hechasHoy.length} hecha${hechasHoy.length === 1 ? "" : "s"}.`}
+      <p className="subtitulo">
+        Hoy es {textoLargo(hoy)}.{hechasHoy > 0 && ` Llevas ${hechasHoy} hecha${hechasHoy === 1 ? "" : "s"}.`}
       </p>
       {v && (
         <blockquote className="versiculo">
@@ -38,136 +191,64 @@ export default function Hoy({ estado, hoy, hora, acciones: accionesUI }) {
         </blockquote>
       )}
 
-      {(plan.vencen.some((a) => a.limite < hoy) || plan.sobrecarga || bandeja.length > 0) && (
-        <div className="lista" style={{ marginTop: "var(--sp-4)" }}>
-          {plan.vencen.filter((a) => a.limite < hoy).map((a) => (
-            <div key={a.id} className="aviso rojo">
-              <Icon name="alert" size={18} />
-              <span>«{a.titulo}» tenía fecha límite y se pasó. ¿La haces hoy?</span>
-            </div>
-          ))}
-          {plan.sobrecarga && (
-            <div className="aviso">
-              <Icon name="clock" size={18} />
-              <span>
-                Hoy hay {duracion(plan.minutosPlaneados)} planeadas y {duracion(plan.minutosLibres)} libres. No cabe todo: {plan.noCaben.length === 1 ? "una" : plan.noCaben.length} se queda{plan.noCaben.length === 1 ? "" : "n"} fuera. ¿Movemos algo?
-              </span>
-            </div>
-          )}
-          {bandeja.length > 0 && (
-            <a className="aviso" href="#asistente" style={{ textDecoration: "none" }}>
-              <Icon name="inbox" size={18} />
-              <span>{bandeja.length} cosa{bandeja.length === 1 ? "" : "s"} en la Bandeja por aclarar.</span>
-            </a>
-          )}
-        </div>
+      {bandeja.length > 0 && (
+        <button type="button" className="aviso" style={{ width: "100%", marginTop: "var(--sp-4)", textAlign: "left" }} onClick={onAsistente}>
+          <Icon name="inbox" size={18} />
+          <span>{bandeja.length} cosa{bandeja.length === 1 ? "" : "s"} que el asistente no pudo ordenar. Ábrelo para volver a intentarlo o aclararla{bandeja.length === 1 ? "" : "s"}.</span>
+        </button>
       )}
 
-      <div className="hoy-rejilla">
-        <div>
-          <section className="seccion" aria-labelledby="t-tres">
-            <div className="seccion-cabeza">
-              <h2 id="t-tres">Las 3 de hoy</h2>
-              <span className="nota">{plan.tres.escogidas.length ? "Las escogiste tú" : "Sugeridas: escoge las tuyas"}</span>
-            </div>
-            <ul className="lista tres">
-              {tres.map((a) => (
-                <FilaAccion key={a.id} accion={a} hoy={hoy} onHecha={accionesUI.hecha}>
-                  {a.enfoque !== hoy && (
-                    <button type="button" className="boton" onClick={() => accionesUI.escoger(a.id)}>
-                      <Icon name="target" size={16} /> Es de mis 3
-                    </button>
-                  )}
-                </FilaAccion>
-              ))}
-              {!tres.length && <li className="tarjeta">Nada urgente ni importante pendiente. Buen día para avanzar en una meta.</li>}
-            </ul>
-          </section>
-
-          <section className="seccion" aria-labelledby="t-resto">
-            <div className="seccion-cabeza">
-              <h2 id="t-resto">También para hoy</h2>
-              <span className="nota">{plan.deHoy.length} acciones</span>
-            </div>
-            <ul className="lista">
-              {plan.deHoy.filter((a) => !tres.some((t) => t.id === a.id)).map((a) => (
-                <FilaAccion key={a.id} accion={a} hoy={hoy} onHecha={accionesUI.hecha} />
-              ))}
-              {hechasHoy.map((a) => <FilaAccion key={a.id} accion={a} hoy={hoy} onHecha={accionesUI.deshacer} />)}
-            </ul>
-          </section>
-
-          {plan.porDecidir.length > 0 && (
-            <section className="seccion" aria-labelledby="t-decidir">
-              <div className="seccion-cabeza">
-                <h2 id="t-decidir">Por decidir</h2>
-                <span className="nota">Lo planeaste antes y no salió. Sin culpa: decide.</span>
-              </div>
-              <ul className="lista">
-                {plan.porDecidir.map((a) => (
-                  <FilaAccion key={a.id} accion={a} hoy={hoy} onHecha={accionesUI.hecha}>
-                    {pideDecision(a) && <p style={{ margin: "0 0 var(--sp-2)", fontSize: "var(--fs-xs)" }}>Ya la moviste {a.pospuesta} veces. ¿Sigue valiendo la pena?</p>}
-                    <div className="botones">
-                      <button type="button" className="boton" onClick={() => accionesUI.decidir(a.id, "hoy")}>Hoy</button>
-                      <button type="button" className="boton" onClick={() => accionesUI.decidir(a.id, "manana")}>Mañana</button>
-                      <button type="button" className="boton" onClick={() => accionesUI.decidir(a.id, "algun-dia")}>Algún día</button>
-                      <button type="button" className="boton fantasma" onClick={() => accionesUI.decidir(a.id, "soltar")}>Ya no aplica</button>
-                    </div>
-                  </FilaAccion>
-                ))}
-              </ul>
-            </section>
-          )}
-
-          {plan.esperas.length > 0 && (
-            <section className="seccion" aria-labelledby="t-espera">
-              <div className="seccion-cabeza"><h2 id="t-espera">Toca preguntar</h2></div>
-              <ul className="lista">
-                {plan.esperas.map((a) => <FilaAccion key={a.id} accion={a} hoy={hoy} onHecha={accionesUI.hecha} />)}
-              </ul>
-            </section>
-          )}
+      <div className="controles-agenda">
+        <div className="segmentado" role="group" aria-label="Periodo">
+          {Object.entries(PERIODOS).map(([p, t]) => (
+            <button key={p} type="button" aria-pressed={periodo === p} onClick={() => ponerPeriodo(p)}>{t}</button>
+          ))}
         </div>
-
-        <section className="seccion" aria-labelledby="t-agenda">
-          <div className="seccion-cabeza">
-            <h2 id="t-agenda">Tu día</h2>
-            <span className="nota">Lo fijo, y en punteado lo que te propongo acomodar</span>
-          </div>
-          <ol className="linea lista">
-            {linea.map((b) => {
-              const s = b.devocional ? "devocional" : b.sombrero;
-              const esAhora = actual && actual.inicio === b.inicio && actual.titulo === b.titulo;
-              return (
-                <li key={b.id} className={`bloque s-${s ?? "ninguno"}${b.tipo === "propuesta" ? " propuesta" : ""}${esAhora ? " ahora" : ""}`}>
-                  <div className="bloque-hora">
-                    {textoHora(b.inicio)}
-                    <small>{duracion(minutos(b.fin) - minutos(b.inicio))}</small>
-                  </div>
-                  <div>
-                    <div className="bloque-titulo">{b.titulo}</div>
-                    <div className="bloque-meta">
-                      <span className="punto" />
-                      <span>{b.devocional ? "Con Dios" : sombrero(b.sombrero)?.nombre ?? "—"}</span>
-                      {esAhora && <span className="chip acento">Ahora</span>}
-                      {b.protegido && (
-                        <span><Icon name="moon" size={11} style={{ display: "inline", verticalAlign: "-1px" }} /> Sin avisos</span>
-                      )}
-                      {b.fuente === "google" && <span>Google Calendar</span>}
-                      {b.porConfirmar && <span className="chip">Hora por confirmar</span>}
-                      {b.tipo === "propuesta" && (
-                        <button type="button" className="boton" style={{ minHeight: 28 }} onClick={() => accionesUI.aceptarBloque(b)}>
-                          Agendar aquí
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </li>
-              );
-            })}
-          </ol>
-        </section>
+        <div className="navegar-periodo">
+          <button type="button" className="boton fantasma" aria-label="Anterior" onClick={() => setDia((d) => mover(periodo, d, -1))}><Icon name="chevronLeft" size={18} /></button>
+          <strong aria-live="polite">{tituloDe(periodo, dia, hoy)}</strong>
+          <button type="button" className="boton fantasma" aria-label="Siguiente" onClick={() => setDia((d) => mover(periodo, d, 1))}><Icon name="chevronRight" size={18} /></button>
+          {(dia < r.desde || dia > r.hasta || hoy < r.desde || hoy > r.hasta) && <button type="button" className="boton" onClick={() => setDia(hoy)}>Hoy</button>}
+        </div>
+        <label className="orden">
+          <span>Ordenar por</span>
+          <select className="campo" value={orden} onChange={(e) => ponerOrden(e.target.value)}>
+            {Object.entries(ORDENES).map(([o, t]) => <option key={o} value={o}>{t}</option>)}
+          </select>
+        </label>
       </div>
+
+      <div className="filtro-sombreros" role="group" aria-label="Sombreros">
+        <button type="button" className="chip-boton" aria-pressed={!filtro} onClick={() => setFiltro(null)}>Todos</button>
+        {sombreros.map((s) => (
+          <button key={s.id} type="button" className="chip-boton" aria-pressed={filtro === s.id} style={estiloDe(s.id, sombreros)} onClick={() => setFiltro(filtro === s.id ? null : s.id)}>
+            <span className="punto" /> {s.nombre}
+          </button>
+        ))}
+      </div>
+
+      <div className="pestanas-columnas" role="tablist" aria-label="Qué ver">
+        {COLUMNAS.map((c) => (
+          <button key={c.id} type="button" role="tab" aria-selected={columna === c.id} onClick={() => setColumna(c.id)}>
+            <Icon name={c.icono} size={16} /> {c.nombre} <span className="cuenta">{cuenta[c.id]}</span>
+          </button>
+        ))}
+      </div>
+
+      <div className="columnas">
+        {COLUMNAS.map((c) => (
+          <section key={c.id} className={`columna${columna === c.id ? " activa" : ""}`} aria-labelledby={`col-${c.id}`}>
+            <div className="seccion-cabeza">
+              <h2 id={`col-${c.id}`}><Icon name={c.icono} size={14} /> {c.nombre}</h2>
+              <span className="nota">{c.id === "especiales" ? "del mes" : cuenta[c.id] || ""}</span>
+            </div>
+            {contenido[c.id]}
+          </section>
+        ))}
+      </div>
+      <p className="vacio" style={{ marginTop: "var(--sp-5)" }}>
+        Tu rutina fija (la oración, los servicios, la célula) no sale aquí: está en <a href="#plan">Plan</a>. ¿Mañana? <button type="button" className="enlace" onClick={() => { ponerPeriodo("dia"); setDia(sumarDias(hoy, 1)); }}>Ver mañana</button>.
+      </p>
     </>
   );
 }

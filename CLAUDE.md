@@ -25,7 +25,7 @@ Cloudflare como «Secret» del Worker.
 **Una migración nueva se aplica a la D1 remota ANTES de subir el código que la usa**: la llave que crea Workers Builds
 no tiene permiso sobre D1, y el push publica solo. Desde una sesión con el MCP de Cloudflare (`d1_database_query`, y
 apuntarla en `d1_migrations` para que wrangler sepa que está) o con `wrangler d1 migrations apply --remote`. De la 0001
-a la 0003 ya están aplicadas.
+a la 0004 ya están aplicadas.
 
 **Telegram** (`worker/lib/telegram.js`): el webhook llega SIN sesión a `/api/telegram/webhook`; vale si trae el
 secreto que se le dio a Telegram al conectar (HMAC del token: no hay otro secreto que guardar) y sólo se atiende el
@@ -33,6 +33,36 @@ chat atado a la cuenta (`telegram`, con un código de un solo uso cuya huella se
 sesion.js). A un desconocido no se le contesta. Cada mensaje entra con un id fijo (`tg-<chat>-<mensaje>`): si Telegram
 repite el aviso, no se guarda ni se paga dos veces. La voz la transcribe Whisper (Workers AI, binding `AI`); en local
 no hay AI (`npm run dev:worker` usa `--env local`, sin ese binding, porque pide iniciar sesión en Cloudflare).
+
+**Juancito Ads** (`worker/lib/juancito.js`): la agenda es un CLIENTE del MCP del calendario de marketing, con OAuth 2.1 +
+PKCE y registro dinámico, igual que Claude: no hay llaves nuevas. Las llamadas van por el Service Binding `JUANCITO`
+(un Worker no puede pedirle a otro de la misma zona por su dominio). El token de renovación ROTA en cada uso: se guarda
+siempre el nuevo. El id de cada tarea de allá sale del texto de `ver_tareas` («(id t1)», que añadió el calendario de
+marketing para esto) y queda en `accion.juancito.id`. `cambiosDesdeJuancito` es puro: lo hecho allá se marca aquí; lo
+nuevo de Juan o sin asignar entra en el sombrero con `fuente: "juancito-ads"`.
+
+**Google** (`worker/lib/google.js`): una conexión por cuenta (`google:<correo>`), los permisos CIFRADOS (AES-GCM, llave
+por HKDF del `GOOGLE_CLIENT_SECRET`). Los eventos se leen a `externos` (copia que repone la vuelta) y salen en Hoy; lo
+que se agenda en un sombrero que esa cuenta lleva se crea allá. `reunionesDelPeriodo` no repite lo que se creó desde aquí
+(también las instancias «<id>_…» de un evento que se repite).
+
+**Reflejar** (`worker/lib/reflejar.js`): UN sitio para que un cambio (pantalla, asistente, Telegram, Claude) vaya a
+Juancito Ads y a Google. Lo que falla fuera NO deshace lo de aquí: la agenda es la verdad y la vuelta reintenta.
+
+**La vuelta del cron** (`worker/lib/seguimiento.js`, cada minuto): sincroniza Juancito Ads (cada 3 min) y Google (cada
+10) y manda por Telegram lo que toca según `ajustes.seguimiento` (`queToca` es puro). Cada mensaje se RESERVA antes de
+mandarlo (`avisos_enviados`, clave única): dos vueltas no mandan lo mismo, y si Telegram falla se suelta.
+
+**Claude** (`worker/lib/mcp.js`): la agenda también es un servidor MCP (`/mcp`, `/oauth/*`, `/.well-known/*`, con su
+pantalla de permiso en `/autorizar` de la SPA). `capturar` pasa por el MISMO `ordenarCaptura` que la app y Telegram.
+
+**El cerebro** (`src/lib/cerebro.js`, tabla `cerebro`): la ficha va siempre al asistente y las notas que tienen que ver
+(BM25) entran por la consulta; lo que aprende (`aprendizajes`) lo comprueba `limpiarAprendizajes` (sin repetir, sin lo
+confidencial, tres por vez). **El mentor** (`worker/lib/mentor.js`, `src/lib/agenda.js`): el código calcula valor,
+reparto y delegables; la IA sólo da el consejo con eso delante.
+
+**Los sombreros** se pueden renombrar, crear, quitar y reordenar (`ajustes.sombreros`, `aplicarSombrero`): el ORDEN es la
+prioridad. Usa siempre `sombrerosDe(ajustes)`, nunca la lista fija `SOMBREROS`, en lo que se ve o se valida.
 
 **Las dos formas de la pantalla** (`useAlmacen`): si `/api/arranque` no contesta JSON, es el prototipo; si contesta,
 pide entrar (o crear la única cuenta con `CODIGO_ALTA`) y cada cambio del estado se manda al servidor como DIFERENCIA

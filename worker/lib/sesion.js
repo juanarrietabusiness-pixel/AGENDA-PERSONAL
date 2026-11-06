@@ -180,3 +180,118 @@ export async function vincularChat(db, codigo, chatId, nombre = "") {
   ]);
   return fila.owner_id;
 }
+
+/** Las cuentas que hay (para la tarea programada: es una aplicación de una persona, pero no se da por hecho). */
+export async function duenos(db) {
+  const r = await db.prepare("select id from usuarios").all();
+  return (r.results ?? []).map((f) => f.id);
+}
+
+/** De quién es un chat de Telegram ya atado, y su chat (para el seguimiento). */
+export async function chatDe(db, ownerId) {
+  const f = await db.prepare("select chat_id from telegram where owner_id = ? and chat_id is not null").bind(ownerId).first();
+  return f?.chat_id ?? null;
+}
+
+// ── Conectar Claude (MCP): OAuth 2.1 con PKCE ───────────────────
+//
+// Portado del calendario de marketing: Claude se registra solo (RFC 7591), abre
+// la pantalla de permiso de la agenda con la sesión de siempre y cambia el
+// código por un token atado a esta cuenta. Como en las sesiones, sólo se
+// guardan HUELLAS. PKCE S256 es obligatorio, el código sirve una vez y el de
+// renovación rota en cada uso.
+
+export const MINUTOS_CODIGO_MCP = 10;
+export const HORAS_ACCESO_MCP = 1;
+export const DIAS_RENOVACION_MCP = 90;
+const enHoras = (h) => new Date(Date.now() + h * 3_600_000).toISOString();
+const ahoraISO = () => new Date().toISOString();
+
+/** Una URI de vuelta aceptable: https, o http sólo en la propia máquina. */
+export function uriDeVueltaValida(uri) {
+  try {
+    const u = new URL(uri);
+    if (u.hash) return false;
+    return u.protocol === "https:" || (u.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(u.hostname));
+  } catch {
+    return false;
+  }
+}
+
+export async function registrarClienteMCP(db, { nombre = "", redirectUris = [] }) {
+  const uris = [...new Set((Array.isArray(redirectUris) ? redirectUris : []).map(String))];
+  if (!uris.length || uris.length > 10 || !uris.every(uriDeVueltaValida)) return null;
+  const id = `mcp_${aleatorio(16)}`;
+  await db.prepare("insert into mcp_clientes (id, nombre, redirect_uris) values (?, ?, ?)").bind(id, String(nombre).slice(0, 120), JSON.stringify(uris)).run();
+  return { id, nombre: String(nombre).slice(0, 120), redirectUris: uris };
+}
+
+export async function clienteMCP(db, id) {
+  const f = await db.prepare("select id, nombre, redirect_uris from mcp_clientes where id = ?").bind(String(id ?? "")).first();
+  if (!f) return null;
+  let uris = [];
+  try {
+    uris = JSON.parse(f.redirect_uris);
+  } catch {
+    /* vacío */
+  }
+  return { id: f.id, nombre: f.nombre, redirectUris: uris };
+}
+
+/** El código de un solo uso que vuelve a Claude tras el permiso. */
+export async function crearCodigoMCP(db, { clienteId, ownerId, redirectUri, reto }) {
+  const bruto = aleatorio(24);
+  await db.prepare("insert into mcp_codigos (codigo_hash, owner_id, cliente_id, redirect_uri, reto, caduca) values (?, ?, ?, ?, ?, ?)").bind(await huella(bruto), ownerId, clienteId, redirectUri, reto, enHoras(MINUTOS_CODIGO_MCP / 60)).run();
+  return bruto;
+}
+
+async function retoS256(verificador) {
+  const h = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verificador));
+  return btoa(String.fromCharCode(...new Uint8Array(h))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+async function emitirTokensMCP(db, { ownerId, clienteId, id = null }) {
+  const acceso = aleatorio(32);
+  const renovacion = aleatorio(32);
+  const valores = [await huella(acceso), await huella(renovacion), enHoras(HORAS_ACCESO_MCP)];
+  if (id) await db.prepare("update mcp_tokens set acceso_hash = ?, renovacion_hash = ?, caduca = ?, usado = ? where id = ?").bind(...valores, ahoraISO(), id).run();
+  else await db.prepare("insert into mcp_tokens (id, owner_id, cliente_id, acceso_hash, renovacion_hash, caduca) values (?, ?, ?, ?, ?, ?)").bind(crypto.randomUUID(), ownerId, clienteId, ...valores).run();
+  return { access_token: acceso, token_type: "Bearer", expires_in: HORAS_ACCESO_MCP * 3600, refresh_token: renovacion };
+}
+
+/** Código → tokens. Se borra al leerlo, valga o no: un código sólo sirve una vez. */
+export async function canjearCodigoMCP(db, { codigo, clienteId, redirectUri, verificador }) {
+  const h = await huella(String(codigo ?? ""));
+  const f = await db.prepare("select * from mcp_codigos where codigo_hash = ?").bind(h).first();
+  if (!f) return null;
+  await db.prepare("delete from mcp_codigos where codigo_hash = ?").bind(h).run();
+  if (f.caduca <= ahoraISO() || f.cliente_id !== clienteId || f.redirect_uri !== redirectUri) return null;
+  if (!verificador || (await retoS256(String(verificador))) !== f.reto) return null;
+  return emitirTokensMCP(db, { ownerId: f.owner_id, clienteId });
+}
+
+/** Renovar: el de renovación se rota en cada uso, y vence si pasa mucho sin usarse. */
+export async function renovarTokenMCP(db, { renovacion, clienteId }) {
+  const f = await db.prepare("select id, cliente_id, usado, creado from mcp_tokens where renovacion_hash = ?").bind(await huella(String(renovacion ?? ""))).first();
+  if (!f || f.cliente_id !== clienteId) return null;
+  if (Date.now() - Date.parse(f.usado ?? f.creado) > DIAS_RENOVACION_MCP * 86_400_000) return null;
+  return emitirTokensMCP(db, { id: f.id });
+}
+
+/** De quién es un token del MCP (el dueño), o null. */
+export async function duenoDeTokenMCP(db, bruto) {
+  if (!bruto) return null;
+  const f = await db.prepare("select id, owner_id from mcp_tokens where acceso_hash = ? and caduca > ?").bind(await huella(bruto), ahoraISO()).first();
+  if (!f) return null;
+  await db.prepare("update mcp_tokens set usado = ? where id = ?").bind(ahoraISO(), f.id).run();
+  return f.owner_id;
+}
+
+/** Las conexiones de Claude de una cuenta (para Ajustes) y desconectarlas todas. */
+export async function conexionesMCP(db, ownerId) {
+  const r = await db.prepare("select t.id, c.nombre, t.creado, t.usado from mcp_tokens t left join mcp_clientes c on c.id = t.cliente_id where t.owner_id = ? order by t.creado desc").bind(ownerId).all();
+  return (r.results ?? []).map((x) => ({ ...x }));
+}
+export async function desconectarMCP(db, ownerId) {
+  await db.prepare("delete from mcp_tokens where owner_id = ?").bind(ownerId).run();
+}

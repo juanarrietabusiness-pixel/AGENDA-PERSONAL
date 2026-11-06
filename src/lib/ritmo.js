@@ -16,7 +16,7 @@
 // ============================================================
 
 import { esHora } from "./fechas.js";
-import { esSombrero } from "./sombreros.js";
+import { esIdSombrero } from "./sombreros.js";
 
 export const RITMO_BASE = Object.freeze([
   {
@@ -144,7 +144,7 @@ function comprobado(cambio, base = {}) {
     e.titulo = t;
   }
   if (cambio.sombrero !== undefined) {
-    if (cambio.sombrero !== null && !esSombrero(cambio.sombrero)) throw new ErrorRitmo(`«${cambio.sombrero}» no es un sombrero.`);
+    if (cambio.sombrero !== null && !esIdSombrero(cambio.sombrero)) throw new ErrorRitmo(`«${cambio.sombrero}» no es un sombrero.`);
     e.sombrero = cambio.sombrero;
   }
   if (cambio.devocional !== undefined) e.devocional = Boolean(cambio.devocional);

@@ -17,7 +17,9 @@
     "directory": "./dist/",
     "not_found_handling": "single-page-application",
     "binding": "ASSETS",
-    "run_worker_first": ["/api/*"]
+    // Lo de Claude (MCP y su OAuth) también lo atiende el Worker: sin esto, el respaldo de la SPA contestaría
+    // index.html con un 200 y Claude diría «no se pudo conectar» (pasó en el calendario de marketing).
+    "run_worker_first": ["/api/*", "/mcp", "/oauth/*", "/.well-known/*"]
   },
 
   // La base se creó el 2026-11-05 en la cuenta de Juan (la misma del calendario de marketing).
@@ -33,12 +35,20 @@
   // Workers AI: Whisper transcribe las notas de voz de Telegram.
   "ai": { "binding": "AI" },
 
+  // El calendario de marketing (Juancito Ads), Worker a Worker: un Worker no puede pedirle a otro de la misma zona
+  // por su dominio. La agenda le habla como un cliente más de su MCP (worker/lib/juancito.js).
+  "services": [{ "binding": "JUANCITO", "service": "calendarios" }],
+
+  // Cada minuto: el seguimiento por Telegram y la sincronización con Juancito Ads y Google (worker/lib/seguimiento.js).
+  "triggers": { "crons": ["* * * * *"] },
+
   // Los secretos NO van aquí. Se ponen en Cloudflare (el Worker → Settings → Variables and Secrets, tipo «Secret»)
   // o, si están en GitHub, los pone el workflow «Desplegar»:
   //   CODIGO_ALTA         el código para crear la primera (y única) cuenta
   //   ANTHROPIC_API_KEY   Claude (opcional si hay la de Meta)
   //   META_API_KEY        Muse Spark (opcional si hay la de Anthropic)
   //   TELEGRAM_BOT_TOKEN  el token que da @BotFather
+  //   GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET   el cliente OAuth de Google (Calendar y Tasks)
 
   // La dirección: un subdominio de juancitoads.com, como `calendario.` (la zona ya está en Cloudflare). El dominio
   // propio lo crea el despliegue, con su certificado; el token necesita Zone → Workers Routes → Edit sobre esa zona.
@@ -53,6 +63,7 @@
   // y sin ella no arranca nada) y sin el dominio. Sin AI, una nota de voz contesta que falta y lo demás funciona.
   "env": {
     "local": {
+      "triggers": { "crons": [] },
       "d1_databases": [
         {
           "binding": "DB",
