@@ -42,6 +42,14 @@ export function textoDias(e) {
 
 export const duracion = (e) => Math.max(0, minutos(e.fin) - minutos(e.inicio));
 
+/** «1 h 45», «3 h», «20 min». */
+export function textoHoras(min) {
+  const n = Math.max(0, Math.round(Number(min) || 0));
+  const h = Math.floor(n / 60);
+  const m = n % 60;
+  return h ? `${h} h${m ? ` ${m}` : ""}` : `${m} min`;
+}
+
 /** Lo de la semana que toca ese día, en orden: { bloques, recordatorios }. */
 export function semanaDelDia(ritmo, dia) {
   const del = (ritmo ?? []).filter((e) => e.repite?.regla && tocaEl(e.repite.regla, e.repite.inicio, dia)).sort((a, b) => a.inicio.localeCompare(b.inicio));

@@ -87,7 +87,9 @@ const texto = (v, max) => String(v ?? "").replace(/\s+/g, " ").trim().slice(0, m
  * pregunta, respuesta, versiculo, avisos, hoy }.
  */
 export function leerOrden(respuesta, ctx = {}) {
-  const { hoy, proyectos = [], personas = [], sombreros = SOMBREROS, acciones = [], eventos = [], clientes = [], cerebro = [] } = ctx;
+  const { hoy, proyectos = [], personas = [], sombreros = SOMBREROS, acciones = [], eventos = [], clientes = [], cerebro = [], ritmo = [] } = ctx;
+  // Un bloque de su semana sólo si existe y es un bloque (no un recordatorio).
+  const bloqueValido = (id) => (typeof id === "string" && ritmo.some((e) => e.id === id && e.clase !== "recordatorio") ? id : null);
   const dicho = ctx.texto ?? "";
   const datos = typeof respuesta === "string" ? sacarJSON(respuesta) : respuesta;
   const vacio = { acciones: [], eventos: [], proyectos: [], ajustes: [], ritmo: [], sombreros: [], personas: [], operaciones: [], aprendizajes: [], avisos: [] };
@@ -221,6 +223,7 @@ export function leerOrden(respuesta, ctx = {}) {
         confidencial: Boolean(e.confidencial),
         delegable: e.delegable?.a ? { a: texto(e.delegable.a, 80), porque: texto(e.delegable.porque, 200) } : null,
         cliente,
+        bloque: bloqueValido(e.bloque),
         origen: "asistente",
       };
       let lista = ["siguientes", "espera", "algun-dia", "referencia"].includes(e.lista) ? e.lista : "siguientes";
@@ -303,6 +306,7 @@ export function leerOrden(respuesta, ctx = {}) {
         if (typeof c.importante === "boolean") cambios.importante = c.importante;
         if (["tarea", "recordatorio"].includes(c.clase)) cambios.clase = c.clase;
         if (["siguientes", "algun-dia"].includes(c.lista)) cambios.lista = c.lista;
+        if (c.bloque !== undefined) cambios.bloque = c.bloque === null ? null : bloqueValido(c.bloque) ?? obj.bloque ?? null;
         if (c.delegable === null) cambios.delegable = null;
         else if (c.delegable?.a) cambios.delegable = { a: texto(c.delegable.a, 80), porque: texto(c.delegable.porque, 200) };
         if (c.proyecto !== undefined) cambios.proyectoId = proyectoPara(c.proyecto, cambios.sombrero ?? obj.sombrero, todosLosProyectos)?.id ?? obj.proyectoId;

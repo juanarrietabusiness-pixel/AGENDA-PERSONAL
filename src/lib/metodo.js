@@ -71,6 +71,8 @@ export function nuevaAccion(datos = {}, hoy = null) {
     limite: esFecha(datos.limite) ? datos.limite : null,
     // Hora concreta: un recordatorio o un bloque de tiempo.
     hora: /^\d{2}:\d{2}$/.test(datos.hora ?? "") ? datos.hora : null,
+    // En qué bloque de su semana va (el id de un bloque del ritmo), si se escogió uno.
+    bloque: typeof datos.bloque === "string" && datos.bloque ? datos.bloque : null,
     minutos: DURACIONES.includes(datos.minutos) ? datos.minutos : 30,
     energia: ENERGIAS.includes(datos.energia) ? datos.energia : "media",
     // Eisenhower: lo IMPORTANTE lo decides tú (el agente lo propone); lo URGENTE lo calcula el código con `limite`.

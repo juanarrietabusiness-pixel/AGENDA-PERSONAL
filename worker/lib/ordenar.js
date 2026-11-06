@@ -82,7 +82,7 @@ export async function ordenarCaptura(env, almacen, captura, { momento = new Date
   }
   await almacen.registrarConsumo({ modelo: respuesta.modelo, funcion: "ordenar", entrada: respuesta.entrada, salida: respuesta.salida, costo: respuesta.costo });
 
-  const orden = leerOrden(respuesta.texto, { hoy, texto: captura.texto, proyectos: estado.proyectos, personas: estado.personas, sombreros, acciones: estado.acciones, eventos: estado.eventos, clientes, cerebro });
+  const orden = leerOrden(respuesta.texto, { hoy, texto: captura.texto, proyectos: estado.proyectos, personas: estado.personas, sombreros, acciones: estado.acciones, eventos: estado.eventos, clientes, cerebro, ritmo: estado.ritmo ?? [] });
   if (!orden.ok) {
     await almacen.marcarCaptura(captura.id, { estado: "error", error: orden.error });
     return { ok: false, error: orden.error, estado: 502 };

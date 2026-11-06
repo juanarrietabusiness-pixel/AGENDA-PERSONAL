@@ -96,6 +96,7 @@ export const FORMA_DE_ORDENAR = `Responde SOLO con JSON, sin texto antes ni desp
       "delegable": { "a": "persona concreta", "porque": "una línea" } | null,
       "notas": "un detalle útil que dijo (qué llevar, dirección, de qué se trata)" | null,
       "cliente": "nombre EXACTO de un cliente de Juancito Ads, si es de uno" | null,
+      "bloque": "id de un BLOQUE de su semana, si dijo en cuál (el de la mañana, el de Trabajo de la tarde)" | null,
       "personas": ["nombres"],
       "espera_de": "persona de quien espera algo" | null,
       "repite": { "regla": "RRULE (RFC 5545), p. ej. FREQ=WEEKLY;BYDAY=TH", "modo": "calendario" | "despues" } | null,
@@ -105,7 +106,7 @@ export const FORMA_DE_ORDENAR = `Responde SOLO con JSON, sin texto antes ni desp
     { "tipo": "ajuste", "clave": "una de las claves de AJUSTES", "valor": "HH:MM, una lista de días o un texto", "dias": [0-6] | null },
     { "tipo": "ritmo", "accion": "agregar" | "cambiar" | "quitar", "id": "id del bloque (para cambiar o quitar)",
       "titulo": "...", "sombrero": "..." | null, "devocional": true | false, "inicio": "HH:MM", "fin": "HH:MM",
-      "dias": [0-6], "protegido": true | false },
+      "dias": [0-6], "protegido": true | false, "clase": "bloque" | "recordatorio", "avisar": true | false, "antes": minutos (sólo recordatorios) },
     { "tipo": "sombrero", "accion": "crear" | "editar" | "mover" | "quitar", "id": "id (para editar, mover o quitar)", "nombre": "...", "detalle": "...", "a": 1 }
   ],
   "operaciones": [
@@ -113,7 +114,7 @@ export const FORMA_DE_ORDENAR = `Responde SOLO con JSON, sin texto antes ni desp
       "tipo": "accion" | "evento" | "proyecto",
       "id": "el id EXACTO de sus listas",
       "a": "AAAA-MM-DD al posponer; la persona al delegar",
-      "cambios": { "titulo", "notas", "cuando", "limite", "hora", "valor", "importante", "clase": "tarea" | "recordatorio", "sombrero", "proyecto", "lista", "delegable", "fecha", "inicio", "fin", "prioridad": "alta" | "media" | "baja" } }
+      "cambios": { "titulo", "notas", "cuando", "limite", "hora", "valor", "importante", "clase": "tarea" | "recordatorio", "sombrero", "proyecto", "lista", "delegable", "bloque", "fecha", "inicio", "fin", "prioridad": "alta" | "media" | "baja" } }
   ],
   "aprendizajes": [{ "titulo": "corto", "texto": "un hecho estable de su vida que te servirá después", "sombrero": "id" | null }],
   "personas_nuevas": [{ "nombre": "Adolfo", "relacion": "hermano de la iglesia", "sombrero": "iglesia" }],
@@ -126,6 +127,8 @@ Reglas:
 - "recordatorio" es algo que hay que tener presente a un día u hora (comprar algo, felicitar, llevar algo); "accion" es una tarea que se hace y se termina.
 - Una reunión, cita o ensayo con día y hora es un "evento" (clase "reunion" si es con gente); sin hora, una acción para ese día. Una boda o un concierto: evento clase "especial". Un cumpleaños o aniversario: "fecha-especial".
 - Lo del sombrero de Juancito Ads va con ese sombrero y, si es de un cliente, con "cliente" (nombre exacto de la lista).
+- Su semana tiene BLOQUES por sombrero (Trabajo 8–12) y RECORDATORIOS fijos (Proverbios 11:45). Si dice en qué bloque va una tarea, pon "bloque" con su id y "cuando" ese día. Un recordatorio fijo de cada semana («recuérdame la lectura de Proverbios a las 11:45 de lunes a viernes, 15 min antes») es "ritmo" con clase "recordatorio"; uno de una sola vez es un "recordatorio" normal.
+- Reino es su intimidad con Dios (oración, la Palabra); Iglesia, las tareas de la iglesia (célula, servicios, liderazgo).
 - valor «alto» si lo acerca a lo que más le importa (sus sombreros de más prioridad, proyectos de prioridad alta, lo que dice su ficha); «bajo» si no mueve nada o cualquiera podría hacerlo.
 - delegable sólo si una persona concreta (de las que conoces o de su equipo) podría hacerla de verdad.
 - aprendizajes: sólo hechos estables y útiles (quién es alguien, cómo funciona algo en su vida, una preferencia). Nada confidencial. Si no aprendiste nada, [].
@@ -185,8 +188,8 @@ export function instruccionesParaOrdenar({ ajustes, hoy, proyectos = [], persona
     listasParaLaIA({ acciones, eventos, proyectos, externos, hoy, sombreros, ajustes }),
     "",
     ...(clientes.length ? ["CLIENTES DE JUANCITO ADS:", clientes.map((c) => `- ${c}`).join("\n"), ""] : []),
-    "SU SEMANA FIJA (el ritmo; id · qué · cuándo):",
-    ritmo.length ? ritmo.map((e) => `- ${e.id} · ${e.titulo} · ${e.inicio}–${e.fin} · ${e.repite?.regla ?? e.fecha ?? ""}`).join("\n") : "- (vacío)",
+    "SU SEMANA (bloques y recordatorios fijos; id · clase · qué · sombrero · cuándo):",
+    ritmo.length ? ritmo.map((e) => `- ${e.id} · ${e.clase === "recordatorio" ? "recordatorio" : "bloque"} · ${e.titulo} · ${e.sombrero ? nombreDe(e.sombrero, sombreros) : "sin sombrero"} · ${e.inicio}${e.clase === "recordatorio" ? "" : `–${e.fin}`} · ${e.repite?.regla ?? e.fecha ?? ""}`).join("\n") : "- (vacío)",
     "",
     "SUS HORARIOS:",
     horarios || "- (sin datos)",

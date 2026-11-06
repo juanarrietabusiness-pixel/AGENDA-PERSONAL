@@ -9,7 +9,8 @@ import { ordenarPor, claseDeGoogle } from "../lib/agenda.js";
 import { nuevaAccion } from "../lib/metodo.js";
 import { RITMO_BASE } from "../lib/ritmo.js";
 import SemanaTipo from "../componentes/SemanaTipo.jsx";
-import { seriesTraidas, horasPorSombrero, claseDeRitmo } from "../lib/semana.js";
+import AsignarBloque from "../componentes/AsignarBloque.jsx";
+import { seriesTraidas, horasPorSombrero, claseDeRitmo, semanaDelDia, tareasDelBloque } from "../lib/semana.js";
 
 const PRIORIDADES = { alta: "Alta", media: "Media", baja: "Baja" };
 
@@ -41,7 +42,7 @@ export default function Plan({ estado, hoy, cambiar, onHecha, onAbrir, avisar, s
     return {
       dia: d,
       eventos: [...propios, ...google].sort((a, b) => (a.inicio ?? "00:00").localeCompare(b.inicio ?? "00:00")),
-      acciones: acciones.filter((a) => a.estado === "abierta" && (a.cuando === d || a.limite === d)),
+      acciones: acciones.filter((a) => a.estado === "abierta" && (a.cuando === d || a.limite === d) && !(a.bloque && ritmo.some((e) => e.id === a.bloque))),
     };
   });
   // El tiempo de cada sombrero sale de tus bloques; si todavía no hay bloques con sombrero, de lo que pasó esta semana.
@@ -54,6 +55,8 @@ export default function Plan({ estado, hoy, cambiar, onHecha, onAbrir, avisar, s
   const [nuevas, setNuevas] = useState({});
   const [editando, setEditando] = useState(null);
   const [nuevoSombrero, setNuevoSombrero] = useState("");
+  const [asignando, setAsignando] = useState(null);
+  const idsRitmo = new Set(ritmo.map((e) => e.id));
 
   const cambiarSombreros = (cambio) => {
     try {
@@ -106,7 +109,7 @@ export default function Plan({ estado, hoy, cambiar, onHecha, onAbrir, avisar, s
       </section>
 
       <section className="seccion" aria-labelledby={`${id}-dias`}>
-        <div className="seccion-cabeza"><h2 id={`${id}-dias`}>Tu semana</h2><span className="nota">Tu rutina, tus reuniones y lo planeado</span></div>
+        <div className="seccion-cabeza"><h2 id={`${id}-dias`}>Tu semana</h2><span className="nota">Toca un bloque para asignarle tareas</span></div>
         <div className="semana">
           {porDia.map(({ dia, eventos: evs, acciones: acs }) => (
             <article key={dia} className={`dia${dia === hoy ? " es-hoy" : ""}`} aria-label={`${DIAS[diaSemana(dia)]} ${partes(dia).dia}`}>
@@ -121,10 +124,22 @@ export default function Plan({ estado, hoy, cambiar, onHecha, onAbrir, avisar, s
                     <span><time>{e.inicio ? textoHora(e.inicio) : "Todo el día"}</time>{e.titulo}</span>
                   </button>
                 ) : (
-                  <div key={e.id} className={`dia-item${claseDeRitmo(e) === "recordatorio" && e.repite ? " es-recordatorio" : ""}${e.repite && claseDeRitmo(e) === "bloque" ? " es-bloque" : ""}`} style={estiloDe(e.sombrero, sombreros)}>
-                    <span className="punto" />
-                    <span><time>{textoHora(e.inicio)}{e.repite && claseDeRitmo(e) === "bloque" ? `–${textoHora(e.fin)}` : ""}</time>{e.titulo}</span>
-                  </div>
+                  idsRitmo.has(e.id) && claseDeRitmo(e) === "bloque" ? (
+                    (() => {
+                      const n = tareasDelBloque(acciones, e, dia, { todos: semanaDelDia(ritmo, dia).bloques }).length;
+                      return (
+                        <button key={e.id} type="button" className="dia-item es-bloque dia-bloque" style={estiloDe(e.sombrero, sombreros)} onClick={() => setAsignando({ bloque: e, dia })} aria-label={`${e.titulo}, ${textoHora(e.inicio)} a ${textoHora(e.fin)}: ${n} tarea${n === 1 ? "" : "s"}. Asignar tareas`}>
+                          <span className="punto" />
+                          <span><time>{textoHora(e.inicio)}–{textoHora(e.fin)}</time>{e.titulo}{n > 0 && <span className="cuenta" style={{ marginLeft: 6 }}>{n}</span>}</span>
+                        </button>
+                      );
+                    })()
+                  ) : (
+                    <div key={e.id} className={`dia-item${claseDeRitmo(e) === "recordatorio" && idsRitmo.has(e.id) ? " es-recordatorio" : ""}`} style={estiloDe(e.sombrero, sombreros)}>
+                      <span className="punto" />
+                      <span><time>{textoHora(e.inicio)}</time>{e.titulo}</span>
+                    </div>
+                  )
                 ),
               )}
               {acs.map((a) => (
@@ -143,6 +158,20 @@ export default function Plan({ estado, hoy, cambiar, onHecha, onAbrir, avisar, s
       </section>
 
       <SemanaTipo estado={estado} sombreros={sombreros} cambiar={cambiar} avisar={avisar} servidor={servidor} recargar={recargar} />
+      {asignando && (
+        <AsignarBloque
+          bloque={asignando.bloque}
+          dia={asignando.dia}
+          hoy={hoy}
+          acciones={acciones}
+          proyectos={proyectos}
+          sombreros={sombreros}
+          todos={semanaDelDia(ritmo, asignando.dia).bloques}
+          cambiar={cambiar}
+          avisar={avisar}
+          onCerrar={() => setAsignando(null)}
+        />
+      )}
 
       <section className="seccion" aria-labelledby={`${id}-somb`}>
         <div className="seccion-cabeza">

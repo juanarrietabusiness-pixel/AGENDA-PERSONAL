@@ -218,7 +218,7 @@ describe("capturar: el asistente ordena", () => {
     expect(pedidosIA[0].url).toBe("https://api.anthropic.com/v1/messages");
     expect(pedidosIA[0].cuerpo.model).toBe("claude-haiku-5-5");
     expect(pedidosIA[0].cuerpo.output_config).toEqual({ effort: "low" });
-    expect(pedidosIA[0].cuerpo.system).toContain("SU SEMANA FIJA");
+    expect(pedidosIA[0].cuerpo.system).toContain("SU SEMANA (bloques y recordatorios fijos");
 
     const e = await pedir("/api/estado");
     expect(e.datos.eventos.map((x) => x.titulo)).toEqual(["Reunión con Adolfo"]);

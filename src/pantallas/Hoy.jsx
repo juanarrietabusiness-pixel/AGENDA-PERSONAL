@@ -6,6 +6,7 @@ import { sombrerosDe, estiloDe, nombreDe } from "../lib/sombreros.js";
 import { elegirVersiculo, ATRIBUCION } from "../lib/versiculos.js";
 import { variante } from "../lib/mensajes.js";
 import { nuevaAccion } from "../lib/metodo.js";
+import { ahoraYDespues, tareasDelBloque, carga, semanaDelDia, seriesTraidas, claseDeRitmo, textoHoras } from "../lib/semana.js";
 import { PERIODOS, ORDENES, rango, mover, tituloDe, accionesDelPeriodo, sinFecha, reunionesDelPeriodo, especialesDelMes, rutinaDelPeriodo, ordenarPor, enfoqueDelDia, TRES } from "../lib/agenda.js";
 
 const SALUDO = ["Buenos días", "Buen día", "Arrancamos"];
@@ -54,6 +55,10 @@ export default function Hoy({ estado, hoy, hora, onHecha, onAbrir, onDecidir, on
 
   const r = rango(periodo, dia);
   const ctx = { hoy, proyectos, sombreros };
+  const ritmo = estado.ritmo ?? [];
+  // Lo de Google que ya vive en tu semana de Kairos no sale dos veces.
+  const traidas = seriesTraidas(ritmo);
+  const externosVis = externos.filter((x) => !traidas.has(x.serie));
   const deFiltro = (x) => !filtro || x.sombrero === filtro;
   const datos = useMemo(() => {
     const t = accionesDelPeriodo(acciones, { ...r, hoy, clase: "tarea" });
@@ -64,15 +69,26 @@ export default function Hoy({ estado, hoy, hora, onHecha, onAbrir, onDecidir, on
       recordatorios: ordenarPor(rc.abiertas.filter(deFiltro), "limite", ctx),
       recordatoriosHechos: rc.hechas.filter(deFiltro),
       libres: ordenarPor(sinFecha(acciones).filter(deFiltro), orden, ctx),
-      reuniones: reunionesDelPeriodo(eventos, externos, r, ajustes).filter((e) => !filtro || e.sombrero === filtro || e.fuente === "google"),
-      rutina: rutinaDelPeriodo(externos, r, ajustes, eventos),
-      especiales: especialesDelMes(acciones, eventos, dia, externos, ajustes).filter((e) => !filtro || e.sombrero === filtro || e.fuente === "google"),
+      reuniones: reunionesDelPeriodo(eventos, externosVis, r, ajustes).filter((e) => !filtro || e.sombrero === filtro || e.fuente === "google"),
+      // Tu semana de hoy (los bloques y recordatorios de Kairos) y la rutina de Google que todavía no trajiste.
+      rutina: [
+        ...(periodo === "dia" ? (() => { const sd = semanaDelDia(ritmo, dia); return [...sd.bloques, ...sd.recordatorios].map((e) => ({ ...e, dia, fuente: "kairos" })); })() : []),
+        ...rutinaDelPeriodo(externosVis, r, ajustes, eventos),
+      ].sort((a, b) => (a.dia + (a.inicio ?? "")).localeCompare(b.dia + (b.inicio ?? ""))),
+      especiales: especialesDelMes(acciones, eventos, dia, externosVis, ajustes).filter((e) => !filtro || e.sombrero === filtro || e.fuente === "google"),
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [acciones, eventos, externos, periodo, dia, orden, filtro, hoy, proyectos, ajustes]);
+  }, [acciones, eventos, externos, periodo, dia, orden, filtro, hoy, proyectos, ajustes, ritmo]);
 
   const enfoque = useMemo(() => enfoqueDelDia(acciones, { hoy, proyectos, sombreros }), [acciones, hoy, proyectos, sombreros]);
   const v = elegirVersiculo({ momento: "manana", hoy, frecuencia: ajustes.frecuenciaVersiculos });
+  // Ahora: el bloque de tu semana en el que estás, sus tareas y lo que sigue (sólo mirando hoy).
+  const bloquesHoy = semanaDelDia(ritmo, hoy).bloques;
+  const { ahora, despues } = ahoraYDespues(ritmo, hoy, hora ?? "00:00");
+  const tareasAhora = ahora ? ordenarPor(tareasDelBloque(acciones, ahora, hoy, { todos: bloquesHoy }), "prioridad", ctx) : [];
+  const cargaAhora = ahora ? carga(tareasAhora, ahora) : null;
+  const empresasHoy = estado.empresasDeHoy ?? [];
+  const verAhora = periodo === "dia" && dia === hoy && ritmo.some((e) => claseDeRitmo(e) === "bloque");
   const hechasHoy = acciones.filter((a) => a.estado === "hecha" && a.hechaEl === hoy).length;
   const cuenta = { tareas: datos.tareas.length, reuniones: datos.reuniones.length, recordatorios: datos.recordatorios.length, especiales: datos.especiales.length };
   const variosDias = periodo !== "dia";
@@ -177,15 +193,15 @@ export default function Hoy({ estado, hoy, hora, onHecha, onAbrir, onDecidir, on
         ) : (
           <>
             <button type="button" className="boton fantasma" aria-expanded={verRutina} onClick={() => setVerRutina((x) => !x)}>
-              <Icon name={verRutina ? "chevronUp" : "chevronDown"} size={16} /> Tu rutina de hoy ({datos.rutina.length})
+              <Icon name={verRutina ? "chevronUp" : "chevronDown"} size={16} /> Tu semana hoy ({datos.rutina.length})
             </button>
             {verRutina && (
               <ul className="rutina-lista">
                 {datos.rutina.map((e) => (
-                  <li key={`${e.id}:${e.dia}`} style={e.color ? { "--s": e.color } : undefined}>
+                  <li key={`${e.fuente}:${e.id}:${e.dia}`} style={e.fuente === "kairos" ? estiloDe(e.sombrero, sombreros) : e.color ? { "--s": e.color } : undefined}>
                     <span className="punto" />
-                    <time>{e.inicio ? textoHora(e.inicio) : ""}</time>
-                    <button type="button" className="enlace" onClick={() => onAbrir("google", e)}>{e.titulo}</button>
+                    <time>{e.inicio ? textoHora(e.inicio) : ""}{e.fuente === "kairos" && claseDeRitmo(e) === "bloque" ? `–${textoHora(e.fin)}` : ""}</time>
+                    {e.fuente === "kairos" ? <a className="enlace" href="#plan">{e.titulo}</a> : <button type="button" className="enlace" onClick={() => onAbrir("google", e)}>{e.titulo}</button>}
                   </li>
                 ))}
               </ul>
@@ -239,6 +255,34 @@ export default function Hoy({ estado, hoy, hora, onHecha, onAbrir, onDecidir, on
           <Icon name="inbox" size={18} />
           <span>{bandeja.length} cosa{bandeja.length === 1 ? "" : "s"} que el asistente no pudo ordenar. Ábrelo para volver a intentarlo o aclararla{bandeja.length === 1 ? "" : "s"}.</span>
         </button>
+      )}
+
+      {verAhora && (
+        <section className="tarjeta ahora" style={estiloDe(ahora?.sombrero, sombreros)} aria-labelledby="ahora-t">
+          <div className="seccion-cabeza">
+            <h2 id="ahora-t"><Icon name="clock" size={14} /> Ahora · {ahora ? ahora.titulo : "libre"}</h2>
+            {ahora && <span className="nota">{textoHora(ahora.inicio)} a {textoHora(ahora.fin)}</span>}
+          </div>
+          {ahora && ahora.sombrero && sombreros.find((x) => x.id === ahora.sombrero)?.fuente === "juancito-ads" && empresasHoy.length > 0 && (
+            <p className="ahora-empresa"><Icon name="building" size={14} /> Hoy toca: <strong>{empresasHoy.join(", ")}</strong></p>
+          )}
+          {ahora ? (
+            ahora.sombrero === "reino" ? (
+              <p className="nota">Tu tiempo con Dios. Lo demás espera.</p>
+            ) : tareasAhora.length ? (
+              <>
+                {filas(tareasAhora.slice(0, 5), { conEstrella: Boolean(onEnfoque) })}
+                {tareasAhora.length > 5 && <p className="vacio">Y {tareasAhora.length - 5} más de {nombreDe(ahora.sombrero, sombreros)}.</p>}
+                {cargaAhora && <p className={`nota${cargaAhora.sobra > 0 ? " rojo-texto" : ""}`}>{textoHoras(cargaAhora.ocupado)} de tareas en {textoHoras(cargaAhora.cabe)} de bloque{cargaAhora.sobra > 0 ? ": no cabe todo, escoge o mueve algo" : ""}.</p>}
+              </>
+            ) : (
+              <p className="nota">Nada para este bloque. Escoge algo de {nombreDe(ahora.sombrero, sombreros)} o asígnale tareas en <a href="#plan">Plan</a>.</p>
+            )
+          ) : (
+            <p className="nota">Fuera de tus bloques. Un buen momento para algo de «Sin fecha» o para descansar.</p>
+          )}
+          {despues.length > 0 && <p className="ahora-despues">Después: {despues.map((e) => `${textoHora(e.inicio)} ${e.titulo}`).join(" · ")}</p>}
+        </section>
       )}
 
       {(enfoque.tres.length > 0 || enfoque.reserva.length > 0) && (

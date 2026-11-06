@@ -103,7 +103,7 @@ describe("los horarios y la semana, hablándole al asistente", () => {
   });
   it("el asistente ve sus horarios, su semana y las claves que puede cambiar", () => {
     const s = instruccionesParaOrdenar({ ajustes: AJUSTES_BASE, hoy: HOY, ritmo: RITMO_BASE, horarios: horariosParaLaIA(AJUSTES_BASE), claves: { despierta: "x" } });
-    expect(s).toContain("celula · Célula · 20:00–21:30");
+    expect(s).toContain("celula · bloque · Célula · Iglesia · 20:00–21:30");
     expect(s).toContain("Se despierta: dom 06:30");
     expect(s).toContain("- despierta: x");
   });

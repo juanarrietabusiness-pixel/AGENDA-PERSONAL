@@ -46,7 +46,7 @@ export const AJUSTES_BASE = Object.freeze({
   },
 
   // El seguimiento por Telegram: qué te escribe el asistente por su cuenta. Todo se apaga desde Ajustes.
-  seguimiento: { activo: true, resumen: true, avisos: true, cierre: true, preguntas: true, revision: true, reuniones: true },
+  seguimiento: { activo: true, resumen: true, avisos: true, cierre: true, preguntas: true, revision: true, reuniones: true, bloques: true },
 
   // Lo hecho (y lo que «ya no aplica») se borra solo pasados estos días. 0 = nunca. Sólo de la agenda: no de Google Tasks
   // ni de Juancito Ads.
@@ -163,6 +163,7 @@ export const PARTES_SEGUIMIENTO = Object.freeze({
   resumen: "El resumen de la mañana, después de tu oración: lo de hoy, lo que vence y lo que quedó.",
   avisos: "Los avisos a su hora: recordatorios, lo que se acerca, lo que vence y a quién le esperas respuesta.",
   reuniones: "Media hora antes de cada reunión.",
+  bloques: "Al empezar cada bloque de tu semana, con sus tareas (menos Reino), y tus recordatorios fijos con su anticipación.",
   cierre: "El cierre del día: lo que hiciste y qué hacemos con lo que quedó.",
   preguntas: "«¿La completaste?» con lo que se pasó (como mucho tres veces por cosa).",
   revision: "La revisión semanal, el día y la hora que escojas.",

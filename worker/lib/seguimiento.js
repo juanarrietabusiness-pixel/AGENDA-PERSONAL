@@ -30,13 +30,22 @@ import { planDeAvisos, avisosDelDia, horaDelCierre, preguntasDeHoy, preguntada }
 import { resumenDeLaManana, cierreDelDia, textoDeAviso, preguntaCompletaste, bloqueVersiculo } from "../../src/lib/mensajes.js";
 import { elegirVersiculo } from "../../src/lib/versiculos.js";
 import { seguimientoDe, diasParaBorrar } from "../../src/lib/ajustes.js";
-import { reunionesDelPeriodo, enfoqueDelDia } from "../../src/lib/agenda.js";
+import { reunionesDelPeriodo, enfoqueDelDia, ordenarPor } from "../../src/lib/agenda.js";
+import { semanaDelDia, tareasDelBloque, avisa } from "../../src/lib/semana.js";
 import { sombrerosDe } from "../../src/lib/sombreros.js";
 import { RITMO_BASE } from "../../src/lib/ritmo.js";
 
 export const APP = "https://agenda.juancitoads.com";
 /** Minutos después de su hora en que un mensaje todavía sirve. */
-const VENTANA = { resumen: 60, aviso: 20, reunion: 10, cierre: 60, revision: 90 };
+const VENTANA = { resumen: 60, aviso: 20, reunion: 10, cierre: 60, revision: 90, bloque: 15 };
+const MAX_TAREAS_BLOQUE = 6;
+
+/** ¿Es hora de silencio? (de noche, el tramo que cruza la medianoche) */
+export function enSilencio(hora, ajustes) {
+  const s = ajustes?.avisos?.silencio;
+  if (!s?.desde || !s?.hasta) return false;
+  return s.desde > s.hasta ? hora >= s.desde || hora < s.hasta : hora >= s.desde && hora < s.hasta;
+}
 const MAX_PREGUNTAS_POR_CIERRE = 3;
 
 /** ¿Es su hora (o pasó hace poco)? */
@@ -106,6 +115,34 @@ export function queToca({ estado, ahora, hoy }) {
       if (e.clase !== "reunion" || e.protegido) continue;
       const antes = aHora(Math.max(0, minutos(e.inicio) - 30));
       if (enVentana(ahora, antes, VENTANA.reunion)) out.push({ clave: `reunion:${e.id}:${hoy}`, texto: `En media hora: ${e.titulo} (${textoHora(e.inicio)}).${e.notas ? `\n${e.notas}` : ""}` });
+    }
+  }
+
+  // Tu semana por bloques: al empezar cada bloque (con sus tareas) y los recordatorios fijos con su anticipación.
+  if (seg.bloques) {
+    const { bloques, recordatorios } = semanaDelDia(estado.ritmo ?? [], hoy);
+    const sombreros = sombrerosDe(aj);
+    const ctx = { hoy, proyectos: estado.proyectos ?? [], sombreros };
+    for (const b of bloques) {
+      if (!avisa(b) || enSilencio(b.inicio, aj) || !enVentana(ahora, b.inicio, VENTANA.bloque)) continue;
+      const tareas = ordenarPor(tareasDelBloque(acciones, b, hoy, { todos: bloques }), "prioridad", ctx);
+      const nombreS = sombreros.find((x) => x.id === b.sombrero)?.nombre;
+      const empresas = b.sombrero && sombreros.find((x) => x.id === b.sombrero)?.fuente === "juancito-ads" ? (estado.empresasDeHoy ?? []) : [];
+      const texto = [
+        `Empieza tu bloque de ${b.titulo} (${textoHora(b.inicio)} a ${textoHora(b.fin)}).`,
+        ...(empresas.length ? [`Hoy toca: ${empresas.join(", ")}.`] : []),
+        tareas.length
+          ? ["Tienes:", ...tareas.slice(0, MAX_TAREAS_BLOQUE).map((a) => `• ${a.titulo}`), ...(tareas.length > MAX_TAREAS_BLOQUE ? [`… y ${tareas.length - MAX_TAREAS_BLOQUE} más.`] : [])].join("\n")
+          : `No tienes tareas en este bloque. ¿Qué es lo más importante de ${nombreS ?? b.titulo} hoy?`,
+      ].join("\n\n");
+      out.push({ clave: `bloque:${b.id}:${hoy}`, texto, botones: tareas.length === 1 ? botonesDe(tareas[0].id) : undefined });
+    }
+    for (const r of recordatorios) {
+      if (!avisa(r)) continue;
+      const antes = Number(r.antes) || 0;
+      const cuando = aHora(Math.max(0, minutos(r.inicio) - antes));
+      if (enSilencio(cuando, aj) || !enVentana(ahora, cuando, VENTANA.aviso)) continue;
+      out.push({ clave: `rec:${r.id}:${hoy}`, texto: antes ? `En ${antes} min: ${r.titulo} (${textoHora(r.inicio)}).` : `Es hora: ${r.titulo}.` });
     }
   }
 

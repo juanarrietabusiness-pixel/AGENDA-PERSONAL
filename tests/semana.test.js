@@ -7,6 +7,9 @@ import { SOMBREROS, sombrerosDe } from "../src/lib/sombreros.js";
 import { claseDeGoogle } from "../src/lib/agenda.js";
 import { nuevaAccion } from "../src/lib/metodo.js";
 import { aEventoBloque } from "../worker/lib/google.js";
+import { queToca, enSilencio } from "../worker/lib/seguimiento.js";
+import { AJUSTES_BASE } from "../src/lib/ajustes.js";
+import { leerOrden } from "../src/lib/agente.js";
 
 const LUNES = "2026-11-09";
 const bloque = (datos) => aplicarRitmo([], { accion: "agregar", ...datos }).bloque;
@@ -185,5 +188,56 @@ describe("publicar tu semana en Google («Kairos · Bloques»)", () => {
     llamadas.length = 0;
     await pedir("/api/google/semana", { metodo: "POST", datos: { publicar: false } });
     expect(llamadas).toContain("DELETE /calendars/kairos-cal");
+  });
+});
+
+describe("los avisos de tu semana por Telegram", () => {
+  const ajustes = { ...structuredClone(AJUSTES_BASE), ...conReino({ ajustes: {}, ritmo: [] }).perfil.ajustes, nombre: "Juan" };
+  const ritmo = [
+    bloque({ titulo: "Reino", sombrero: "reino", inicio: "06:00", fin: "08:00", dias: [1, 2, 3, 4, 5], protegido: true }),
+    bloque({ titulo: "Trabajo", sombrero: "trabajo", inicio: "08:00", fin: "12:00", dias: [1, 2, 3, 4, 5] }),
+    bloque({ titulo: "Lectura de Proverbios", sombrero: "reino", clase: "recordatorio", inicio: "11:45", dias: [1, 2, 3, 4, 5], antes: 15 }),
+    bloque({ titulo: "Oración", sombrero: "reino", clase: "recordatorio", inicio: "06:00", dias: [1, 2, 3, 4, 5], antes: 0 }),
+  ];
+  const acciones = [
+    nuevaAccion({ titulo: "Propuesta para Dcasa", sombrero: "trabajo", lista: "siguientes", cuando: LUNES, valor: "alto" }),
+    nuevaAccion({ titulo: "Llamar al contador", sombrero: "trabajo", lista: "siguientes", cuando: LUNES }),
+  ];
+  const estado = { ajustes, ritmo, acciones, eventos: [], proyectos: [], empresasDeHoy: ["Dcasa"] };
+
+  it("al empezar el bloque de Trabajo: sus tareas y la empresa del día; Reino no avisa", () => {
+    const a8 = queToca({ estado, ahora: "08:02", hoy: LUNES });
+    const m = a8.find((x) => x.clave.startsWith("bloque:"));
+    expect(m.texto).toContain("Empieza tu bloque de Trabajo (8:00 a. m. a 12:00 p. m.)");
+    expect(m.texto).toContain("Hoy toca: Dcasa.");
+    expect(m.texto).toMatch(/Tienes:\n• Propuesta para Dcasa\n• Llamar al contador/);
+    expect(queToca({ estado, ahora: "06:01", hoy: LUNES }).some((x) => x.clave.startsWith("bloque:"))).toBe(false);
+  });
+
+  it("los recordatorios fijos, con su anticipación (también los de Reino)", () => {
+    expect(queToca({ estado, ahora: "11:31", hoy: LUNES }).find((x) => x.clave.startsWith("rec:")).texto).toBe("En 15 min: Lectura de Proverbios (11:45 a. m.).");
+    expect(queToca({ estado, ahora: "06:00", hoy: LUNES }).find((x) => x.clave.startsWith("rec:")).texto).toBe("Es hora: Oración.");
+    // El domingo no hay bloques.
+    expect(queToca({ estado, ahora: "08:02", hoy: "2026-11-08" }).some((x) => x.clave.startsWith("bloque:"))).toBe(false);
+  });
+
+  it("apagado en Ajustes, no avisa; y nada en las horas de silencio", () => {
+    const sin = { ...estado, ajustes: { ...ajustes, seguimiento: { ...ajustes.seguimiento, bloques: false } } };
+    expect(queToca({ estado: sin, ahora: "08:02", hoy: LUNES }).some((x) => x.clave.startsWith("bloque:"))).toBe(false);
+    expect(enSilencio("23:00", ajustes)).toBe(true);
+    expect(enSilencio("04:00", ajustes)).toBe(true);
+    expect(enSilencio("08:00", ajustes)).toBe(false);
+  });
+});
+
+describe("el asistente y los bloques", () => {
+  const ritmo = [bloque({ titulo: "Trabajo mañana", sombrero: "trabajo", inicio: "08:00", fin: "12:00", dias: [1, 2] }), bloque({ titulo: "Proverbios", clase: "recordatorio", inicio: "11:45", dias: [1] })];
+  it("pone la tarea en el bloque que dijo, si existe y es un bloque", () => {
+    const o = leerOrden({ elementos: [
+      { tipo: "accion", titulo: "Propuesta Dcasa", sombrero: "trabajo", cuando: "2026-11-10", bloque: ritmo[0].id },
+      { tipo: "accion", titulo: "Otra", sombrero: "trabajo", cuando: "2026-11-10", bloque: ritmo[1].id },
+      { tipo: "accion", titulo: "Inventada", sombrero: "trabajo", cuando: "2026-11-10", bloque: "no-existe" },
+    ] }, { hoy: "2026-11-06", ritmo });
+    expect(o.acciones.map((a) => a.bloque)).toEqual([ritmo[0].id, null, null]);
   });
 });
