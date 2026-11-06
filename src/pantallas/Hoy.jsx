@@ -5,7 +5,7 @@ import { textoLargo, textoCorto, textoHora, sumarDias } from "../lib/fechas.js";
 import { sombrerosDe, estiloDe, nombreDe } from "../lib/sombreros.js";
 import { elegirVersiculo, ATRIBUCION } from "../lib/versiculos.js";
 import { variante } from "../lib/mensajes.js";
-import { PERIODOS, ORDENES, rango, mover, tituloDe, accionesDelPeriodo, sinFecha, reunionesDelPeriodo, especialesDelMes, ordenarPor } from "../lib/agenda.js";
+import { PERIODOS, ORDENES, rango, mover, tituloDe, accionesDelPeriodo, sinFecha, reunionesDelPeriodo, especialesDelMes, rutinaDelPeriodo, ordenarPor } from "../lib/agenda.js";
 
 const SALUDO = ["Buenos días", "Buen día", "Arrancamos"];
 const saludo = (hora, dia) => (hora < "12:00" ? variante(SALUDO, dia) : hora < "19:00" ? "Buenas tardes" : "Buenas noches");
@@ -48,6 +48,7 @@ export default function Hoy({ estado, hoy, hora, onHecha, onAbrir, onDecidir, on
   const [columna, setColumna] = useState("tareas");
   const [verHechas, setVerHechas] = useState(false);
   const [verSinFecha, setVerSinFecha] = useState(false);
+  const [verRutina, setVerRutina] = useState(false);
 
   const r = rango(periodo, dia);
   const ctx = { hoy, proyectos, sombreros };
@@ -61,8 +62,9 @@ export default function Hoy({ estado, hoy, hora, onHecha, onAbrir, onDecidir, on
       recordatorios: ordenarPor(rc.abiertas.filter(deFiltro), "limite", ctx),
       recordatoriosHechos: rc.hechas.filter(deFiltro),
       libres: ordenarPor(sinFecha(acciones).filter(deFiltro), orden, ctx),
-      reuniones: reunionesDelPeriodo(eventos, externos, r).filter((e) => !filtro || e.sombrero === filtro || e.fuente === "google"),
-      especiales: especialesDelMes(acciones, eventos, dia, externos).filter((e) => !filtro || e.sombrero === filtro || e.fuente === "google"),
+      reuniones: reunionesDelPeriodo(eventos, externos, r, ajustes).filter((e) => !filtro || e.sombrero === filtro || e.fuente === "google"),
+      rutina: rutinaDelPeriodo(externos, r, ajustes, eventos),
+      especiales: especialesDelMes(acciones, eventos, dia, externos, ajustes).filter((e) => !filtro || e.sombrero === filtro || e.fuente === "google"),
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [acciones, eventos, externos, periodo, dia, orden, filtro, hoy, proyectos, ajustes]);
@@ -142,7 +144,7 @@ export default function Hoy({ estado, hoy, hora, onHecha, onAbrir, onDecidir, on
                 <span className="evento-hora">{e.inicio ? textoHora(e.inicio) : "Todo el día"}</span>
                 <div>
                   {e.fuente === "google" ? (
-                    e.enlace ? <a className="evento-titulo enlace" href={e.enlace} target="_blank" rel="noopener noreferrer">{e.titulo}</a> : <span className="evento-titulo">{e.titulo}</span>
+                    <button type="button" className="evento-titulo enlace" onClick={() => onAbrir("google", e)}>{e.titulo}</button>
                   ) : (
                     <button type="button" className="evento-titulo enlace" onClick={() => onAbrir("evento", eventos.find((x) => x.id === e.id) ?? e)}>{e.titulo}</button>
                   )}
@@ -158,6 +160,30 @@ export default function Hoy({ estado, hoy, hora, onHecha, onAbrir, onDecidir, on
           </ul>
         ))
       : vacio("Sin reuniones ni citas."),
+    rutina: datos.rutina.length > 0 && (
+      <div className="plegable">
+        {variosDias ? (
+          <p className="vacio">Y {datos.rutina.length} bloque{datos.rutina.length === 1 ? "" : "s"} de tu rutina: están en <a href="#plan">Plan</a>.</p>
+        ) : (
+          <>
+            <button type="button" className="boton fantasma" aria-expanded={verRutina} onClick={() => setVerRutina((x) => !x)}>
+              <Icon name={verRutina ? "chevronUp" : "chevronDown"} size={16} /> Tu rutina de hoy ({datos.rutina.length})
+            </button>
+            {verRutina && (
+              <ul className="rutina-lista">
+                {datos.rutina.map((e) => (
+                  <li key={`${e.id}:${e.dia}`} style={e.color ? { "--s": e.color } : undefined}>
+                    <span className="punto" />
+                    <time>{e.inicio ? textoHora(e.inicio) : ""}</time>
+                    <button type="button" className="enlace" onClick={() => onAbrir("google", e)}>{e.titulo}</button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
+        )}
+      </div>
+    ),
     recordatorios: (
       <>
         {datos.recordatorios.length ? filas(datos.recordatorios) : vacio("Sin recordatorios.")}
@@ -171,7 +197,7 @@ export default function Hoy({ estado, hoy, hora, onHecha, onAbrir, onDecidir, on
             <span className="evento-hora">{textoCorto(e.dia, hoy)}</span>
             <div>
               {e.tipo === "google" ? (
-                e.enlace ? <a className="evento-titulo enlace" href={e.enlace} target="_blank" rel="noopener noreferrer">{e.titulo}</a> : <span className="evento-titulo">{e.titulo}</span>
+                <button type="button" className="evento-titulo enlace" onClick={() => onAbrir("google", e)}>{e.titulo}</button>
               ) : (
                 <button type="button" className="evento-titulo enlace" onClick={() => onAbrir(e.tipo, (e.tipo === "accion" ? acciones : eventos).find((x) => x.id === e.id) ?? e)}>{e.titulo}</button>
               )}
@@ -250,11 +276,12 @@ export default function Hoy({ estado, hoy, hora, onHecha, onAbrir, onDecidir, on
               <span className="nota">{c.id === "especiales" ? "del mes" : cuenta[c.id] || ""}</span>
             </div>
             {contenido[c.id]}
+            {c.id === "reuniones" && contenido.rutina}
           </section>
         ))}
       </div>
       <p className="vacio" style={{ marginTop: "var(--sp-5)" }}>
-        Tu rutina fija (la oración, los servicios, la célula) no sale aquí: está en <a href="#plan">Plan</a>. ¿Mañana? <button type="button" className="enlace" onClick={() => { ponerPeriodo("dia"); setDia(sumarDias(hoy, 1)); }}>Ver mañana</button>.
+        Tu rutina (la oración, la lectura, el trabajo, los servicios) no ocupa Hoy: está en <a href="#plan">Plan</a>. ¿Mañana? <button type="button" className="enlace" onClick={() => { ponerPeriodo("dia"); setDia(sumarDias(hoy, 1)); }}>Ver mañana</button>.
       </p>
     </>
   );

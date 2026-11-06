@@ -2,7 +2,7 @@ import { useId, useState } from "react";
 import Icon from "./Icon.jsx";
 import { useDialogo } from "../hooks/useDialogo.js";
 import { DURACIONES } from "../lib/metodo.js";
-import { CLASES_EVENTO } from "../lib/agenda.js";
+import { QUE_ES, esDeAccion } from "../lib/agenda.js";
 import { describir } from "../lib/recurrencia.js";
 
 const LISTAS = { siguientes: "Siguientes acciones", espera: "En espera de alguien", "algun-dia": "Algún día", referencia: "Referencia" };
@@ -15,6 +15,9 @@ export default function Editar({ tipo, obj, sombreros, proyectos = [], hoy, onGu
   const ref = useDialogo(onCerrar);
   const id = useId();
   const [f, setF] = useState(() => ({ ...obj }));
+  // Qué es: se puede cambiar entre los cinco; si pasa de acción a evento (o al revés), se convierte al guardar.
+  const [que, setQue] = useState(() => (tipo === "accion" ? obj.clase ?? "tarea" : obj.clase ?? "evento"));
+  const cambiaDeTipo = esDeAccion(que) !== (tipo === "accion");
   const [confirmarBorrar, setConfirmarBorrar] = useState(false);
   const poner = (k) => (e) => setF((x) => ({ ...x, [k]: e.target.type === "checkbox" ? e.target.checked : e.target.value === "" ? null : e.target.value }));
   const esAccion = tipo === "accion";
@@ -30,13 +33,14 @@ export default function Editar({ tipo, obj, sombreros, proyectos = [], hoy, onGu
     } else if (limpio.fin && limpio.inicio && limpio.fin <= limpio.inicio) {
       limpio.fin = limpio.inicio;
     }
-    onGuardar(limpio);
+    if (cambiaDeTipo) onGuardar(limpio, { como: que });
+    else onGuardar({ ...limpio, clase: que });
   };
 
   return (
     <div className="capa" onClick={(e) => e.target === e.currentTarget && onCerrar()}>
       <form ref={ref} className="dialogo" role="dialog" aria-modal="true" aria-labelledby={`${id}-t`} onSubmit={guardar}>
-        <h2 id={`${id}-t`}>{esAccion ? (f.clase === "recordatorio" ? "Recordatorio" : "Tarea") : CLASES_EVENTO[f.clase] ?? "Evento"}</h2>
+        <h2 id={`${id}-t`}>{QUE_ES[que] ?? "Evento"}</h2>
         {(obj.juancito?.id || obj.google?.id || obj.fuente === "google") && (
           <p className="nota-fuente">
             {obj.juancito?.id ? "Vive también en Juancito Ads: al marcarla hecha aquí, se marca allá." : `Vive también en Google (${obj.google?.cuenta ?? "tu cuenta"}): lo que cambies aquí se cambia allá.`}
@@ -46,25 +50,24 @@ export default function Editar({ tipo, obj, sombreros, proyectos = [], hoy, onGu
         <label className="etiqueta" htmlFor={`${id}-titulo`}>Qué</label>
         <input id={`${id}-titulo`} className="campo" value={f.titulo ?? ""} onChange={poner("titulo")} required />
 
-        {esAccion && (
-          <div className="botones" style={{ marginTop: "var(--sp-3)" }} role="group" aria-label="Tipo">
-            <div className="segmentado">
-              {[["tarea", "Tarea"], ["recordatorio", "Recordatorio"]].map(([v, t]) => (
-                <button key={v} type="button" aria-pressed={(f.clase ?? "tarea") === v} onClick={() => setF((x) => ({ ...x, clase: v }))}>{t}</button>
-              ))}
-            </div>
+        <p className="etiqueta" id={`${id}-que`}>¿Qué es?</p>
+        <div className="opciones-clase" role="group" aria-labelledby={`${id}-que`}>
+          {Object.entries(QUE_ES).map(([v, t]) => (
+            <button key={v} type="button" className="chip-boton" aria-pressed={que === v} onClick={() => setQue(v)}>{t}</button>
+          ))}
+        </div>
+        {cambiaDeTipo && (
+          <p className="nota-fuente" role="status">
+            Al guardar pasa a ser {QUE_ES[que].toLowerCase()}, con el día{esDeAccion(que) ? " y la hora" : ", la hora y lo que dura"} de abajo.
+            {obj.juancito?.id && !esDeAccion(que) ? " En Juancito Ads la tarea quedará como hecha." : ""}
+          </p>
+        )}
+        {esAccion && !cambiaDeTipo && (
+          <div className="botones" style={{ marginTop: "var(--sp-3)" }}>
             <button type="button" className={`boton${hecha ? "" : " primario"}`} aria-pressed={hecha} onClick={() => setF((x) => (x.estado === "hecha" ? { ...x, estado: "abierta", hechaEl: null } : { ...x, estado: "hecha", hechaEl: hoy }))}>
               <Icon name={hecha ? "undo" : "check"} size={16} /> {hecha ? "Reabrir" : "Marcar hecha"}
             </button>
           </div>
-        )}
-        {!esAccion && (
-          <>
-            <label className="etiqueta" htmlFor={`${id}-clase`}>Tipo</label>
-            <select id={`${id}-clase`} className="campo" value={f.clase ?? "evento"} onChange={poner("clase")}>
-              {Object.entries(CLASES_EVENTO).map(([v, t]) => <option key={v} value={v}>{t}</option>)}
-            </select>
-          </>
         )}
 
         <div className="campos-2">

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import Icon from "./componentes/Icon.jsx";
 import Aclarar from "./componentes/Aclarar.jsx";
 import Editar from "./componentes/Editar.jsx";
+import EventoGoogle from "./componentes/EventoGoogle.jsx";
 import Burbuja from "./componentes/Burbuja.jsx";
 import Hoy from "./pantallas/Hoy.jsx";
 import Plan from "./pantallas/Plan.jsx";
@@ -14,6 +15,7 @@ import { useAlmacen } from "./hooks/useAlmacen.js";
 import { hoyEn, horaEn, sumarDias, textoLargo } from "./lib/fechas.js";
 import { completar, posponer, soltar } from "./lib/metodo.js";
 import { sombrerosDe } from "./lib/sombreros.js";
+import { claveDeGoogle, CLASES_GOOGLE, convertir, QUE_ES } from "./lib/agenda.js";
 import { tema as temaDe } from "./lib/temas.js";
 
 const PANTALLAS = [
@@ -122,7 +124,26 @@ export default function App() {
 
   const onAbrir = (tipo, obj) => setEditando({ tipo, obj });
 
-  const guardarEdicion = (obj) => {
+  /** Qué es un evento de Google para la agenda (reunión, rutina, especial): vale para toda su serie. */
+  const claseGoogle = (evento, clase) => {
+    cambiar((e) => ({ ...e, ajustes: { ...e.ajustes, clasesGoogle: { ...(e.ajustes.clasesGoogle ?? {}), [claveDeGoogle(evento)]: clase } } }));
+    avisar(`«${evento.titulo}»: ${CLASES_GOOGLE[clase].toLowerCase()}${evento.serie ? ", todas las veces que se repite" : ""}.`);
+  };
+
+  const guardarEdicion = (obj, { como } = {}) => {
+    if (como) {
+      // Cambia de tipo (tarea ↔ reunión, etc.): se crea lo nuevo y se quita lo de antes, también en Google y Juancito Ads.
+      const de = editando.tipo === "accion" ? "acciones" : "eventos";
+      const r = convertir(obj, editando.tipo, como, hoy);
+      const a = r.tipo === "accion" ? "acciones" : "eventos";
+      cambiar((e) => {
+        const sinViejo = { ...e, [de]: e[de].filter((x) => x.id !== obj.id) };
+        return { ...sinViejo, [a]: [...sinViejo[a], r.obj] };
+      });
+      setEditando(null);
+      avisar(`«${obj.titulo}» ahora es ${QUE_ES[como].toLowerCase()}.`);
+      return;
+    }
     const lista = editando.tipo === "accion" ? "acciones" : "eventos";
     cambiar((e) => ({ ...e, [lista]: e[lista].map((x) => (x.id === obj.id ? obj : x)) }));
     setEditando(null);
@@ -199,7 +220,8 @@ export default function App() {
         </div>
       )}
       {aclarando && <Aclarar captura={aclarando} hoy={hoy} onListo={terminarAclarar} onCerrar={() => setAclarando(null)} />}
-      {editando && (
+      {editando?.tipo === "google" && <EventoGoogle evento={editando.obj} ajustes={estado.ajustes} onCambiar={claseGoogle} onCerrar={() => setEditando(null)} />}
+      {editando && editando.tipo !== "google" && (
         <Editar
           tipo={editando.tipo}
           obj={editando.obj}

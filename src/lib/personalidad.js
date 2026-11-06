@@ -12,6 +12,7 @@ import { DIAS, sumarDias, diaSemana, textoLargo } from "./fechas.js";
 import { SOMBREROS, nombreDe } from "./sombreros.js";
 import { textoCorto as corto, textoHora as hora } from "./fechas.js";
 import { bancoParaElAgente, FUERA_DE_CONTEXTO } from "./versiculos.js";
+import { claseDeGoogle, claveDeGoogle } from "./agenda.js";
 
 export const VOZ = Object.freeze([
   "Hablas en español latino neutro, de tú, cálido y directo. Mensajes cortos: lo que cabe en la pantalla de un teléfono sin desplazarse.",
@@ -137,7 +138,7 @@ Reglas:
 const MAX_ABIERTAS = 120;
 
 /** Lo abierto, lo próximo y lo hecho, con sus ids: lo que el asistente necesita para cambiar algo que ya existe. */
-export function listasParaLaIA({ acciones = [], eventos = [], proyectos = [], externos = [], hoy, sombreros = SOMBREROS }) {
+export function listasParaLaIA({ acciones = [], eventos = [], proyectos = [], externos = [], hoy, sombreros = SOMBREROS, ajustes = {} }) {
   const nom = (id) => nombreDe(id, sombreros);
   const proyecto = (id) => proyectos.find((p) => p.id === id)?.nombre;
   const abiertas = acciones.filter((a) => a.estado === "abierta").slice(0, MAX_ABIERTAS);
@@ -148,7 +149,10 @@ export function listasParaLaIA({ acciones = [], eventos = [], proyectos = [], ex
   const proximos = eventos.filter((e) => e.fecha && e.fecha >= hoy && e.fecha <= hasta(60)).sort((a, b) => (a.fecha + a.inicio).localeCompare(b.fecha + b.inicio)).slice(0, 60);
   const repetidos = eventos.filter((e) => !e.fecha && e.repite?.regla).slice(0, 30);
   const hechas = acciones.filter((a) => a.estado === "hecha" && a.hechaEl && a.hechaEl >= hasta(-7)).slice(-30);
-  const deGoogle = externos.filter((x) => x.tipo === "evento" && x.dia >= hoy && x.dia <= hasta(30)).slice(0, 40);
+  const enGoogle = externos.filter((x) => x.tipo === "evento" && x.dia >= hoy && x.dia <= hasta(30)).map((x) => ({ ...x, clase: claseDeGoogle(x, ajustes) }));
+  const deGoogle = enGoogle.filter((x) => x.clase !== "rutina").slice(0, 40);
+  // La rutina se repite cada día: una línea por serie, no cada vez.
+  const rutinaGoogle = [...new Map(enGoogle.filter((x) => x.clase === "rutina").map((x) => [claveDeGoogle(x), x])).values()].slice(0, 25);
   return [
     "SUS SOMBREROS Y PROYECTOS (id · nombre · prioridad):",
     proyectos.filter((p) => p.estado !== "terminado").map((p) => `- ${p.id} · ${p.nombre} · ${nom(p.sombrero)} · prioridad ${p.prioridad ?? "media"}${p.limite ? ` · hasta ${p.limite}` : ""}`).join("\n") || "- (ninguno)",
@@ -158,7 +162,8 @@ export function listasParaLaIA({ acciones = [], eventos = [], proyectos = [], ex
     "",
     "SUS EVENTOS PRÓXIMOS (id · día hora · qué):",
     [...proximos.map((e) => `- ${e.id} · ${e.fecha} ${hora(e.inicio)} · ${e.titulo}${e.clase ? ` (${e.clase})` : ""} · ${nom(e.sombrero)}`), ...repetidos.map((e) => `- ${e.id} · se repite (${e.repite.regla}) ${hora(e.inicio)} · ${e.titulo}`)].join("\n") || "- (ninguno)",
-    ...(deGoogle.length ? ["", "EN SU GOOGLE CALENDAR (sólo para consultar):", deGoogle.map((x) => `- ${x.dia}${x.inicio ? ` ${hora(x.inicio)}` : ""} · ${x.titulo}`).join("\n")] : []),
+    ...(deGoogle.length ? ["", "EN SU GOOGLE CALENDAR (sólo para consultar):", deGoogle.map((x) => `- ${x.dia}${x.inicio ? ` ${hora(x.inicio)}` : ""} · ${x.titulo}${x.clase === "especial" ? " (especial)" : ""}`).join("\n")] : []),
+    ...(rutinaGoogle.length ? ["", "SU RUTINA EN GOOGLE CALENDAR (se repite; sus bloques de tiempo, no reuniones):", rutinaGoogle.map((x) => `- ${x.inicio ? `${hora(x.inicio)}${x.fin ? `–${hora(x.fin)}` : ""}` : "todo el día"} · ${x.titulo}`).join("\n")] : []),
     "",
     "LO QUE HIZO ESTA SEMANA:",
     hechas.map((a) => `- ${a.id} · ${a.titulo} · ${corto(a.hechaEl, hoy)}`).join("\n") || "- (nada todavía)",
@@ -177,7 +182,7 @@ export function instruccionesParaOrdenar({ ajustes, hoy, proyectos = [], persona
     "PERSONAS QUE CONOCES:",
     personas.length ? personas.map((p) => `- ${p.nombre}${p.relacion ? `: ${p.relacion}` : ""}${p.sombrero ? ` (${p.sombrero})` : ""}`).join("\n") : "- (ninguna todavía)",
     "",
-    listasParaLaIA({ acciones, eventos, proyectos, externos, hoy, sombreros }),
+    listasParaLaIA({ acciones, eventos, proyectos, externos, hoy, sombreros, ajustes }),
     "",
     ...(clientes.length ? ["CLIENTES DE JUANCITO ADS:", clientes.map((c) => `- ${c}`).join("\n"), ""] : []),
     "SU SEMANA FIJA (el ritmo; id · qué · cuándo):",

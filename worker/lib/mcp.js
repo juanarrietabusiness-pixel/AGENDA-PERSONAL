@@ -23,7 +23,7 @@ import { ordenarCaptura } from "./ordenar.js";
 import { reflejar } from "./reflejar.js";
 import { hoyEn, sumarDias, textoCorto, textoHora } from "../../src/lib/fechas.js";
 import { completar as completarAccion } from "../../src/lib/metodo.js";
-import { rango, accionesDelPeriodo, reunionesDelPeriodo, especialesDelMes, ordenarPor, sinFecha } from "../../src/lib/agenda.js";
+import { rango, accionesDelPeriodo, reunionesDelPeriodo, especialesDelMes, rutinaDelPeriodo, ordenarPor, sinFecha } from "../../src/lib/agenda.js";
 import { sombrerosDe, nombreDe } from "../../src/lib/sombreros.js";
 import { buscar as buscarCerebro, fold } from "../../src/lib/cerebro.js";
 
@@ -123,13 +123,15 @@ export function crearHerramientas({ env, ownerId, despues }) {
       const recs = accionesDelPeriodo(estado.acciones, { ...r, hoy, clase: "recordatorio" });
       const mes = rango("mes", dia);
       const externos = await almacen.externosEntre(r.desde < mes.desde ? r.desde : mes.desde, r.hasta > mes.hasta ? r.hasta : mes.hasta);
-      const reuniones = reunionesDelPeriodo(estado.eventos, externos, r);
-      const especiales = especialesDelMes(estado.acciones, estado.eventos, dia, externos);
+      const reuniones = reunionesDelPeriodo(estado.eventos, externos, r, estado.ajustes);
+      const especiales = especialesDelMes(estado.acciones, estado.eventos, dia, externos, estado.ajustes);
+      const rutina = rutinaDelPeriodo(externos, r, estado.ajustes, estado.eventos);
       const partes = [
         `Agenda de ${periodo === "manana" ? "mañana" : periodo === "hoy" ? "hoy" : `la ${periodo}`} (${r.desde}${r.hasta !== r.desde ? ` a ${r.hasta}` : ""}).`,
         `TAREAS (por prioridad):\n${ordenarPor(tareas.abiertas, "prioridad", ctx).map((a) => linea(a, sombreros, hoy)).join("\n") || "(ninguna)"}`,
         `RECORDATORIOS:\n${recs.abiertas.map((a) => linea(a, sombreros, hoy)).join("\n") || "(ninguno)"}`,
         `REUNIONES Y CITAS:\n${reuniones.map((e) => `· ${textoCorto(e.dia, hoy)} ${e.inicio ? textoHora(e.inicio) : "todo el día"} · ${e.titulo}${e.fuente === "google" ? ` (${e.calendarioNombre ?? "Google"})` : ` (id ${e.id})`}`).join("\n") || "(ninguna)"}`,
+        ...(rutina.length ? [`TU RUTINA (de Google Calendar; no son reuniones):\n${rutina.slice(0, 20).map((e) => `· ${textoCorto(e.dia, hoy)} ${e.inicio ? textoHora(e.inicio) : ""} · ${e.titulo}`).join("\n")}`] : []),
         `EVENTOS ESPECIALES DEL MES:\n${especiales.map((e) => `· ${textoCorto(e.dia, hoy)} · ${e.titulo}`).join("\n") || "(ninguno)"}`,
       ];
       const libres = sinFecha(estado.acciones);

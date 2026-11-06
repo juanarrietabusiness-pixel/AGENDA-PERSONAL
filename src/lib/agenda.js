@@ -13,7 +13,8 @@
 // proyecto). Nada se delega ni se suelta solo: se sugiere.
 // ============================================================
 
-import { sumarDias, lunesDe, partes, fecha, diasDelMes, diasEntre, MESES, textoCorto } from "./fechas.js";
+import { sumarDias, lunesDe, partes, fecha, diasDelMes, diasEntre, MESES, textoCorto, minutos, aHora } from "./fechas.js";
+import { nuevaAccion, nuevoId, DURACIONES } from "./metodo.js";
 import { ocurrencias, tocaEl } from "./recurrencia.js";
 import { urgencia } from "./prioridad.js";
 import { prioridadDe } from "./sombreros.js";
@@ -149,7 +150,7 @@ export function eventosDelPeriodo(eventos, { desde, hasta }) {
  * Los eventos especiales del mes: cumpleaños y aniversarios (acciones que se repiten cada año), los eventos
  * marcados «especial» y lo de todo el día de Google Calendar. Siempre del MES, aunque se mire un día: es lo que Juan quiere tener presente.
  */
-export function especialesDelMes(acciones, eventos, dia, externos = []) {
+export function especialesDelMes(acciones, eventos, dia, externos = [], ajustes = {}) {
   const { desde, hasta } = rango("mes", dia);
   const out = [];
   for (const a of acciones) {
@@ -164,19 +165,58 @@ export function especialesDelMes(acciones, eventos, dia, externos = []) {
   }
   for (const e of eventosDelPeriodo(eventos.filter((x) => x.clase === "especial"), { desde, hasta })) out.push({ ...e, tipo: "evento" });
   // Lo de todo el día de Google Calendar (feriados, cumpleaños, un viaje) también es «especial», no una reunión.
-  for (const x of externos ?? []) {
-    if (x.tipo !== "evento" || !x.todoElDia || !enRango(x.dia, { desde, hasta })) continue;
-    if (eventos.some((p) => p.google?.id && (p.google.id === x.id || String(x.id).startsWith(`${p.google.id}_`)))) continue;
+  for (const x of deGoogleEnRango(externos, { desde, hasta })) {
+    if (claseDeGoogle(x, ajustes) !== "especial" || yaEsPropio(eventos, x)) continue;
     out.push({ ...x, tipo: "google", fuente: "google" });
   }
   return out.sort((a, b) => a.dia.localeCompare(b.dia));
 }
 
-/** Las reuniones y citas del periodo: los eventos que no son especiales, y los de Google Calendar con hora. */
-export function reunionesDelPeriodo(eventos, externos, r) {
+// ------------------------------------------------------------
+// Lo que llega de Google Calendar: reunión, rutina o evento especial
+// ------------------------------------------------------------
+
+export const CLASES_GOOGLE = Object.freeze({ reunion: "Reunión o cita", rutina: "Parte de mi rutina", especial: "Evento especial" });
+
+// Palabras que dicen «esto es con alguien» aunque se repita (la mentoría de los sábados es una reunión, no rutina).
+const PALABRAS_REUNION = /\b(reuni|mentor|cita|llamad|junta|entrevista|visita|consulta|meet|zoom|almuerzo con|cena con|cafe con|discipulado)/;
+const sinTildes = (t) => String(t ?? "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+/** La clave con la que se recuerda lo que Juan decidió de un evento: la serie entera si se repite. */
+export const claveDeGoogle = (x) => x.serie ?? x.id;
+
+/**
+ * Qué es un evento de Google: lo que Juan decidió para su serie, o si no, por lo que se ve:
+ *   · de todo el día (feriados, cumpleaños) → especial;
+ *   · con más gente, o que dice «reunión», «mentoría», «cita»… → reunión;
+ *   · que se repite y es sólo tuyo (la oración, la lectura, el trabajo) → rutina;
+ *   · lo demás (algo suelto con hora) → reunión.
+ */
+export function claseDeGoogle(x, ajustes = {}) {
+  const fijada = ajustes?.clasesGoogle?.[claveDeGoogle(x)];
+  if (CLASES_GOOGLE[fijada]) return fijada;
+  if (x.todoElDia) return "especial";
+  if (x.conGente || PALABRAS_REUNION.test(sinTildes(x.titulo))) return "reunion";
+  if (x.serie) return "rutina";
+  return "reunion";
+}
+
+const deGoogleEnRango = (externos, r) => (externos ?? []).filter((x) => x.tipo === "evento" && enRango(x.dia, r));
+const yaEsPropio = (eventos, x) => eventos.some((p) => p.google?.id && (p.google.id === x.id || String(x.id).startsWith(`${p.google.id}_`)));
+
+/** Tu rutina de Google Calendar en el periodo (lo que se repite y es sólo tuyo): para Plan, no para Hoy. */
+export function rutinaDelPeriodo(externos, r, ajustes = {}, eventos = []) {
+  return deGoogleEnRango(externos, r)
+    .filter((x) => claseDeGoogle(x, ajustes) === "rutina" && !yaEsPropio(eventos, x))
+    .map((x) => ({ ...x, clase: "rutina", fuente: "google" }))
+    .sort((a, b) => (a.dia + (a.inicio ?? "00:00")).localeCompare(b.dia + (b.inicio ?? "00:00")));
+}
+
+/** Las reuniones y citas del periodo: los eventos propios que no son especiales, y las reuniones de Google Calendar. */
+export function reunionesDelPeriodo(eventos, externos, r, ajustes = {}) {
   const propios = eventosDelPeriodo(eventos.filter((e) => e.clase !== "especial"), r);
-  const deGoogle = (externos ?? [])
-    .filter((x) => x.tipo === "evento" && !x.todoElDia && enRango(x.dia, r) && !propios.some((p) => p.google?.id && (p.google.id === x.id || String(x.id).startsWith(`${p.google.id}_`))))
+  const deGoogle = deGoogleEnRango(externos, r)
+    .filter((x) => claseDeGoogle(x, ajustes) === "reunion" && !yaEsPropio(eventos, x))
     .map((x) => ({ ...x, clase: "reunion", fuente: "google" }));
   return [...propios, ...deGoogle].sort((a, b) => (a.dia + (a.inicio ?? "00:00")).localeCompare(b.dia + (b.inicio ?? "00:00")));
 }
@@ -217,3 +257,51 @@ export function repartoAbierto(acciones, sombreros) {
 
 /** Días que lleva sin moverse algo (desde que se creó o se pospuso), para «¿sigue valiendo la pena?». */
 export const diasParada = (a, hoy) => (a.creada ? Math.max(0, diasEntre(a.creada, hoy)) : 0);
+
+// ------------------------------------------------------------
+// Cambiar QUÉ ES algo, a mano: tarea, recordatorio, reunión, evento o evento especial
+// ------------------------------------------------------------
+
+export const QUE_ES = Object.freeze({ tarea: "Tarea", recordatorio: "Recordatorio", reunion: "Reunión o cita", evento: "Evento", especial: "Evento especial" });
+export const esDeAccion = (clase) => clase === "tarea" || clase === "recordatorio";
+
+/**
+ * Convierte una acción en un evento o al revés, conservando lo que se puede (título, notas, sombrero, personas, el día,
+ * la hora, lo que dura y si se repite). Puro. Devuelve { tipo: "accion" | "evento", obj } (con id nuevo si cambia de
+ * tipo: el de antes se borra).
+ */
+export function convertir(obj, tipo, clase, hoy) {
+  if (!QUE_ES[clase]) return { tipo, obj };
+  if (tipo === "accion" && esDeAccion(clase)) return { tipo, obj: { ...obj, clase } };
+  if (tipo === "evento" && !esDeAccion(clase)) {
+    return { tipo, obj: { ...obj, clase, ...(clase === "especial" && !obj.inicio ? { inicio: "00:00", fin: "23:59" } : {}) } };
+  }
+  const comunes = { titulo: obj.titulo, notas: obj.notas ?? "", sombrero: obj.sombrero ?? null, personas: Array.isArray(obj.personas) ? obj.personas : [] };
+  if (tipo === "accion") {
+    const dia = obj.cuando ?? obj.limite ?? hoy;
+    const especial = clase === "especial";
+    const inicio = especial ? "00:00" : obj.hora ?? "09:00";
+    const fin = especial ? "23:59" : aHora(Math.min(minutos(inicio) + (Number(obj.minutos) || 60), 23 * 60 + 59));
+    const repite = obj.repite?.regla ? { regla: obj.repite.regla, inicio: obj.repite.inicio ?? dia } : null;
+    return { tipo: "evento", obj: { id: nuevoId("e"), ...comunes, clase, fecha: repite ? null : dia, repite, inicio, fin, protegido: false, fuente: "app" } };
+  }
+  const dia = obj.fecha ?? obj.repite?.inicio ?? hoy;
+  const dura = obj.inicio && obj.fin ? minutos(obj.fin) - minutos(obj.inicio) : 30;
+  const minutosMasCerca = DURACIONES.reduce((a, b) => (Math.abs(b - dura) < Math.abs(a - dura) ? b : a), 30);
+  return {
+    tipo: "accion",
+    obj: nuevaAccion(
+      {
+        ...comunes,
+        clase,
+        lista: "siguientes",
+        cuando: obj.repite?.regla ? null : dia,
+        hora: obj.inicio && obj.inicio !== "00:00" ? obj.inicio : null,
+        minutos: minutosMasCerca,
+        repite: obj.repite?.regla ? { regla: obj.repite.regla, modo: "calendario", inicio: obj.repite.inicio ?? dia } : null,
+        origen: "app",
+      },
+      hoy,
+    ),
+  };
+}

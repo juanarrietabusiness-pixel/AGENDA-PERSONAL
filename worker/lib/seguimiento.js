@@ -76,7 +76,7 @@ export function queToca({ estado, ahora, hoy }) {
       return acc ? `• ${textoDeAviso(a, acc, hoy)}` : null;
     }).filter(Boolean);
     // Las propias y las de Google Calendar (también las de los calendarios compartidos).
-    const reuniones = reunionesDelPeriodo(estado.eventos ?? [], estado.externos ?? [], { desde: hoy, hasta: hoy });
+    const reuniones = reunionesDelPeriodo(estado.eventos ?? [], estado.externos ?? [], { desde: hoy, hasta: hoy }, aj);
     const texto = [
       resumenDeLaManana({ nombre, plan, versiculo }),
       ...(reuniones.length ? [["Reuniones y citas de hoy:", ...reuniones.map((e) => `• ${textoHora(e.inicio)} ${e.titulo}`)].join("\n")] : []),

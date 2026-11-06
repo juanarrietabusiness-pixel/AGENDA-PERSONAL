@@ -48,6 +48,16 @@ que otra cuenta le comparte, y lo de cada sombrero se guarda en el calendario de
 en él (`calendarioParaGuardar`; si no, el principal). Los eventos se leen a `externos`, que cada lectura repone ENTERA;
 los de todo el día van a «Eventos especiales» (`especialesDelMes(…, externos)`) y los que tienen hora a «Reuniones».
 `reunionesDelPeriodo` no repite lo que se creó desde aquí (también las instancias «<id>_…» de un evento que se repite).
+**Qué es cada evento de Google lo decide `claseDeGoogle`** (src/lib/agenda.js): de todo el día → especial; con más
+gente o que dice «reunión», «mentoría», «cita»… → reunión; que se repite y es sólo suyo (oración, lectura, inicio del
+trabajo) → RUTINA, que no ocupa Hoy (una línea plegada) y vive en Plan («Tu semana»). Juan lo cambia por serie
+(`ajustes.clasesGoogle[recurringEventId]`, diálogo `EventoGoogle`). **Google Tasks**: cada lista que se llama como un
+sombrero es ese sombrero (en los dos sentidos); lo de «Mis tareas» lo pone la IA (`worker/lib/clasificar.js`, una
+llamada barata, comprobada por el código; si falla, sin sombrero). Antes caía todo en el primer sombrero de `tareasDe`.
+
+**Qué es cada cosa se cambia a mano** (Editar → «¿Qué es?»): tarea, recordatorio, reunión, evento o especial.
+Pasar de acción a evento (o al revés) es `convertir` (agenda.js): se crea lo nuevo con id nuevo y se borra lo de antes,
+así Google y Juancito Ads se enteran por el camino de siempre.
 
 **Reflejar** (`worker/lib/reflejar.js`): UN sitio para que un cambio (pantalla, asistente, Telegram, Claude) vaya a
 Juancito Ads y a Google. Lo que falla fuera NO deshace lo de aquí: la agenda es la verdad y la vuelta reintenta.

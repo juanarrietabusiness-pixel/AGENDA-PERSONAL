@@ -57,6 +57,9 @@ export default function Fila({ accion, hoy, sombreros, proyectos = [], onHecha, 
         </div>
         {children && <div className="accion-acciones">{children}</div>}
       </div>
+      <button type="button" className="editar-fila" aria-label={`Editar: ${accion.titulo}`} title="Editar: cambiar el tipo, el día, las notas…" onClick={() => onAbrir?.(accion)}>
+        <Icon name="pencil" size={15} />
+      </button>
     </li>
   );
 }

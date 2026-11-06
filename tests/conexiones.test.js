@@ -4,6 +4,7 @@ import { d1EnMemoria } from "./utils/d1Memoria.js";
 import { leerTareas, leerClientes, cambiosDesdeJuancito } from "../worker/lib/juancito.js";
 import { deEventoGoogle, aEventoGoogle, aTareaGoogle, cambiosDesdeGoogle, cifrar, descifrar, deCalendarioGoogle, calendariosALeer, calendarioParaGuardar } from "../worker/lib/google.js";
 import { queToca } from "../worker/lib/seguimiento.js";
+import { leerClasificacion, pedidoDeClasificar } from "../worker/lib/clasificar.js";
 import { nuevaAccion } from "../src/lib/metodo.js";
 import { AJUSTES_BASE } from "../src/lib/ajustes.js";
 
@@ -382,6 +383,73 @@ describe("Google con UNA cuenta: todos sus calendarios", () => {
     expect([...new Set(leidos)].sort()).toEqual(["juan@agencia.com", "juan@gmail.com"]);
     e = (await pedir("/api/estado?desde=2099-01-01&hasta=2099-01-31")).datos;
     expect(e.externos.find((x) => x.id === "h1")).toBeUndefined();
+  });
+});
+
+describe("Google Tasks: cada tarea a su sombrero", () => {
+  it("lo que contesta la IA se comprueba: sombreros y proyectos que no existen se caen", () => {
+    const proyectos = [{ id: "p1", nombre: "Disco", sombrero: "artistico" }];
+    const r = leerClasificacion('{"tareas":[{"i":0,"sombrero":"iglesia","clase":"tarea"},{"i":1,"sombrero":"inventado"},{"i":2,"sombrero":"artistico","clase":"recordatorio","proyecto":"p1"},{"i":9,"sombrero":"personal"}]}', 3, { proyectos });
+    expect(r).toEqual([
+      { i: 0, sombrero: "iglesia", clase: "tarea", proyectoId: null },
+      { i: 1, sombrero: null, clase: "tarea", proyectoId: null },
+      { i: 2, sombrero: "artistico", clase: "recordatorio", proyectoId: "p1" },
+    ]);
+    expect(pedidoDeClasificar([{ titulo: "Pagar la luz" }], { ajustes: { nombre: "Juan" } }).system).toContain("personal · Personal");
+  });
+
+  it("de punta a punta: la lista «Iglesia» va a Iglesia; lo de «Mis tareas» lo pone la IA; lo mal puesto de antes se corrige una vez", async () => {
+    env.GOOGLE_CLIENT_ID = "id-google";
+    env.GOOGLE_CLIENT_SECRET = "secreto-google";
+    let pedidosIA = 0;
+    const creadas = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url, init = {}) => {
+        const u = String(url);
+        if (u === "https://oauth2.googleapis.com/token") return Response.json({ access_token: "ya29", refresh_token: "1//r", expires_in: 3600 });
+        if (u.startsWith("https://openidconnect.googleapis.com/")) return Response.json({ email: "juan@agencia.com" });
+        if (u.includes("/users/me/calendarList")) return Response.json({ items: [{ id: "juan@agencia.com", summary: "juan@agencia.com", primary: true, accessRole: "owner" }] });
+        if (u.includes("/calendars/") && u.includes("/events?")) return Response.json({ items: [] });
+        if (u.includes("/users/@me/lists")) return Response.json({ items: [{ id: "L0", title: "Mis tareas" }, { id: "L1", title: "Iglesia" }] });
+        if (u.includes("/lists/L0/tasks") && (init.method ?? "GET") === "GET") return Response.json({ items: [{ id: "k1", title: "Pagar la luz", status: "needsAction" }, { id: "k9", title: "Vieja mal puesta", status: "needsAction" }] });
+        if (u.includes("/lists/L1/tasks") && (init.method ?? "GET") === "GET") return Response.json({ items: [{ id: "k2", title: "Preparar la célula", status: "needsAction" }] });
+        if (u.includes("/lists/") && init.method === "POST") {
+          creadas.push(decodeURIComponent(/\/lists\/([^/]+)\/tasks/.exec(u)[1]));
+          return Response.json({ id: "nueva" });
+        }
+        if (u.startsWith("https://api.anthropic.com/")) {
+          pedidosIA++;
+          const cuerpo = JSON.parse(init.body);
+          const lineas = cuerpo.messages[0].content.split("\n");
+          const tareas = lineas.map((l, i) => ({ i, sombrero: /luz/.test(l) ? "personal" : "trabajo", clase: /luz/.test(l) ? "recordatorio" : "tarea" }));
+          return new Response(JSON.stringify({ content: [{ type: "text", text: JSON.stringify({ tareas }) }], usage: { input_tokens: 100, output_tokens: 20 } }), { status: 200 });
+        }
+        return new Response("{}", { status: 404 });
+      }),
+    );
+    await darDeAlta();
+    // Una que entró antes por el fallo (en Artístico, el primer sombrero de las tareas).
+    const vieja = nuevaAccion({ titulo: "Vieja mal puesta", sombrero: "artistico", lista: "siguientes", google: { id: "k9", lista: "@default", servicio: "google:juan@agencia.com" }, origen: "google" }, "2026-11-01");
+    await env.DB.prepare("insert into elementos (owner_id, tipo, id, datos) select id, 'accion', ?, ? from usuarios").bind(vieja.id, JSON.stringify(vieja)).run();
+
+    const permiso = new URL((await pedir("/api/google/conectar", { metodo: "POST", datos: {} })).datos.url);
+    await pedir(`/api/google/vuelta?code=c&state=${permiso.searchParams.get("state")}`);
+    const e = await estado();
+    const por = (t) => e.acciones.find((a) => a.titulo === t);
+    expect(por("Preparar la célula")).toMatchObject({ sombrero: "iglesia", google: { lista: "L1" } });
+    expect(por("Pagar la luz")).toMatchObject({ sombrero: "personal", clase: "recordatorio" });
+    expect(por("Vieja mal puesta").sombrero).toBe("trabajo");
+    expect(pedidosIA).toBe(1);
+
+    // Una tarea de Iglesia que se agenda aquí va a la lista «Iglesia» de Google Tasks.
+    const a = nuevaAccion({ titulo: "Llamar a Pedro", sombrero: "iglesia", lista: "siguientes" }, "2026-11-06");
+    await pedir(`/api/elementos/accion/${a.id}`, { metodo: "PUT", datos: a });
+    expect(creadas).toEqual(["L1"]);
+
+    // La corrección de lo de antes va una sola vez.
+    await pedir("/api/google/sincronizar", { metodo: "POST", datos: {} });
+    expect(pedidosIA).toBe(1);
   });
 });
 

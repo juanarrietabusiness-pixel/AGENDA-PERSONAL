@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { rango, mover, ordenarPor, accionesDelPeriodo, sinFecha, especialesDelMes, reunionesDelPeriodo, eventosDelPeriodo, loQueMasVale, porDelegar, bajoValor, repartoAbierto, valorDe } from "../src/lib/agenda.js";
+import { rango, mover, ordenarPor, accionesDelPeriodo, sinFecha, especialesDelMes, reunionesDelPeriodo, eventosDelPeriodo, loQueMasVale, porDelegar, bajoValor, repartoAbierto, valorDe, claseDeGoogle, rutinaDelPeriodo, convertir } from "../src/lib/agenda.js";
 import { aplicarSombrero, limpiarSombreros, sombrerosDe, prioridadDe, idPara, SOMBREROS, ErrorSombrero } from "../src/lib/sombreros.js";
 import { buscar, paraElAsistente, limpiarAprendizajes, limpiarNota } from "../src/lib/cerebro.js";
 import { leerOrden, aplicarOrden, deshacerOrden, tarjeta } from "../src/lib/agente.js";
@@ -233,5 +233,57 @@ describe("el asistente cambia lo que ya existe (por id) y lo deshace", () => {
     expect(r.hecho.aprendizajes).toHaveLength(1);
     const atras = deshacerOrden(r.estado, r.deshacer);
     expect(sombrerosDe(atras.ajustes).map((s) => s.nombre)).not.toContain("Estudios");
+  });
+});
+
+describe("lo de Google Calendar: reunión, rutina o especial", () => {
+  const g = (datos) => ({ tipo: "evento", dia: HOY, inicio: "06:00", fin: "07:00", ...datos });
+  it("se decide por lo que se ve, y lo que Juan escoge manda para toda la serie", () => {
+    expect(claseDeGoogle(g({ id: "1", titulo: "Oración", serie: "s1" }))).toBe("rutina");
+    expect(claseDeGoogle(g({ id: "2", titulo: "Lectura de la Palabra", serie: "s2" }))).toBe("rutina");
+    expect(claseDeGoogle(g({ id: "3", titulo: "Mentoría de los sábados", serie: "s3" }))).toBe("reunion");
+    expect(claseDeGoogle(g({ id: "4", titulo: "Planificación", serie: "s4", conGente: true }))).toBe("reunion");
+    expect(claseDeGoogle(g({ id: "5", titulo: "Dentista" }))).toBe("reunion");
+    expect(claseDeGoogle(g({ id: "6", titulo: "Día de la Independencia", todoElDia: true, inicio: null }))).toBe("especial");
+    expect(claseDeGoogle(g({ id: "7_x", titulo: "Inicio de trabajo", serie: "s7" }), { clasesGoogle: { s7: "reunion" } })).toBe("reunion");
+  });
+
+  it("la rutina no sale en Reuniones: va aparte; la mentoría sí es reunión", () => {
+    const externos = [
+      g({ id: "o1", titulo: "Oración", serie: "s1", inicio: "05:00" }),
+      g({ id: "m1", titulo: "Mentoría", serie: "s3", inicio: "09:00" }),
+      g({ id: "t1", titulo: "Inicio de trabajo", serie: "s7", inicio: "08:00" }),
+    ];
+    const r = rango("dia", HOY);
+    expect(reunionesDelPeriodo([], externos, r).map((x) => x.titulo)).toEqual(["Mentoría"]);
+    expect(rutinaDelPeriodo(externos, r).map((x) => x.titulo)).toEqual(["Oración", "Inicio de trabajo"]);
+    // Si Juan dice que «Inicio de trabajo» es una reunión, pasa a Reuniones.
+    expect(reunionesDelPeriodo([], externos, r, { clasesGoogle: { s7: "reunion" } }).map((x) => x.titulo)).toEqual(["Inicio de trabajo", "Mentoría"]);
+  });
+});
+
+describe("cambiar QUÉ ES algo, a mano", () => {
+  it("de tarea a reunión: con su día, su hora y lo que dura", () => {
+    const a = accion({ titulo: "Ver a Adolfo", sombrero: "iglesia", cuando: "2026-11-10", hora: "16:00", minutos: 90, notas: "Llevar la Biblia" });
+    const r = convertir(a, "accion", "reunion", HOY);
+    expect(r.tipo).toBe("evento");
+    expect(r.obj).toMatchObject({ titulo: "Ver a Adolfo", sombrero: "iglesia", clase: "reunion", fecha: "2026-11-10", inicio: "16:00", fin: "17:30", notas: "Llevar la Biblia" });
+    expect(r.obj.id).not.toBe(a.id);
+  });
+
+  it("de reunión a recordatorio, y de recordatorio a evento especial de todo el día", () => {
+    const e = { id: "e1", titulo: "Pagar la luz", sombrero: "personal", clase: "reunion", fecha: "2026-11-12", inicio: "09:00", fin: "09:15" };
+    const r = convertir(e, "evento", "recordatorio", HOY);
+    expect(r).toMatchObject({ tipo: "accion", obj: { clase: "recordatorio", cuando: "2026-11-12", hora: "09:00", minutos: 15, lista: "siguientes" } });
+    const esp = convertir(r.obj, "accion", "especial", HOY);
+    expect(esp.obj).toMatchObject({ clase: "especial", fecha: "2026-11-12", inicio: "00:00", fin: "23:59" });
+  });
+
+  it("dentro del mismo tipo sólo cambia la clase; lo que se repite se sigue repitiendo", () => {
+    const a = accion({ titulo: "Pagar internet", clase: "tarea" });
+    expect(convertir(a, "accion", "recordatorio", HOY).obj).toEqual({ ...a, clase: "recordatorio" });
+    const rep = accion({ titulo: "Planificar la célula", repite: { regla: "FREQ=WEEKLY;BYDAY=MO", modo: "calendario", inicio: "2026-11-02" }, hora: "20:00" });
+    const ev = convertir(rep, "accion", "reunion", HOY).obj;
+    expect(ev).toMatchObject({ fecha: null, repite: { regla: "FREQ=WEEKLY;BYDAY=MO", inicio: "2026-11-02" }, inicio: "20:00" });
   });
 });

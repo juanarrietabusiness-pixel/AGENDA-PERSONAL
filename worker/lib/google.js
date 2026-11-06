@@ -14,8 +14,10 @@
 //     escoja para ese sombrero (`ajustes.guardarEn`; si no, el principal).
 //   · Lo que el asistente agenda con hora se CREA en el Google Calendar de la
 //     cuenta que lleva ese sombrero; cambiarlo o borrarlo aquí lo cambia allá.
-//   · Las TAREAS de los sombreros que Juan escoja van a Google Tasks; marcarlas
-//     hechas allá las marca aquí, y al revés.
+//   · Las TAREAS de los sombreros que Juan escoja van a Google Tasks (a la lista
+//     que se llama como su sombrero, si la hay); marcarlas hechas allá las marca
+//     aquí, y al revés. Lo que Juan escribe en Google Tasks entra en el sombrero
+//     de su lista o, si está en «Mis tareas», en el que diga la IA.
 //
 // Hace falta un cliente OAuth de Google (GOOGLE_CLIENT_ID y
 // GOOGLE_CLIENT_SECRET, secretos del Worker; los pasos en DEPLOY.md). Los
@@ -30,6 +32,7 @@ import { aleatorio, huella } from "./sesion.js";
 import { hoyEn, horaEn, sumarDias, esFecha, esHora, ZONA } from "../../src/lib/fechas.js";
 import { nuevaAccion } from "../../src/lib/metodo.js";
 import { sombrerosDe } from "../../src/lib/sombreros.js";
+import { clasificar } from "./clasificar.js";
 
 export const ALCANCES = ["openid", "email", "https://www.googleapis.com/auth/calendar", "https://www.googleapis.com/auth/tasks"];
 const AUTH = "https://accounts.google.com/o/oauth2/v2/auth";
@@ -161,6 +164,8 @@ export function deEventoGoogle(e, { cuenta, calendario, calendarioNombre = null,
     color,
     enlace: e.htmlLink ?? null,
     conGente: Array.isArray(e.attendees) && e.attendees.length > 1,
+    // De qué serie es (si se repite): lo que Juan decida de una vez vale para todas.
+    serie: e.recurringEventId ?? null,
   };
 }
 
@@ -215,6 +220,17 @@ export function calendarioParaGuardar(datos, sombrero) {
   return "primary";
 }
 
+const plano = (t) => String(t ?? "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+
+/** El sombrero de una lista de Google Tasks: la que se llama como él (o su id). Puro. */
+export function sombreroDeLista(lista, sombreros) {
+  const n = plano(lista?.nombre);
+  return sombreros.find((s) => plano(s.nombre) === n || s.id === n)?.id ?? null;
+}
+
+/** La lista de Google Tasks donde va una tarea de ese sombrero: la que se llama como él; si no, la de siempre. */
+export const listaParaSombrero = (listas, sombrero, sombreros) => (listas ?? []).find((l) => sombreroDeLista(l, sombreros) === sombrero)?.id ?? "@default";
+
 const HORAS_LISTA = 6;
 
 /** La lista de calendarios de una cuenta, recordada unas horas (cambia poco). Devuelve los datos puestos al día. */
@@ -223,8 +239,15 @@ async function conLista(env, almacen, c, forzar) {
   if (!forzar && d.lista?.length && Date.now() - (d.listaAl ?? 0) < HORAS_LISTA * 3_600_000) return d;
   const r = await api(env, almacen, c.servicio, `${CAL}/users/me/calendarList?minAccessRole=reader&maxResults=250`);
   const lista = (r?.items ?? []).filter((x) => !x.deleted).map(deCalendarioGoogle);
+  let listasTareas = d.listasTareas ?? [];
+  try {
+    const t = await api(env, almacen, c.servicio, `${TASKS}/users/@me/lists?maxResults=100`);
+    listasTareas = (t?.items ?? []).map((x) => ({ id: String(x.id), nombre: String(x.title ?? "").slice(0, 80) }));
+  } catch {
+    /* sin las listas, todo a la de siempre */
+  }
   const fresca = (await almacen.conexion(c.servicio))?.datos ?? d;
-  const nuevos = { ...fresca, lista, listaAl: Date.now() };
+  const nuevos = { ...fresca, lista, listasTareas, listaAl: Date.now() };
   await almacen.guardarConexion(c.servicio, nuevos);
   return nuevos;
 }
@@ -250,11 +273,13 @@ export const actualizarEvento = (env, almacen, evento) =>
 export const borrarEvento = (env, almacen, evento) =>
   api(env, almacen, evento.google.servicio, `${CAL}/calendars/${encodeURIComponent(evento.google.calendario ?? "primary")}/events/${encodeURIComponent(evento.google.id)}`, { method: "DELETE" });
 
-export async function crearTarea(env, almacen, accion, lista) {
-  const c = cuentaPara(lista, accion.sombrero, "tareasDe");
+export async function crearTarea(env, almacen, accion, cuentasG) {
+  const c = cuentaPara(cuentasG, accion.sombrero, "tareasDe");
   if (!c) return null;
-  const r = await api(env, almacen, c.servicio, `${TASKS}/lists/%40default/tasks`, { method: "POST", body: aTareaGoogle(accion) });
-  return { cuenta: c.datos.cuenta, servicio: c.servicio, lista: "@default", id: r.id };
+  const perfil = await almacen.perfil();
+  const lista = listaParaSombrero(c.datos.listasTareas, accion.sombrero, sombrerosDe(perfil?.ajustes));
+  const r = await api(env, almacen, c.servicio, `${TASKS}/lists/${encodeURIComponent(lista)}/tasks`, { method: "POST", body: aTareaGoogle(accion) });
+  return { cuenta: c.datos.cuenta, servicio: c.servicio, lista, id: r.id };
 }
 export const actualizarTarea = (env, almacen, accion) =>
   api(env, almacen, accion.google.servicio, `${TASKS}/lists/${encodeURIComponent(accion.google.lista ?? "@default")}/tasks/${encodeURIComponent(accion.google.id)}`, { method: "PATCH", body: aTareaGoogle(accion) });
@@ -264,10 +289,10 @@ export const borrarTarea = (env, almacen, accion) =>
 // ── Leer de allá ──
 
 /**
- * Las tareas de Google → aquí. Puro: lo hecho allá se marca hecho; lo nuevo y abierto de allá entra en el primer
- * sombrero que esa cuenta lleva (o sin sombrero).
+ * Las tareas de Google → aquí. Puro: lo hecho allá se marca hecho; lo nuevo y abierto de allá entra en el sombrero de
+ * su lista (o sin sombrero: lo pone después la IA).
  */
-export function cambiosDesdeGoogle(tareas, acciones, { hoy, cuenta, servicio, sombrero }) {
+export function cambiosDesdeGoogle(tareas, acciones, { hoy, cuenta, servicio, sombrero = null, lista = "@default" }) {
   const porId = new Map(acciones.filter((a) => a.google?.id).map((a) => [a.google.id, a]));
   const cambios = [];
   for (const t of tareas) {
@@ -280,7 +305,7 @@ export function cambiosDesdeGoogle(tareas, acciones, { hoy, cuenta, servicio, so
       continue;
     }
     if (hecha || !String(t.title ?? "").trim()) continue;
-    cambios.push(nuevaAccion({ titulo: t.title, notas: t.notes ?? "", sombrero, lista: "siguientes", limite: t.due ? String(t.due).slice(0, 10) : null, google: { cuenta, servicio, lista: "@default", id: t.id }, origen: "google" }, hoy));
+    cambios.push(nuevaAccion({ titulo: t.title, notas: t.notes ?? "", sombrero, lista: "siguientes", limite: t.due ? String(t.due).slice(0, 10) : null, google: { cuenta, servicio, lista, id: t.id }, origen: "google" }, hoy));
   }
   return cambios;
 }
@@ -325,10 +350,29 @@ export async function sincronizar(env, almacen, { hoy, forzar = false } = {}) {
       await almacen.reemplazarExternos(c.servicio, { desde: "0000-01-01", hasta: "9999-12-31" }, filas);
       c = { ...c, datos };
       if ((c.datos.ajustes?.tareasDe ?? []).length) {
-        const q = new URLSearchParams({ showCompleted: "true", showHidden: "true", maxResults: "100" });
-        const r = await api(env, almacen, c.servicio, `${TASKS}/lists/%40default/tasks?${q}`);
         const estado = await almacen.estado();
-        const cambios = cambiosDesdeGoogle(r?.items ?? [], estado.acciones, { hoy, cuenta: c.datos.cuenta, servicio: c.servicio, sombrero: c.datos.ajustes.tareasDe[0] ?? null });
+        const sombreros = sombrerosDe(estado.ajustes);
+        const q = new URLSearchParams({ showCompleted: "true", showHidden: "true", maxResults: "100" });
+        const listas = c.datos.listasTareas?.length ? c.datos.listasTareas.slice(0, 10) : [{ id: "@default", nombre: "" }];
+        let cambios = [];
+        for (const l of listas) {
+          const r = await api(env, almacen, c.servicio, `${TASKS}/lists/${encodeURIComponent(l.id)}/tasks?${q}`);
+          const ya = [...estado.acciones, ...cambios];
+          cambios = [...cambios, ...cambiosDesdeGoogle(r?.items ?? [], ya, { hoy, cuenta: c.datos.cuenta, servicio: c.servicio, sombrero: sombreroDeLista(l, sombreros), lista: l.id })];
+        }
+        // Lo nuevo sin sombrero (escrito en «Mis tareas»): que lo ponga la IA. Una vez, también lo que entró antes en el
+        // primer sombrero por defecto (así salían en Artístico).
+        const antes = !c.datos.reclasificado
+          ? estado.acciones.filter((a) => a.origen === "google" && a.estado === "abierta" && a.sombrero === c.datos.ajustes.tareasDe[0]).map((a) => ({ ...a, sombrero: null }))
+          : [];
+        try {
+          const puestas = await clasificar(env, almacen, [...cambios.filter((a) => !a.sombrero && a.origen === "google"), ...antes], estado);
+          const porId = new Map(puestas.map((a) => [a.id, a]));
+          cambios = [...cambios.map((a) => porId.get(a.id) ?? a), ...puestas.filter((a) => !cambios.some((x) => x.id === a.id))];
+          if (antes.length) await almacen.guardarConexion(c.servicio, { ...((await almacen.conexion(c.servicio))?.datos ?? c.datos), reclasificado: true });
+        } catch {
+          /* sin IA se quedan sin sombrero: Juan las pone con un toque */
+        }
         if (cambios.length) await almacen.lote(cambios.map((a) => almacen.sentenciaElemento("accion", a)));
         total += cambios.length;
       }

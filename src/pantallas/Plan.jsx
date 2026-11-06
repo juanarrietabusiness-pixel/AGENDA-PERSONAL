@@ -5,7 +5,7 @@ import { lunesDe, sumarDias, DIAS, DIAS_CORTOS, partes, textoHora, diaSemana } f
 import { eventosDelDia } from "../lib/hoy.js";
 import { sombrerosDe, estiloDe, nombreDe, balance, descuidados, aplicarSombrero, COLORES } from "../lib/sombreros.js";
 import { cuadrante } from "../lib/prioridad.js";
-import { ordenarPor } from "../lib/agenda.js";
+import { ordenarPor, claseDeGoogle } from "../lib/agenda.js";
 import { nuevaAccion } from "../lib/metodo.js";
 import { RITMO_BASE } from "../lib/ritmo.js";
 
@@ -23,12 +23,23 @@ export default function Plan({ estado, hoy, cambiar, onHecha, onAbrir, avisar })
   const lunes = lunesDe(hoy);
   const dias = Array.from({ length: 7 }, (_, i) => sumarDias(lunes, i));
   const todos = [...(estado.ritmo ?? RITMO_BASE), ...eventos];
-  const porDia = dias.map((d) => ({
-    dia: d,
-    eventos: eventosDelDia(todos, d),
-    acciones: acciones.filter((a) => a.estado === "abierta" && (a.cuando === d || a.limite === d)),
-  }));
-  const filas = balance({ eventos: porDia.flatMap((p) => p.eventos.filter((e) => !e.devocional)), hechas: porDia.flatMap((p) => p.acciones) }, sombreros);
+  const externos = estado.externos ?? [];
+  const propioDeGoogle = (x) => eventos.some((p) => p.google?.id && (p.google.id === x.id || String(x.id).startsWith(`${p.google.id}_`)));
+  const porDia = dias.map((d) => {
+    // Tu semana de Google Calendar (la rutina y las reuniones), con su hora; lo de todo el día, arriba.
+    const google = externos
+      .filter((x) => x.tipo === "evento" && x.dia === d && !propioDeGoogle(x))
+      .map((x) => ({ ...x, fuente: "google", clase: claseDeGoogle(x, ajustes) }));
+    const horas = new Set(google.map((x) => x.inicio).filter(Boolean));
+    // Lo de la rutina de la agenda que ya está en Google a la misma hora no se repite.
+    const propios = eventosDelDia(todos, d).filter((e) => !e.devocional && !(e.porConfirmar && horas.has(e.inicio)));
+    return {
+      dia: d,
+      eventos: [...propios, ...google].sort((a, b) => (a.inicio ?? "00:00").localeCompare(b.inicio ?? "00:00")),
+      acciones: acciones.filter((a) => a.estado === "abierta" && (a.cuando === d || a.limite === d)),
+    };
+  });
+  const filas = balance({ eventos: porDia.flatMap((p) => p.eventos.filter((e) => !e.devocional && e.fuente !== "google")), hechas: porDia.flatMap((p) => p.acciones) }, sombreros);
   const flojos = descuidados(filas);
   const abiertas = acciones.filter((a) => a.estado === "abierta" && a.lista === "siguientes");
   const ctx = { hoy, proyectos, sombreros };
@@ -87,7 +98,7 @@ export default function Plan({ estado, hoy, cambiar, onHecha, onAbrir, avisar })
       </section>
 
       <section className="seccion" aria-labelledby={`${id}-dias`}>
-        <div className="seccion-cabeza"><h2 id={`${id}-dias`}>Día por día</h2><span className="nota">Tu rutina fija y lo planeado</span></div>
+        <div className="seccion-cabeza"><h2 id={`${id}-dias`}>Tu semana</h2><span className="nota">Tu rutina, tus reuniones y lo planeado</span></div>
         <div className="semana">
           {porDia.map(({ dia, eventos: evs, acciones: acs }) => (
             <article key={dia} className={`dia${dia === hoy ? " es-hoy" : ""}`} aria-label={`${DIAS[diaSemana(dia)]} ${partes(dia).dia}`}>
@@ -95,12 +106,19 @@ export default function Plan({ estado, hoy, cambiar, onHecha, onAbrir, avisar })
                 <span>{DIAS_CORTOS[diaSemana(dia)]} {partes(dia).dia}</span>
                 {dia === hoy && <span className="chip acento">Hoy</span>}
               </h3>
-              {evs.filter((e) => !e.devocional).map((e) => (
-                <div key={e.id} className="dia-item" style={estiloDe(e.sombrero, sombreros)}>
-                  <span className="punto" />
-                  <span><time>{textoHora(e.inicio)}</time>{e.titulo}</span>
-                </div>
-              ))}
+              {evs.filter((e) => !e.devocional).map((e) =>
+                e.fuente === "google" ? (
+                  <button key={`g:${e.id}`} type="button" className={`dia-item dia-google${e.clase === "rutina" ? " es-rutina" : ""}`} style={e.color ? { "--s": e.color } : undefined} onClick={() => onAbrir("google", e)}>
+                    <span className="punto" />
+                    <span><time>{e.inicio ? textoHora(e.inicio) : "Todo el día"}</time>{e.titulo}</span>
+                  </button>
+                ) : (
+                  <div key={e.id} className="dia-item" style={estiloDe(e.sombrero, sombreros)}>
+                    <span className="punto" />
+                    <span><time>{textoHora(e.inicio)}</time>{e.titulo}</span>
+                  </div>
+                ),
+              )}
               {acs.map((a) => (
                 <button key={a.id} type="button" className="dia-item accion-dia" style={estiloDe(a.sombrero, sombreros)} onClick={() => onAbrir("accion", a)}>
                   <span className="punto" style={{ background: "transparent", border: "2px solid var(--s)" }} />
@@ -112,7 +130,7 @@ export default function Plan({ estado, hoy, cambiar, onHecha, onAbrir, avisar })
           ))}
         </div>
         <p style={{ color: "var(--texto-3)", fontSize: "var(--fs-xs)", marginTop: "var(--sp-3)" }}>
-          Los tiempos con Dios (oración y Palabra) no salen aquí ni cuentan en el reparto: van antes que los sombreros. Para cambiar tu rutina, díselo al asistente («la célula ahora es a las 7:30»).
+          Aquí vive tu semana completa: lo de Google Calendar (toca un bloque para decir si es rutina, reunión o especial) y lo que planeaste. Los tiempos con Dios no cuentan en el reparto: van antes que los sombreros.
         </p>
       </section>
 

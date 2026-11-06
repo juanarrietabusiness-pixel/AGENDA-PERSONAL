@@ -112,8 +112,14 @@ administrador», hay que autorizar la app en la consola de administración de Go
 La agenda lee **todos los calendarios que ves en esa cuenta**, también los que otra cuenta te comparte (si en la del
 trabajo ves tu calendario personal, la agenda también). En **Ajustes → Google** escoges cuáles se ven en Hoy, en qué
 calendario se guarda lo que agendas de cada sombrero (sólo los que te dejan escribir) y qué tareas van a Google Tasks.
-Lo de todo el día (feriados, cumpleaños) sale en «Eventos especiales»; lo que tiene hora, en «Reuniones». Los permisos
-se guardan cifrados con el secreto del cliente.
+Lo de todo el día (feriados, cumpleaños) sale en «Eventos especiales». Lo que se repite y es sólo tuyo (la oración, la
+lectura, el inicio del trabajo) es tu **rutina**: no ocupa Hoy y vive en **Plan → Tu semana**; las reuniones (con más
+gente, o que dicen «reunión», «mentoría», «cita») salen en «Reuniones». Toca cualquier evento de Google para cambiar qué
+es; vale para toda la serie.
+
+**Google Tasks:** crea en Google Tasks una lista por sombrero, con su mismo nombre («Iglesia», «Personal»…). Lo que
+escribas en esa lista entra en ese sombrero, y lo que agendes aquí va a su lista. Lo que escribas en «Mis tareas» lo
+pone en su sombrero el asistente. Los permisos se guardan cifrados con el secreto del cliente.
 
 ## 7. Conectar Claude
 
