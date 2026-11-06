@@ -17,7 +17,7 @@ export const TEMAS = Object.freeze([
   },
   {
     id: "kairos",
-    nombre: "Kairós",
+    nombre: "Kairos",
     acento: "#22B8B0",
     sobreAcento: "#04201E",
     idea: "El tiempo oportuno. Es la palabra griega detrás de «aprovechando bien el tiempo» (Efesios 5:16).",

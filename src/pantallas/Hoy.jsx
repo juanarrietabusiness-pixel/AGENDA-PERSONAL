@@ -1,10 +1,11 @@
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import Icon from "../componentes/Icon.jsx";
 import Fila from "../componentes/Fila.jsx";
 import { textoLargo, textoCorto, textoHora, sumarDias } from "../lib/fechas.js";
 import { sombrerosDe, estiloDe, nombreDe } from "../lib/sombreros.js";
 import { elegirVersiculo, ATRIBUCION } from "../lib/versiculos.js";
 import { variante } from "../lib/mensajes.js";
+import { nuevaAccion } from "../lib/metodo.js";
 import { PERIODOS, ORDENES, rango, mover, tituloDe, accionesDelPeriodo, sinFecha, reunionesDelPeriodo, especialesDelMes, rutinaDelPeriodo, ordenarPor } from "../lib/agenda.js";
 
 const SALUDO = ["Buenos días", "Buen día", "Arrancamos"];
@@ -38,7 +39,7 @@ const recordado = (k, base, validos) => {
  * ya los sabes); con las reuniones, los recordatorios y los eventos especiales del mes, de todos los sombreros, en el
  * día, la semana o el mes.
  */
-export default function Hoy({ estado, hoy, hora, onHecha, onAbrir, onDecidir, onAsistente }) {
+export default function Hoy({ estado, hoy, hora, onHecha, onAbrir, onDecidir, onAsistente, cambiar }) {
   const { acciones, eventos, proyectos, ajustes, bandeja = [], externos = [] } = estado;
   const sombreros = sombrerosDe(ajustes);
   const [periodo, setPeriodo] = useState(() => recordado("periodo", "dia", Object.keys(PERIODOS)));
@@ -114,9 +115,16 @@ export default function Hoy({ estado, hoy, hora, onHecha, onAbrir, onDecidir, on
 
   const vacio = (texto) => <p className="vacio">{texto}</p>;
 
+  // Añadir a mano, sin pasar por el asistente: el día que estás mirando (o hoy, si miras la semana o el mes).
+  const anadir = ({ titulo, sombrero: s, clase }) => {
+    const cuando = periodo === "dia" ? dia : hoy;
+    cambiar?.((e) => ({ ...e, acciones: [...e.acciones, nuevaAccion({ titulo, sombrero: s, clase, lista: "siguientes", cuando, origen: "app" }, hoy)] }));
+  };
+
   const contenido = {
     tareas: (
       <>
+        {cambiar && <AnadirRapido sombreros={sombreros} inicial={filtro} onAnadir={anadir} />}
         {datos.tareas.length ? filas(datos.tareas, { conDecidir: true }) : vacio(periodo === "dia" ? "Nada planeado para este día. Mira «Sin fecha» o pídele algo al asistente." : "Nada planeado en este periodo.")}
         {datos.libres.length > 0 && (
           <div className="plegable">
@@ -284,5 +292,60 @@ export default function Hoy({ estado, hoy, hora, onHecha, onAbrir, onDecidir, on
         Tu rutina (la oración, la lectura, el trabajo, los servicios) no ocupa Hoy: está en <a href="#plan">Plan</a>. ¿Mañana? <button type="button" className="enlace" onClick={() => { ponerPeriodo("dia"); setDia(sumarDias(hoy, 1)); }}>Ver mañana</button>.
       </p>
     </>
+  );
+}
+
+/** Escribir una tarea y Enter: entra al momento, con el sombrero escogido (se recuerda el último). */
+function AnadirRapido({ sombreros, inicial, onAnadir }) {
+  const id = useId();
+  const [titulo, setTitulo] = useState("");
+  const [s, setS] = useState(() => {
+    try {
+      const v = localStorage.getItem("hoy-sombrero");
+      return sombreros.some((x) => x.id === v) ? v : sombreros[0]?.id ?? "";
+    } catch {
+      return sombreros[0]?.id ?? "";
+    }
+  });
+  const [clase, setClase] = useState("tarea");
+  const [tocado, setTocado] = useState(false);
+  // Con un sombrero filtrado arriba, se propone ése; si escoges otro aquí, manda el tuyo.
+  const elegido = !tocado && inicial && sombreros.some((x) => x.id === inicial) ? inicial : s;
+  const enviar = (e) => {
+    e.preventDefault();
+    const t = titulo.trim();
+    if (!t) return;
+    onAnadir({ titulo: t, sombrero: elegido || null, clase });
+    setTitulo("");
+  };
+  return (
+    <form className="anadir-hoy" onSubmit={enviar} style={estiloDe(elegido, sombreros)}>
+      <label className="solo-lector" htmlFor={`${id}-t`}>Añadir una tarea</label>
+      <input id={`${id}-t`} className="campo" placeholder={clase === "recordatorio" ? "Añadir un recordatorio…" : "Añadir una tarea…"} value={titulo} onChange={(e) => setTitulo(e.target.value)} autoComplete="off" />
+      <div className="anadir-hoy-opciones">
+        <label className="solo-lector" htmlFor={`${id}-s`}>Sombrero</label>
+        <select
+          id={`${id}-s`}
+          className="campo"
+          value={elegido}
+          onChange={(e) => {
+            setS(e.target.value);
+            setTocado(true);
+            try {
+              localStorage.setItem("hoy-sombrero", e.target.value);
+            } catch {
+              /* sin almacenamiento: sólo no se recuerda */
+            }
+          }}
+        >
+          {sombreros.map((x) => <option key={x.id} value={x.id}>{x.nombre}</option>)}
+          <option value="">Sin sombrero</option>
+        </select>
+        <button type="button" className="chip-boton" aria-pressed={clase === "recordatorio"} onClick={() => setClase((c) => (c === "recordatorio" ? "tarea" : "recordatorio"))}>
+          <Icon name="bell" size={14} /> Recordatorio
+        </button>
+        <button type="submit" className="boton primario" aria-label="Añadir" disabled={!titulo.trim()}><Icon name="plus" size={18} /></button>
+      </div>
+    </form>
   );
 }

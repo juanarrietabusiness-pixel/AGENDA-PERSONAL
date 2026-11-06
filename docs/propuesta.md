@@ -315,7 +315,7 @@ Los cuatro se pueden probar en el prototipo (Ajustes → Nombre y color), y el n
 | Nombre | Color | La idea |
 |---|---|---|
 | **Atalaya** | Oro, `#E8A93A` | El vigía que vela desde temprano. «Sobre mi guarda estaré… Escribe la visión» (Habacuc 2:1-2): la vigilancia y la visión en un nombre |
-| **Kairós** | Turquesa, `#22B8B0` | El tiempo oportuno. Es la palabra griega detrás de «aprovechando bien el tiempo» (Efesios 5:16) |
+| **Kairos** | Turquesa, `#22B8B0` | El tiempo oportuno. Es la palabra griega detrás de «aprovechando bien el tiempo» (Efesios 5:16) |
 | **Mayordomo** | Cobre, `#E0703F` | El administrador fiel de lo que Dios confía, también del tiempo (Lucas 12:42; 1 Pedro 4:10). En el habla diaria también es el sirviente de una casa |
 | **Senda** | Marfil, `#E6DCC3` | «Lámpara es a mis pies tu palabra» (Salmo 119:105). Un camino claro, paso a paso |
 
