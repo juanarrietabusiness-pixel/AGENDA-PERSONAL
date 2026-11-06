@@ -50,7 +50,7 @@ import * as google from "./lib/google.js";
 import { rutaMCP } from "./lib/mcp.js";
 import { consejo } from "./lib/mentor.js";
 import { vuelta } from "./lib/seguimiento.js";
-import { hoyEn, sumarDias } from "../src/lib/fechas.js";
+import { hoyEn, sumarDias, diaSemana } from "../src/lib/fechas.js";
 import { limpiarNota } from "../src/lib/cerebro.js";
 import { sombrerosDe } from "../src/lib/sombreros.js";
 import { conReino } from "../src/lib/semana.js";
@@ -205,7 +205,15 @@ async function api(req, env, ctx) {
     const sync = Promise.all([juancito.sincronizar(env, almacen, { hoy }), google.sincronizar(env, almacen, { hoy })]).catch(() => null);
     if (despues) despues(sync);
     else await sync;
-    return json({ ...(await almacen.estado({ completo: true, desde, hasta })), usuario, llaves: llaves(env), servicios: { telegram: hayTelegram(env), google: google.hayGoogle(env) } });
+    const diasFijos = (await almacen.conexion(juancito.SERVICIO))?.datos?.diasFijos;
+    return json({
+      ...(await almacen.estado({ completo: true, desde, hasta })),
+      usuario,
+      llaves: llaves(env),
+      servicios: { telegram: hayTelegram(env), google: google.hayGoogle(env) },
+      // Las empresas que tocan hoy (los días fijos de Mi día, en Juancito Ads).
+      empresasDeHoy: juancito.empresasDelDia(diasFijos, diaSemana(hoy)),
+    });
   }
 
   if (recurso === "elementos" && a in TIPOS_ELEMENTO && b) {

@@ -121,6 +121,10 @@ es; vale para toda la serie.
 escribas en esa lista entra en ese sombrero, y lo que agendes aquí va a su lista. Lo que escribas en «Mis tareas» lo
 pone en su sombrero el asistente. Los permisos se guardan cifrados con el secreto del cliente.
 
+**Tu semana en Google:** en **Plan → Tu semana tipo → Publicar en Google**, Kairos escribe tus bloques y recordatorios en
+un calendario aparte, «Kairos · Bloques», para que los veas en el teléfono. Se cambia desde la agenda (lo que cambies
+allá se reescribe). «Dejar de publicar» borra ese calendario.
+
 ## 7. Conectar Claude
 
 En claude.ai: **Ajustes → Conectores → Añadir conector personalizado**, con la dirección

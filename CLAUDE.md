@@ -59,6 +59,26 @@ llamada barata, comprobada por el código; si falla, sin sombrero). Antes caía 
 Pasar de acción a evento (o al revés) es `convertir` (agenda.js): se crea lo nuevo con id nuevo y se borra lo de antes,
 así Google y Juancito Ads se enteran por el camino de siempre.
 
+**Tu semana por bloques** (`src/lib/semana.js`, el «ritmo» del perfil): BLOQUES con su sombrero (Trabajo 8–12) y
+RECORDATORIOS fijos dentro (`clase: "recordatorio"`, `antes` minutos; Proverbios 11:45). Vive en Kairos (Plan → «Tu
+semana tipo», `EditarBloque` con la misma comprobación que el asistente: `aplicarRitmo`). «Traer de Google Calendar»
+(`rutinaDeGoogle`) pasa la rutina de Google a bloques (marca `google` = la serie: no sale dos veces) y quita lo «por
+confirmar» de partida a la misma hora. «Publicar en Google» la escribe, sólo de ida, en un calendario aparte «Kairos ·
+Bloques» (`publicarSemana`, una huella por bloque en `conexiones.datos.semana`; se relanza al guardar el perfil si la
+semana cambió) que NO se lee de vuelta. Con eso: Hoy → «Ahora» (`ahoraYDespues`, `tareasDelBloque`: las asignadas
+—`accion.bloque`— y las de su sombrero para hoy, con su `carga`), Plan → tocar un bloque de un día para asignarle
+tareas (`AsignarBloque`), las horas por sombrero salen de los bloques (`horasPorSombrero`), y Telegram avisa al empezar
+cada bloque (`avisa`: no los de Reino) y en cada recordatorio con su anticipación, nunca en el silencio (`enSilencio`).
+El asistente conoce los bloques (pone `bloque` en una tarea, crea recordatorios fijos como «ritmo»). **Reino** es un
+sombrero aparte de Iglesia (intimidad con Dios), el primero; `conReino` lo pone UNA vez al cargar el estado
+(`ajustes.reino`) y le pasa lo devocional. **La empresa del día** sale de los días fijos de Mi día en Juancito Ads
+(`listar_clientes` → «Días fijos: …», `leerDiasFijos`, `empresasDelDia`; `estado.empresasDeHoy`).
+
+**Tus 3 de hoy** (`enfoqueDelDia`, agenda.js): las fijadas con ★ (`accion.enfoque` = hoy; `completar` ya no lo borra,
+así lo hecho sigue a la vista) y, si faltan, las que propone por prioridad; «Hoy no» (`noHoy`); al terminarlas, la
+reserva propone lo siguiente. **Lo hecho se borra solo** (`ajustes.borrarHechas`, 7 días por defecto; `purgarHechas` una
+vez al día en la vuelta, con la reserva `purga:<día>`), sólo de la agenda.
+
 **Reflejar** (`worker/lib/reflejar.js`): UN sitio para que un cambio (pantalla, asistente, Telegram, Claude) vaya a
 Juancito Ads y a Google. Lo que falla fuera NO deshace lo de aquí: la agenda es la verdad y la vuelta reintenta.
 

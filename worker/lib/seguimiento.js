@@ -202,7 +202,8 @@ export async function vuelta(env, momento = new Date()) {
     if (!hayTelegram(env)) continue;
     const chat = await chatDe(db, owner);
     if (!chat) continue;
-    estado = { ...(await almacen.estado()), externos: await almacen.externosEntre(hoy, hoy).catch(() => []) };
+    const diasFijos = (await almacen.conexion(juancito.SERVICIO).catch(() => null))?.datos?.diasFijos;
+    estado = { ...(await almacen.estado()), externos: await almacen.externosEntre(hoy, hoy).catch(() => []), empresasDeHoy: juancito.empresasDelDia(diasFijos, diaSemana(hoy)) };
     for (const m of queToca({ estado, ahora, hoy })) {
       if (!(await almacen.reclamarAviso(m.clave))) continue;
       try {

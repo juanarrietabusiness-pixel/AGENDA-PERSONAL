@@ -183,6 +183,32 @@ export const leerClientes = (texto) =>
     .filter(Boolean)
     .slice(0, 100);
 
+const DIA_POR_NOMBRE = { domingo: 0, lunes: 1, martes: 2, miercoles: 3, jueves: 4, viernes: 5, sabado: 6 };
+const sinTildes = (t) => String(t ?? "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+/**
+ * Los días fijos de cada empresa (los de «Mi día» del calendario de marketing), de `listar_clientes`:
+ *   «· Café Luna — restaurante\n  Calendarios: …\n  Días fijos: lunes, miércoles» → { "Café Luna": [1, 3] }. Puro.
+ */
+export function leerDiasFijos(texto) {
+  const out = {};
+  let actual = null;
+  for (const linea of String(texto ?? "").split("\n")) {
+    if (linea.startsWith("·")) {
+      actual = linea.replace(/^·\s*/, "").split(/\s+[—·]\s+/)[0].trim() || null;
+      continue;
+    }
+    const m = /^\s*D[ií]as fijos:\s*(.+)$/i.exec(linea);
+    if (!m || !actual) continue;
+    const dias = m[1].split(",").map((d) => DIA_POR_NOMBRE[sinTildes(d).trim()]).filter((n) => Number.isInteger(n));
+    if (dias.length) out[actual] = [...new Set(dias)].sort();
+  }
+  return out;
+}
+
+/** Las empresas que tocan ese día (0 = domingo … 6 = sábado). */
+export const empresasDelDia = (diasFijos, diaSemana) => Object.entries(diasFijos ?? {}).filter(([, ds]) => ds.includes(diaSemana)).map(([n]) => n).sort();
+
 const esDeJuan = (t, nombre, todas) => todas || !t.asignada || t.asignada.toLowerCase().includes(String(nombre ?? "").toLowerCase().split(" ")[0]);
 
 /**
@@ -214,9 +240,10 @@ export async function sincronizar(env, almacen, { hoy, forzar = false } = {}) {
   try {
     const estado = await almacen.estado();
     const datos = c.datos;
-    if (!datos.clientesAl || Date.now() - datos.clientesAl > 3600_000) {
+    if (!datos.clientesAl || !datos.diasFijos || Date.now() - datos.clientesAl > 3600_000) {
       const txt = await herramienta(env, almacen, "listar_clientes", {});
       datos.clientes = leerClientes(txt);
+      datos.diasFijos = leerDiasFijos(txt);
       datos.clientesAl = Date.now();
     }
     const remotas = leerTareas(await herramienta(env, almacen, "ver_tareas", { estado: "todas" }));
@@ -233,7 +260,7 @@ export async function sincronizar(env, almacen, { hoy, forzar = false } = {}) {
     }
     if (cambios.length) await almacen.lote(cambios.map((a) => almacen.sentenciaElemento("accion", a)));
     const fresca = (await almacen.conexion(SERVICIO))?.datos ?? datos;
-    await almacen.guardarConexion(SERVICIO, { ...fresca, clientes: datos.clientes, clientesAl: datos.clientesAl }, { sincronizado: new Date().toISOString(), error: null });
+    await almacen.guardarConexion(SERVICIO, { ...fresca, clientes: datos.clientes, diasFijos: datos.diasFijos, clientesAl: datos.clientesAl }, { sincronizado: new Date().toISOString(), error: null });
     return { ok: true, cambios: cambios.length };
   } catch (e) {
     await almacen.marcarConexion(SERVICIO, { error: e.message });

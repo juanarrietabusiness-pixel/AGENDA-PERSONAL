@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import worker from "../worker/index.js";
 import { d1EnMemoria } from "./utils/d1Memoria.js";
-import { leerTareas, leerClientes, cambiosDesdeJuancito } from "../worker/lib/juancito.js";
+import { leerTareas, leerClientes, cambiosDesdeJuancito, leerDiasFijos, empresasDelDia } from "../worker/lib/juancito.js";
 import { deEventoGoogle, aEventoGoogle, aTareaGoogle, cambiosDesdeGoogle, cifrar, descifrar, deCalendarioGoogle, calendariosALeer, calendarioParaGuardar } from "../worker/lib/google.js";
 import { queToca, vuelta } from "../worker/lib/seguimiento.js";
 import { leerClasificacion, pedidoDeClasificar } from "../worker/lib/clasificar.js";
@@ -619,5 +619,17 @@ describe("lo hecho se borra solo", () => {
     await vuelta(env, new Date("2026-11-10T08:05:00Z"));
     ids = (await estado()).acciones.map((a) => a.id).sort();
     expect(ids).toContain("v5");
+  });
+});
+
+describe("la empresa del día (los días fijos de Mi día, en Juancito Ads)", () => {
+  const TEXTO = "· Café Luna — restaurante · @cafe\n  Calendarios: 2026-11\n  Días fijos: lunes, miércoles\n· Dcasa · @dcasa\n  Calendarios: ninguno\n· Baby Caleb\n  Calendarios: 2026-11\n  Días fijos: miércoles, sábado";
+  it("se leen de listar_clientes, y se sabe cuál toca cada día", () => {
+    const dias = leerDiasFijos(TEXTO);
+    expect(dias).toEqual({ "Café Luna": [1, 3], "Baby Caleb": [3, 6] });
+    expect(empresasDelDia(dias, 3)).toEqual(["Baby Caleb", "Café Luna"]);
+    expect(empresasDelDia(dias, 2)).toEqual([]);
+    expect(empresasDelDia(undefined, 1)).toEqual([]);
+    expect(leerClientes(TEXTO)).toEqual(["Café Luna", "Dcasa", "Baby Caleb"]);
   });
 });

@@ -497,6 +497,13 @@ pantalla abres primero, qué te sobra y qué buscas y no encuentras.
 - **El seguimiento, configurable** (Ajustes → Seguimiento) y por fin funcionando: el Worker revisa cada minuto qué toca
   mandarte por Telegram.
 
+**Fase 3, hecha:** tus 3 de hoy (con 2 de reserva; al terminarlas propone lo siguiente), el borrado automático de lo
+hecho (a la semana, cambiable), Reino como sombrero aparte de Iglesia, tu semana por bloques viviendo en Kairos (bloques
+por sombrero y recordatorios fijos dentro; traer la rutina de Google; publicarla en «Kairos · Bloques»), Hoy → «Ahora»
+con las tareas del bloque y lo que sigue, asignar tareas a un bloque desde Plan con su carga, las horas de cada
+sombrero desde los bloques, avisos por Telegram al empezar cada bloque (menos Reino) y en cada recordatorio, y la
+empresa del día desde Juancito Ads.
+
 **Lo que queda:** visión y metas (dijiste «por el momento no»).
 
 ---
