@@ -82,19 +82,27 @@ de allá que es tuyo o no tiene a nadie asignado aparece aquí. Las dos aplicaci
 
 ## 6. Google Calendar y Google Tasks (las dos cuentas)
 
-Una sola vez, en <https://console.cloud.google.com> con la cuenta que quieras (vale la de la agencia, la del calendario
-de marketing ya tiene proyecto):
+Una sola vez, en <https://console.cloud.google.com>, en un proyecto nuevo «Agenda personal» (aparte del calendario de
+marketing, para no tocar lo suyo):
 
 1. **APIs y servicios → Biblioteca**: activa **Google Calendar API** y **Google Tasks API**.
-2. **Pantalla de consentimiento de OAuth**: tipo **Externo**, nombre «Agenda personal», tu correo. En **Permisos**
-   añade `…/auth/calendar` y `…/auth/tasks`. Pulsa **Publicar la app** (que diga **En producción**: «en prueba», el
-   permiso caduca a los 7 días y la agenda deja de leer tu calendario sin avisar).
-3. **Credenciales → Crear credenciales → ID de cliente de OAuth → Aplicación web**. En **URI de redireccionamiento
-   autorizados** pon, las dos:
-   - `https://agenda.juancitoads.com/api/google/vuelta`
-   - `https://agenda-personal.juanarrietabusiness.workers.dev/api/google/vuelta`
-4. Copia el **ID de cliente** y el **Secreto del cliente** a Cloudflare como `GOOGLE_CLIENT_ID` y
-   `GOOGLE_CLIENT_SECRET` (tipo **Secret**, paso 2).
+2. **Google Auth Platform → Comenzar**: nombre «Agenda personal», tu correo, público **Externo**.
+3. **Desarrollo de la marca (Branding)** —Google no deja publicar sin esto—:
+   - Página principal de la aplicación: `https://agenda.juancitoads.com`
+   - Política de privacidad: `https://agenda.juancitoads.com/privacidad`
+   - Dominios autorizados: `juancitoads.com`
+   - **Sin logotipo** (con logo, Google exige verificar la app).
+4. **Acceso a los datos (Data Access)**: añade a mano `https://www.googleapis.com/auth/calendar` y
+   `https://www.googleapis.com/auth/tasks`.
+5. **Público (Audience) → Publicar app**: que diga **En producción** («en prueba», el permiso caduca a los 7 días y la
+   agenda deja de leer tu calendario sin avisar). La verificación no hace falta: la usas sólo tú.
+6. **Clientes → Crear cliente → Aplicación web**, con la URI de redireccionamiento
+   `https://agenda.juancitoads.com/api/google/vuelta`. Copia el **ID de cliente** y el **Secreto del cliente** en ese
+   momento: Google enseña el secreto una sola vez.
+7. Ponlos en Cloudflare como `GOOGLE_CLIENT_ID` y `GOOGLE_CLIENT_SECRET` (tipo **Secret**, paso 2).
+
+Conecta siempre desde `agenda.juancitoads.com` (desde la dirección de workers.dev Google diría que la vuelta no es la
+registrada).
 
 Después, en la agenda: **Ajustes → Google → Conectar Google** con la cuenta personal, y otra vez **Conectar otra
 cuenta** con la de la agencia. Google te avisará de que la app «no está verificada» (es tuya y sólo la usas tú):
