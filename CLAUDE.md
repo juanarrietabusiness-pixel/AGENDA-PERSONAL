@@ -79,6 +79,15 @@ así lo hecho sigue a la vista) y, si faltan, las que propone por prioridad; «H
 reserva propone lo siguiente. **Lo hecho se borra solo** (`ajustes.borrarHechas`, 7 días por defecto; `purgarHechas` una
 vez al día en la vuelta, con la reserva `purga:<día>`), sólo de la agenda.
 
+**Menos ruido, más foco** (decisión de Juan: «que promueva el enfoque, que sea fácil de entender»). En Hoy, «Ahora» y «Tus
+3» van en UNA tarjeta corta (`.foco`): el bloque en una línea con «Ver sus N tareas» (filtra la lista) y Tus 3 como filas
+compactas (`Fila compacta`: sin tarjeta, sólo lo urgente; ★ fija, ✕ es «Hoy no»). Añadir es una línea; el sombrero sale
+como chips AL ESCRIBIR (propone el filtrado o el del bloque de ahora) y los recordatorios se añaden en su pestaña, con
+hora. En Plan cada día tiene jerarquía (`diaEnBloques`): el BLOQUE es una franja con sus recordatorios y sus tareas
+DENTRO, lo demás aparte, con una leyenda; en el teléfono, un día a la vez. La semana tipo y los sombreros van plegados, y
+«Por revisar» (`porRevisar`: sin sombrero, los que se cruzan, lo de ejemplo) se arregla en un toque. Lo que no hace
+falta ver siempre, plegado.
+
 **Reflejar** (`worker/lib/reflejar.js`): UN sitio para que un cambio (pantalla, asistente, Telegram, Claude) vaya a
 Juancito Ads y a Google. Lo que falla fuera NO deshace lo de aquí: la agenda es la verdad y la vuelta reintenta.
 

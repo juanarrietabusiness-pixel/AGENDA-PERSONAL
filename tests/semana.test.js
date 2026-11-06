@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import worker from "../worker/index.js";
 import { d1EnMemoria } from "./utils/d1Memoria.js";
-import { conReino, rutinaDeGoogle, textoDias, horasPorSombrero, ahoraYDespues, tareasDelBloque, carga, semanaDelDia, sombreroPorTitulo } from "../src/lib/semana.js";
+import { conReino, rutinaDeGoogle, textoDias, horasPorSombrero, ahoraYDespues, tareasDelBloque, carga, semanaDelDia, sombreroPorTitulo, diaEnBloques, choques, porRevisar, minutosSinSombrero } from "../src/lib/semana.js";
+import { horaCorta, rangoCorto } from "../src/lib/fechas.js";
 import { aplicarRitmo, RITMO_BASE } from "../src/lib/ritmo.js";
 import { SOMBREROS, sombrerosDe } from "../src/lib/sombreros.js";
 import { claseDeGoogle } from "../src/lib/agenda.js";
@@ -239,5 +240,68 @@ describe("el asistente y los bloques", () => {
       { tipo: "accion", titulo: "Inventada", sombrero: "trabajo", cuando: "2026-11-10", bloque: "no-existe" },
     ] }, { hoy: "2026-11-06", ritmo });
     expect(o.acciones.map((a) => a.bloque)).toEqual([ritmo[0].id, null, null]);
+  });
+});
+
+describe("ver la semana sin ruido", () => {
+  const trabajo = bloque({ titulo: "Trabajo", sombrero: "trabajo", dias: [1, 2, 3, 4, 5], inicio: "08:00", fin: "12:00" });
+  const tarde = { ...bloque({ titulo: "Trabajo", sombrero: "trabajo", dias: [1], inicio: "13:00", fin: "17:00" }), id: "tarde" };
+  const reino = { ...bloque({ titulo: "Reino", sombrero: "reino", dias: [1], inicio: "06:00", fin: "08:00" }), id: "reino" };
+  const proverbios = { ...bloque({ titulo: "Proverbios", sombrero: "reino", clase: "recordatorio", dias: [1, 2, 3, 4, 5], inicio: "11:45" }), id: "prov" };
+  const sueltoRec = { ...bloque({ titulo: "Tomar agua", clase: "recordatorio", dias: [1], inicio: "12:30" }), id: "agua" };
+  const ritmo = [trabajo, tarde, reino, proverbios, sueltoRec];
+
+  it("las horas en corto: sin «:00» y el sufijo una vez si lo comparten", () => {
+    expect(horaCorta("08:00")).toBe("8 a. m.");
+    expect(horaCorta("11:45")).toBe("11:45 a. m.");
+    expect(horaCorta("13:00")).toBe("1 p. m.");
+    expect(horaCorta("00:30")).toBe("12:30 a. m.");
+    expect(rangoCorto("13:00", "17:00")).toBe("1–5 p. m.");
+    expect(rangoCorto("08:00", "12:00")).toBe("8 a. m.–12 p. m.");
+    expect(rangoCorto("21:30", "22:15")).toBe("9:30–10:15 p. m.");
+    expect(rangoCorto("11:45", "11:45")).toBe("11:45 a. m.");
+  });
+
+  it("un día con su jerarquía: los recordatorios y las tareas dentro de su bloque, lo demás aparte", () => {
+    const a = (datos) => nuevaAccion({ lista: "siguientes", cuando: LUNES, ...datos }, LUNES);
+    const tareas = [
+      a({ id: "t1", titulo: "Propuesta", sombrero: "trabajo" }),
+      a({ id: "t2", titulo: "Llamar", sombrero: "trabajo", bloque: "tarde" }),
+      a({ id: "t3", titulo: "Pagar la luz", sombrero: "personal" }),
+      a({ id: "r1", titulo: "Llamar al pastor", clase: "recordatorio", hora: "06:30" }),
+      a({ id: "r2", titulo: "Sin hora", clase: "recordatorio" }),
+    ];
+    const d = diaEnBloques(ritmo, LUNES, tareas);
+    expect(d.bloques.map((x) => x.bloque.id)).toEqual(["reino", trabajo.id, "tarde"]);
+    const de = (id) => d.bloques.find((x) => x.bloque.id === id);
+    expect(de(trabajo.id).recordatorios.map((r) => r.id)).toEqual(["prov"]);
+    expect(de(trabajo.id).tareas.map((t) => t.id)).toEqual(["t1"]);
+    expect(de("tarde").tareas.map((t) => t.id)).toEqual(["t2"]);
+    expect(de("reino").recordatorios.map((r) => r.id)).toEqual(["r1"]);
+    expect(d.tareas.map((t) => t.id)).toEqual(["t3"]);
+    expect(d.recordatorios.map((r) => r.id)).toEqual(["agua", "r2"]);
+  });
+
+  it("lo que hay que revisar: sin sombrero, los que se cruzan y lo «por confirmar»", () => {
+    const celula = { ...bloque({ titulo: "Célula", sombrero: "iglesia", dias: [4], inicio: "19:00", fin: "21:30" }), id: "c1" };
+    const vieja = { ...bloque({ titulo: "Célula", sombrero: "iglesia", dias: [4], inicio: "20:00", fin: "21:30" }), id: "c2" };
+    const mentoria = { ...bloque({ titulo: "Mentoría", dias: [3], inicio: "18:00", fin: "20:00" }), id: "m", sombrero: null };
+    const dudoso = { ...bloque({ titulo: "Grabación", sombrero: "artistico", dias: [4], inicio: "15:00", fin: "18:00" }), id: "g", porConfirmar: true };
+    const pegado = { ...bloque({ titulo: "Después", sombrero: "personal", dias: [4], inicio: "21:30", fin: "22:00" }), id: "p" };
+    const r = porRevisar([celula, vieja, mentoria, dudoso, pegado], sombrerosDe({}));
+    expect(r.sinSombrero.map((e) => e.id)).toEqual(["m"]);
+    expect(choques([celula, vieja, pegado]).map((c) => [c.a.id, c.b.id, c.dias])).toEqual([["c1", "c2", [4]]]);
+    expect(r.porConfirmar.map((e) => e.id)).toEqual(["g"]);
+    expect(minutosSinSombrero([celula, mentoria], sombrerosDe({}))).toBe(120);
+  });
+
+  it("sugiere el sombrero de los títulos de su rutina", () => {
+    const s = sombrerosDe({ sombreros: [{ ...SOMBREROS[0] }, ...SOMBREROS.slice(1)] });
+    const conReino = [{ id: "reino", nombre: "Reino" }, ...s];
+    expect(sombreroPorTitulo("Intercesión", conReino)).toBe("reino");
+    expect(sombreroPorTitulo("RDV - Estudio Bíblico", conReino)).toBe("iglesia");
+    expect(sombreroPorTitulo("RETIRO", conReino)).toBe("iglesia");
+    expect(sombreroPorTitulo("TIME MATRIMONIO", conReino)).toBe("personal");
+    expect(sombreroPorTitulo("HOGAR - TASK", conReino)).toBe("personal");
   });
 });

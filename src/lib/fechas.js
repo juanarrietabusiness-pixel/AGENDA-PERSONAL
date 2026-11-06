@@ -103,6 +103,25 @@ export function textoHora(h) {
   return `${h12}:${h.slice(3, 5)} ${sufijo}`;
 }
 
+/** «8 a. m.», «11:45 a. m.», «1 p. m.»: sin los «:00», para que quepa en una columna estrecha. */
+export function horaCorta(h) {
+  if (!esHora(h)) return "";
+  const hh = +h.slice(0, 2);
+  const mm = h.slice(3, 5);
+  const h12 = hh % 12 === 0 ? 12 : hh % 12;
+  return `${h12}${mm === "00" ? "" : `:${mm}`} ${hh < 12 ? "a. m." : "p. m."}`;
+}
+
+/** «1–5 p. m.», «8 a. m.–12 p. m.», «9:30–10:15 p. m.»: el sufijo una vez si los dos lo comparten. */
+export function rangoCorto(inicio, fin) {
+  if (!esHora(inicio)) return "";
+  if (!esHora(fin) || fin === inicio) return horaCorta(inicio);
+  const a = horaCorta(inicio);
+  const b = horaCorta(fin);
+  const mismo = (+inicio.slice(0, 2) < 12) === (+fin.slice(0, 2) < 12);
+  return mismo ? `${a.replace(/ [ap]\. m\.$/, "")}–${b}` : `${a}–${b}`;
+}
+
 /** «jue 5 nov», con el año si no es el de `hoy`. */
 export function textoCorto(f, hoy = null) {
   const { anio, mes, dia } = partes(f);

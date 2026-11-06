@@ -1,7 +1,7 @@
 import { useId, useMemo, useState } from "react";
 import Icon from "../componentes/Icon.jsx";
 import Fila from "../componentes/Fila.jsx";
-import { textoLargo, textoCorto, textoHora, sumarDias } from "../lib/fechas.js";
+import { textoLargo, textoCorto, textoHora, sumarDias, rangoCorto, horaCorta } from "../lib/fechas.js";
 import { sombrerosDe, estiloDe, nombreDe } from "../lib/sombreros.js";
 import { elegirVersiculo, ATRIBUCION } from "../lib/versiculos.js";
 import { variante } from "../lib/mensajes.js";
@@ -107,7 +107,7 @@ export default function Hoy({ estado, hoy, hora, onHecha, onAbrir, onDecidir, on
       {lista.map((a) => (
         <Fila key={a.id} accion={a} hoy={hoy} sombreros={sombreros} proyectos={proyectos} onHecha={onHecha} onAbrir={(x) => onAbrir("accion", x)} onEnfoque={conEstrella ? onEnfoque : undefined} mostrarDia={variosDias || a.cuando !== hoy}>
           {conDecidir && a.estado === "abierta" && a.cuando && a.cuando < hoy && (
-            <div className="botones">
+            <div className="botones decidir" role="group" aria-label={`¿Cuándo la haces? ${a.titulo}`}>
               <button type="button" className="boton" onClick={() => onDecidir(a.id, "hoy")}>Hoy</button>
               <button type="button" className="boton" onClick={() => onDecidir(a.id, "manana")}>Mañana</button>
               <button type="button" className="boton fantasma" onClick={() => onDecidir(a.id, "algun-dia")}>Algún día</button>
@@ -134,15 +134,26 @@ export default function Hoy({ estado, hoy, hora, onHecha, onAbrir, onDecidir, on
   const vacio = (texto) => <p className="vacio">{texto}</p>;
 
   // Añadir a mano, sin pasar por el asistente: el día que estás mirando (o hoy, si miras la semana o el mes).
-  const anadir = ({ titulo, sombrero: s, clase }) => {
-    const cuando = periodo === "dia" ? dia : hoy;
-    cambiar?.((e) => ({ ...e, acciones: [...e.acciones, nuevaAccion({ titulo, sombrero: s, clase, lista: "siguientes", cuando, origen: "app" }, hoy)] }));
+  const cuandoAnadir = periodo === "dia" ? dia : hoy;
+  const paraCuando = cuandoAnadir === hoy ? "para hoy" : `para el ${textoCorto(cuandoAnadir, hoy)}`;
+  // El sombrero que se propone: el filtrado, o el del bloque en que estás (si miras hoy).
+  const sombreroPropuesto = filtro ?? (cuandoAnadir === hoy ? ahora?.sombrero ?? null : null);
+  const anadir = ({ titulo, sombrero: s, clase, hora: h }) => {
+    cambiar?.((e) => ({ ...e, acciones: [...e.acciones, nuevaAccion({ titulo, sombrero: s, clase, hora: h, lista: "siguientes", cuando: cuandoAnadir, origen: "app" }, hoy)] }));
+  };
+  // «Ver sus tareas» del bloque de ahora: filtra la lista por su sombrero y baja a ella.
+  const verSusTareas = () => {
+    ponerPeriodo("dia");
+    setDia(hoy);
+    setFiltro(ahora?.sombrero ?? null);
+    setColumna("tareas");
+    requestAnimationFrame(() => document.querySelector(".pestanas-columnas")?.scrollIntoView({ behavior: "smooth", block: "start" }));
   };
 
   const contenido = {
     tareas: (
       <>
-        {cambiar && <AnadirRapido sombreros={sombreros} inicial={filtro} onAnadir={anadir} />}
+        {cambiar && <AnadirRapido sombreros={sombreros} inicial={sombreroPropuesto} paraCuando={paraCuando} onAnadir={anadir} />}
         {datos.tareas.length ? filas(datos.tareas, { conDecidir: true, conEstrella: Boolean(onEnfoque) }) : vacio(periodo === "dia" ? "Nada planeado para este día. Mira «Sin fecha» o pídele algo al asistente." : "Nada planeado en este periodo.")}
         {datos.libres.length > 0 && (
           <div className="plegable">
@@ -175,7 +186,7 @@ export default function Hoy({ estado, hoy, hora, onHecha, onAbrir, onDecidir, on
                     <button type="button" className="evento-titulo enlace" onClick={() => onAbrir("evento", eventos.find((x) => x.id === e.id) ?? e)}>{e.titulo}</button>
                   )}
                   <div className="accion-meta">
-                    {e.fuente === "google" ? <span className="chip">{e.calendarioNombre ?? `Google · ${e.cuenta}`}</span> : <span>{nombreDe(e.sombrero, sombreros)}</span>}
+                    {e.fuente === "google" ? <span className="chip">{e.calendarioNombre ?? (e.cuenta ? `Google · ${e.cuenta}` : "Google Calendar")}</span> : <span>{nombreDe(e.sombrero, sombreros)}</span>}
                     {e.fin && e.inicio && <span>hasta {textoHora(e.fin)}</span>}
                     {e.lugar && <span>{e.lugar}</span>}
                     {e.notas && <span title={e.notas}><Icon name="file" size={11} style={{ display: "inline", verticalAlign: "-1px" }} /> Notas</span>}
@@ -212,6 +223,7 @@ export default function Hoy({ estado, hoy, hora, onHecha, onAbrir, onDecidir, on
     ),
     recordatorios: (
       <>
+        {cambiar && <AnadirRapido sombreros={sombreros} inicial={sombreroPropuesto} paraCuando={paraCuando} clase="recordatorio" onAnadir={anadir} />}
         {datos.recordatorios.length ? filas(datos.recordatorios) : vacio("Sin recordatorios.")}
         {datos.recordatoriosHechos.length > 0 && <p className="vacio">{datos.recordatoriosHechos.length} ya tenido{datos.recordatoriosHechos.length === 1 ? "" : "s"} en cuenta.</p>}
       </>
@@ -257,75 +269,89 @@ export default function Hoy({ estado, hoy, hora, onHecha, onAbrir, onDecidir, on
         </button>
       )}
 
-      {verAhora && (
-        <section className="tarjeta ahora" style={estiloDe(ahora?.sombrero, sombreros)} aria-labelledby="ahora-t">
-          <div className="seccion-cabeza">
-            <h2 id="ahora-t"><Icon name="clock" size={14} /> Ahora · {ahora ? ahora.titulo : "libre"}</h2>
-            {ahora && <span className="nota">{textoHora(ahora.inicio)} a {textoHora(ahora.fin)}</span>}
-          </div>
-          {ahora && ahora.sombrero && sombreros.find((x) => x.id === ahora.sombrero)?.fuente === "juancito-ads" && empresasHoy.length > 0 && (
-            <p className="ahora-empresa"><Icon name="building" size={14} /> Hoy toca: <strong>{empresasHoy.join(", ")}</strong></p>
+      {(verAhora || enfoque.tres.length > 0 || enfoque.reserva.length > 0) && (
+        <section className="tarjeta foco" aria-label="Tu foco de hoy">
+          {verAhora && (
+            <div className="ahora-tira" style={estiloDe(ahora?.sombrero, sombreros)}>
+              <p className="ahora-linea">
+                <span className="ahora-etiqueta"><Icon name="clock" size={13} /> Ahora</span>
+                {ahora ? (
+                  <>
+                    <strong>{ahora.titulo}</strong>
+                    <span className="nota">{rangoCorto(ahora.inicio, ahora.fin)}</span>
+                  </>
+                ) : (
+                  <strong>Fuera de tus bloques</strong>
+                )}
+              </p>
+              {ahora && ahora.sombrero && sombreros.find((x) => x.id === ahora.sombrero)?.fuente === "juancito-ads" && empresasHoy.length > 0 && (
+                <p className="ahora-nota"><Icon name="building" size={13} /> Hoy toca: <strong>{empresasHoy.join(", ")}</strong></p>
+              )}
+              {ahora?.sombrero === "reino" ? (
+                <p className="ahora-nota">Tu tiempo con Dios. Lo demás espera.</p>
+              ) : ahora && tareasAhora.length > 0 ? (
+                <p className="ahora-nota">
+                  {cargaAhora?.sobra > 0 && <span className="rojo-texto">No cabe todo ({textoHoras(cargaAhora.ocupado)} en {textoHoras(cargaAhora.cabe)}). </span>}
+                  <button type="button" className="enlace" onClick={verSusTareas}>Ver sus {tareasAhora.length} tarea{tareasAhora.length === 1 ? "" : "s"}</button>
+                </p>
+              ) : ahora ? (
+                <p className="ahora-nota">Nada planeado para este bloque.</p>
+              ) : null}
+              {despues.length > 0 && <p className="ahora-despues">Después: {despues.map((e) => `${horaCorta(e.inicio)} ${e.titulo}`).join(" · ")}</p>}
+            </div>
           )}
-          {ahora ? (
-            ahora.sombrero === "reino" ? (
-              <p className="nota">Tu tiempo con Dios. Lo demás espera.</p>
-            ) : tareasAhora.length ? (
-              <>
-                {filas(tareasAhora.slice(0, 5), { conEstrella: Boolean(onEnfoque) })}
-                {tareasAhora.length > 5 && <p className="vacio">Y {tareasAhora.length - 5} más de {nombreDe(ahora.sombrero, sombreros)}.</p>}
-                {cargaAhora && <p className={`nota${cargaAhora.sobra > 0 ? " rojo-texto" : ""}`}>{textoHoras(cargaAhora.ocupado)} de tareas en {textoHoras(cargaAhora.cabe)} de bloque{cargaAhora.sobra > 0 ? ": no cabe todo, escoge o mueve algo" : ""}.</p>}
-              </>
-            ) : (
-              <p className="nota">Nada para este bloque. Escoge algo de {nombreDe(ahora.sombrero, sombreros)} o asígnale tareas en <a href="#plan">Plan</a>.</p>
-            )
-          ) : (
-            <p className="nota">Fuera de tus bloques. Un buen momento para algo de «Sin fecha» o para descansar.</p>
-          )}
-          {despues.length > 0 && <p className="ahora-despues">Después: {despues.map((e) => `${textoHora(e.inicio)} ${e.titulo}`).join(" · ")}</p>}
-        </section>
-      )}
 
-      {(enfoque.tres.length > 0 || enfoque.reserva.length > 0) && (
-        <section className="tarjeta enfoque" aria-labelledby="enfoque-t">
-          <div className="seccion-cabeza">
-            <h2 id="enfoque-t"><Icon name="target" size={14} /> Tus {TRES} de hoy</h2>
-            <span className="nota">{enfoque.tres.filter((a) => a.estado === "hecha").length} de {enfoque.tres.length} hechas</span>
-          </div>
-          <ul className="lista">
-            {enfoque.tres.map((a) => (
-              <Fila key={a.id} accion={a} hoy={hoy} sombreros={sombreros} proyectos={proyectos} onHecha={(id) => onHecha(id, { fijar: true })} onAbrir={(x) => onAbrir("accion", x)} mostrarDia={a.cuando !== hoy}>
-                {a.estado === "abierta" && (
-                  <div className="botones">
-                    {a.enfoque === hoy ? (
-                      <button type="button" className="boton fantasma" onClick={() => onEnfoque?.(a.id)}>Quitar de mis 3</button>
-                    ) : (
-                      <>
-                        <span className="chip">Te la propongo</span>
-                        <button type="button" className="boton fantasma" onClick={() => onEnfoque?.(a.id)}><Icon name="star" size={14} /> Fijar</button>
-                        <button type="button" className="boton fantasma" onClick={() => onNoHoy?.(a.id)}>Hoy no</button>
-                      </>
+          {(enfoque.tres.length > 0 || enfoque.reserva.length > 0) && (
+            <div className="foco-tres" aria-labelledby="enfoque-t">
+              <div className="foco-cabeza">
+                <h2 id="enfoque-t"><Icon name="target" size={14} /> Tus {TRES} de hoy</h2>
+                <span className="nota">{enfoque.tres.filter((a) => a.estado === "hecha").length} de {enfoque.tres.length}</span>
+              </div>
+              <ul className="lista lista-compacta">
+                {enfoque.tres.map((a) => (
+                  <Fila
+                    key={a.id}
+                    accion={a}
+                    hoy={hoy}
+                    sombreros={sombreros}
+                    proyectos={proyectos}
+                    compacta
+                    onHecha={(id) => onHecha(id, { fijar: true })}
+                    onAbrir={(x) => onAbrir("accion", x)}
+                    onEnfoque={onEnfoque}
+                    onHoyNo={a.enfoque !== hoy ? onNoHoy : undefined}
+                    mostrarDia={a.cuando !== hoy}
+                  />
+                ))}
+              </ul>
+              {enfoque.tres.some((a) => a.estado === "abierta" && a.enfoque !== hoy) && (
+                <p className="foco-ayuda">
+                  Las de <Icon name="star" size={12} style={{ display: "inline", verticalAlign: "-2px" }} /> vacía te las propongo yo: tócala para fijarla, o <Icon name="close" size={12} style={{ display: "inline", verticalAlign: "-2px" }} /> si hoy no.
+                </p>
+              )}
+              {enfoque.reserva.length > 0 &&
+                (enfoque.todasHechas ? (
+                  <>
+                    <p className="enfoque-logro" role="status">¡Hiciste tus {enfoque.tres.length}! Si te queda tiempo, lo siguiente:</p>
+                    <ul className="lista lista-compacta">
+                      {enfoque.reserva.map((a) => <Fila key={a.id} accion={a} hoy={hoy} sombreros={sombreros} proyectos={proyectos} compacta onHecha={onHecha} onAbrir={(x) => onAbrir("accion", x)} onEnfoque={onEnfoque} mostrarDia={a.cuando !== hoy} />)}
+                    </ul>
+                  </>
+                ) : (
+                  <div className="plegable">
+                    <button type="button" className="boton fantasma" aria-expanded={verReserva} onClick={() => setVerReserva((x) => !x)}>
+                      <Icon name={verReserva ? "chevronUp" : "chevronDown"} size={16} /> Si te sobra tiempo ({enfoque.reserva.length})
+                    </button>
+                    {verReserva && (
+                      <ul className="lista lista-compacta">
+                        {enfoque.reserva.map((a) => <Fila key={a.id} accion={a} hoy={hoy} sombreros={sombreros} proyectos={proyectos} compacta onHecha={onHecha} onAbrir={(x) => onAbrir("accion", x)} onEnfoque={onEnfoque} mostrarDia={a.cuando !== hoy} />)}
+                      </ul>
                     )}
                   </div>
-                )}
-              </Fila>
-            ))}
-          </ul>
-          {enfoque.reserva.length > 0 && (
-            enfoque.todasHechas ? (
-              <>
-                <p className="enfoque-logro" role="status">¡Hiciste tus {enfoque.tres.length}! Si te queda tiempo, lo siguiente:</p>
-                {filas(enfoque.reserva, { conEstrella: Boolean(onEnfoque) })}
-              </>
-            ) : (
-              <div className="plegable">
-                <button type="button" className="boton fantasma" aria-expanded={verReserva} onClick={() => setVerReserva((x) => !x)}>
-                  <Icon name={verReserva ? "chevronUp" : "chevronDown"} size={16} /> Si te sobra tiempo ({enfoque.reserva.length})
-                </button>
-                {verReserva && filas(enfoque.reserva, { conEstrella: Boolean(onEnfoque) })}
-              </div>
-            )
+                ))}
+              {enfoque.todasHechas && !enfoque.reserva.length && <p className="enfoque-logro" role="status">¡Hiciste tus {enfoque.tres.length}! No queda nada urgente ni de valor alto.</p>}
+            </div>
           )}
-          {enfoque.todasHechas && !enfoque.reserva.length && <p className="enfoque-logro" role="status">¡Hiciste tus {enfoque.tres.length}! No queda nada urgente ni de valor alto. Descansa o adelanta algo de «Sin fecha».</p>}
         </section>
       )}
 
@@ -342,9 +368,9 @@ export default function Hoy({ estado, hoy, hora, onHecha, onAbrir, onDecidir, on
           {(dia < r.desde || dia > r.hasta || hoy < r.desde || hoy > r.hasta) && <button type="button" className="boton" onClick={() => setDia(hoy)}>Hoy</button>}
         </div>
         <label className="orden">
-          <span>Ordenar por</span>
+          <span className="solo-lector">Ordenar</span>
           <select className="campo" value={orden} onChange={(e) => ponerOrden(e.target.value)}>
-            {Object.entries(ORDENES).map(([o, t]) => <option key={o} value={o}>{t}</option>)}
+            {Object.entries(ORDENES).map(([o, t]) => <option key={o} value={o}>Por {t.toLowerCase()}</option>)}
           </select>
         </label>
       </div>
@@ -385,57 +411,67 @@ export default function Hoy({ estado, hoy, hora, onHecha, onAbrir, onDecidir, on
   );
 }
 
-/** Escribir una tarea y Enter: entra al momento, con el sombrero escogido (se recuerda el último). */
-function AnadirRapido({ sombreros, inicial, onAnadir }) {
+/**
+ * Añadir a mano: se escribe y Enter. El sombrero se escoge (o se cambia) con los chips que salen al escribir; se propone
+ * el filtrado o el del bloque en que estás, y si no, el último que usaste. Un recordatorio puede llevar su hora.
+ */
+function AnadirRapido({ sombreros, inicial, clase = "tarea", paraCuando = "para hoy", onAnadir }) {
   const id = useId();
   const [titulo, setTitulo] = useState("");
-  const [s, setS] = useState(() => {
+  const [hora, setHora] = useState("");
+  const [tocado, setTocado] = useState(null);
+  const ultimo = (() => {
     try {
       const v = localStorage.getItem("hoy-sombrero");
-      return sombreros.some((x) => x.id === v) ? v : sombreros[0]?.id ?? "";
+      return sombreros.some((x) => x.id === v) ? v : "";
     } catch {
-      return sombreros[0]?.id ?? "";
+      return "";
     }
-  });
-  const [clase, setClase] = useState("tarea");
-  const [tocado, setTocado] = useState(false);
-  // Con un sombrero filtrado arriba, se propone ése; si escoges otro aquí, manda el tuyo.
-  const elegido = !tocado && inicial && sombreros.some((x) => x.id === inicial) ? inicial : s;
+  })();
+  const elegido = tocado ?? (inicial && sombreros.some((x) => x.id === inicial) ? inicial : ultimo);
+  const escoger = (v) => {
+    setTocado(v);
+    try {
+      localStorage.setItem("hoy-sombrero", v);
+    } catch {
+      /* sin almacenamiento: sólo no se recuerda */
+    }
+  };
   const enviar = (e) => {
     e.preventDefault();
     const t = titulo.trim();
     if (!t) return;
-    onAnadir({ titulo: t, sombrero: elegido || null, clase });
+    onAnadir({ titulo: t, sombrero: elegido || null, clase, hora: clase === "recordatorio" && hora ? hora : null });
     setTitulo("");
+    setHora("");
+    setTocado(null);
   };
+  const esRec = clase === "recordatorio";
   return (
-    <form className="anadir-hoy" onSubmit={enviar} style={estiloDe(elegido, sombreros)}>
-      <label className="solo-lector" htmlFor={`${id}-t`}>Añadir una tarea</label>
-      <input id={`${id}-t`} className="campo" placeholder={clase === "recordatorio" ? "Añadir un recordatorio…" : "Añadir una tarea…"} value={titulo} onChange={(e) => setTitulo(e.target.value)} autoComplete="off" />
-      <div className="anadir-hoy-opciones">
-        <label className="solo-lector" htmlFor={`${id}-s`}>Sombrero</label>
-        <select
-          id={`${id}-s`}
-          className="campo"
-          value={elegido}
-          onChange={(e) => {
-            setS(e.target.value);
-            setTocado(true);
-            try {
-              localStorage.setItem("hoy-sombrero", e.target.value);
-            } catch {
-              /* sin almacenamiento: sólo no se recuerda */
-            }
-          }}
-        >
-          {sombreros.map((x) => <option key={x.id} value={x.id}>{x.nombre}</option>)}
-          <option value="">Sin sombrero</option>
-        </select>
-        <button type="button" className="chip-boton" aria-pressed={clase === "recordatorio"} onClick={() => setClase((c) => (c === "recordatorio" ? "tarea" : "recordatorio"))}>
-          <Icon name="bell" size={14} /> Recordatorio
-        </button>
-        <button type="submit" className="boton primario" aria-label="Añadir" disabled={!titulo.trim()}><Icon name="plus" size={18} /></button>
+    <form className="anadir" onSubmit={enviar}>
+      <div className="anadir-linea" style={estiloDe(elegido, sombreros)}>
+        <Icon name={esRec ? "bell" : "plus"} size={18} />
+        <label className="solo-lector" htmlFor={`${id}-t`}>{esRec ? "Añadir un recordatorio" : "Añadir una tarea"}</label>
+        <input id={`${id}-t`} className="anadir-campo" placeholder={esRec ? `Añadir un recordatorio ${paraCuando}…` : `Añadir una tarea ${paraCuando}…`} value={titulo} onChange={(e) => setTitulo(e.target.value)} autoComplete="off" />
+        {esRec && (
+          <>
+            <label className="solo-lector" htmlFor={`${id}-h`}>Hora (opcional)</label>
+            <input id={`${id}-h`} type="time" className="anadir-hora" value={hora} onChange={(e) => setHora(e.target.value)} />
+          </>
+        )}
+        <button type="submit" className="boton primario" disabled={!titulo.trim()}>Añadir</button>
       </div>
+      {titulo.trim() && (
+        <div className="anadir-sombrero" role="group" aria-label="Sombrero">
+          <span>Sombrero:</span>
+          {sombreros.map((x) => (
+            <button key={x.id} type="button" className="chip-boton" aria-pressed={elegido === x.id} style={estiloDe(x.id, sombreros)} onClick={() => escoger(x.id)}>
+              <span className="punto" /> {x.nombre}
+            </button>
+          ))}
+          <button type="button" className="chip-boton" aria-pressed={!elegido} onClick={() => escoger("")}>Ninguno</button>
+        </div>
+      )}
     </form>
   );
 }

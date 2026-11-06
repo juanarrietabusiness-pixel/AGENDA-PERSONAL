@@ -98,6 +98,68 @@ export function horasPorSombrero(ritmo, sombreros) {
   return sombreros.map((s) => ({ id: s.id, minutos: min[s.id], porcentaje: total ? Math.round((min[s.id] / total) * 100) : 0 }));
 }
 
+/** Minutos de la semana en bloques SIN sombrero (no cuentan para ninguno). */
+export function minutosSinSombrero(ritmo, sombreros) {
+  const ids = new Set(sombreros.map((s) => s.id));
+  return (ritmo ?? []).filter((e) => claseDeRitmo(e) === "bloque" && !ids.has(e.sombrero)).reduce((t, e) => t + duracion(e) * new Set(diasDe(e)).size, 0);
+}
+
+/** El bloque que contiene esa hora ese día (el más corto si se pisan). */
+const bloqueDeLaHora = (bloques, hora) => {
+  if (!hora) return null;
+  const m = minutos(hora);
+  return bloques.filter((b) => minutos(b.inicio) <= m && m < minutos(b.fin)).sort((a, b) => duracion(a) - duracion(b))[0] ?? null;
+};
+
+/**
+ * Un día de la semana con su jerarquía, para que se vea qué es cada cosa: los BLOQUES (tramos de tiempo) con sus
+ * RECORDATORIOS y sus TAREAS dentro, y lo que no cae en ningún bloque aparte. `tareas` son las acciones de ese día
+ * (las tareas y los recordatorios con hora). Una tarea va al bloque que se le asignó o, si no, al primero de su
+ * sombrero ese día. Devuelve { bloques: [{ bloque, recordatorios, tareas }], recordatorios, tareas }.
+ */
+export function diaEnBloques(ritmo, dia, tareas = []) {
+  const { bloques, recordatorios } = semanaDelDia(ritmo, dia);
+  const dentro = new Map(bloques.map((b) => [b.id, { bloque: b, recordatorios: [], tareas: [] }]));
+  const sueltos = { recordatorios: [], tareas: [] };
+  const recs = [
+    ...recordatorios.map((r) => ({ ...r, tipo: "ritmo" })),
+    ...tareas.filter((a) => a.clase === "recordatorio").map((a) => ({ ...a, tipo: "accion", inicio: a.hora ?? null })),
+  ].sort((a, b) => (a.inicio ?? "99").localeCompare(b.inicio ?? "99"));
+  for (const r of recs) {
+    const b = bloqueDeLaHora(bloques, r.inicio);
+    (b ? dentro.get(b.id).recordatorios : sueltos.recordatorios).push(r);
+  }
+  for (const a of tareas.filter((x) => (x.clase ?? "tarea") === "tarea")) {
+    const b = (a.bloque && dentro.has(a.bloque) && dentro.get(a.bloque).bloque) || (a.sombrero && bloques.find((x) => x.sombrero === a.sombrero)) || null;
+    (b ? dentro.get(b.id).tareas : sueltos.tareas).push(a);
+  }
+  return { bloques: [...dentro.values()], ...sueltos };
+}
+
+/** Bloques que se cruzan el mismo día: [{ a, b, dias }]. Con dos a la vez, «Ahora» no sabe cuál toca. */
+export function choques(ritmo) {
+  const bloques = (ritmo ?? []).filter((e) => claseDeRitmo(e) === "bloque" && e.inicio && e.fin);
+  const salida = [];
+  for (let i = 0; i < bloques.length; i++) {
+    for (let j = i + 1; j < bloques.length; j++) {
+      const [a, b] = [bloques[i], bloques[j]];
+      const dias = diasDe(a).filter((d) => diasDe(b).includes(d));
+      if (dias.length && a.inicio < b.fin && b.inicio < a.fin) salida.push({ a, b, dias });
+    }
+  }
+  return salida;
+}
+
+/** Lo que conviene revisar de la semana tipo: bloques sin sombrero, los que se cruzan y los «por confirmar». */
+export function porRevisar(ritmo, sombreros) {
+  const ids = new Set(sombreros.map((s) => s.id));
+  return {
+    sinSombrero: (ritmo ?? []).filter((e) => claseDeRitmo(e) === "bloque" && !ids.has(e.sombrero)),
+    choques: choques(ritmo),
+    porConfirmar: (ritmo ?? []).filter((e) => e.porConfirmar),
+  };
+}
+
 // ------------------------------------------------------------
 // Reino, una vez
 // ------------------------------------------------------------
@@ -120,11 +182,12 @@ export function conReino(perfil) {
 // ------------------------------------------------------------
 
 const PISTAS = [
-  ["reino", /\b(oracion|orar|palabra|biblia|biblica|devocional|proverbios|salmos|ayuno|adoracion|intimidad|lectura)\b/],
-  ["iglesia", /\b(celula|servicio|culto|iglesia|discipulado|lideres|ministerio)\b/],
+  ["iglesia", /\b(estudio biblico)\b/],
+  ["reino", /\b(oracion|orar|palabra|biblia|biblica|devocional|proverbios|salmos|ayuno|adoracion|intimidad|lectura|intercesion)\b/],
+  ["iglesia", /\b(celula|servicio|culto|iglesia|discipulado|lideres|ministerio|retiro)\b/],
   ["artistico", /\b(ensayo|musica|cancion|estudio de grabacion|grabacion|compon|presentacion|show|concierto)\b/],
   ["trabajo", /\b(trabajo|oficina|agencia|juancito|clientes|reunion de equipo|equipo)\b/],
-  ["personal", /\b(familia|esposa|gimnasio|gym|ejercicio|almuerzo|cena|descanso|casa)\b/],
+  ["personal", /\b(familia|esposa|matrimonio|hogar|gimnasio|gym|ejercicio|almuerzo|cena|descanso|casa)\b/],
 ];
 
 /** El sombrero que sugiere un título (si existe entre los de la persona). */
