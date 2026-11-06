@@ -4,6 +4,7 @@ import { AJUSTES_BASE } from "../lib/ajustes.js";
 import { AJUSTES_IA_BASE } from "../lib/ia.js";
 import { TEMA_BASE } from "../lib/temas.js";
 import { RITMO_BASE } from "../lib/ritmo.js";
+import { conReino } from "../lib/semana.js";
 import * as api from "../lib/api.js";
 
 // ============================================================
@@ -28,14 +29,17 @@ function inicial(hoy) {
   };
 }
 
+/** Reino como primer sombrero, una vez (lo mismo hace el servidor). */
+const conReinoPrototipo = (e) => ({ ...e, ...conReino(e).perfil });
+
 function leerPrototipo(hoy) {
   try {
     const guardado = JSON.parse(localStorage.getItem(CLAVE) ?? "null");
-    if (guardado?.acciones) return guardado;
+    if (guardado?.acciones) return conReinoPrototipo(guardado);
   } catch {
     /* sin almacenamiento o dañado: se empieza de cero */
   }
-  return inicial(hoy);
+  return conReinoPrototipo(inicial(hoy));
 }
 
 const delServidor = (e) => ({

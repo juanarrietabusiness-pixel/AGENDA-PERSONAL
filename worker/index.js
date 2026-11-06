@@ -53,6 +53,7 @@ import { vuelta } from "./lib/seguimiento.js";
 import { hoyEn, sumarDias } from "../src/lib/fechas.js";
 import { limpiarNota } from "../src/lib/cerebro.js";
 import { sombrerosDe } from "../src/lib/sombreros.js";
+import { conReino } from "../src/lib/semana.js";
 
 const MAX_CAPTURA = 4000;
 
@@ -190,7 +191,13 @@ async function api(req, env, ctx) {
   const hoyDe = (aj) => hoyEn(aj?.zona);
 
   if (recurso === "estado" && req.method === "GET") {
-    const p = await perfil();
+    let p = await perfil();
+    // Una vez: Reino como primer sombrero, con lo devocional de la semana.
+    const migrado = conReino(p);
+    if (migrado.cambio) {
+      p = migrado.perfil;
+      await almacen.guardarPerfil(p);
+    }
     const hoy = hoyDe(p.ajustes);
     const desde = /^\d{4}-\d{2}-\d{2}$/.test(url.searchParams.get("desde") ?? "") ? url.searchParams.get("desde") : sumarDias(hoy, -40);
     const hasta = /^\d{4}-\d{2}-\d{2}$/.test(url.searchParams.get("hasta") ?? "") ? url.searchParams.get("hasta") : sumarDias(hoy, 70);
@@ -252,6 +259,11 @@ async function api(req, env, ctx) {
     if (ajustes !== undefined && (typeof ajustes !== "object" || Array.isArray(ajustes) || !ajustes)) return error("Los ajustes no son válidos.");
     if (ritmo !== undefined && !Array.isArray(ritmo)) return error("El ritmo no es válido.");
     await almacen.guardarPerfil({ ajustes: ajustes ?? actual.ajustes, ritmo: ritmo ?? actual.ritmo });
+    if (ritmo !== undefined && JSON.stringify(ritmo) !== JSON.stringify(actual.ritmo)) {
+      const r = google.publicarSemana(env, almacen, { ritmo, ajustes: ajustes ?? actual.ajustes }).catch(() => null);
+      if (despues) despues(r);
+      else await r;
+    }
     return json({ ok: true });
   }
 
@@ -369,7 +381,12 @@ async function api(req, env, ctx) {
         const p = await perfil();
         return json(await google.sincronizar(env, almacen, { hoy: hoyDe(p.ajustes), forzar: true }));
       }
-      if (a && a !== "conectar" && a !== "vuelta" && a !== "sincronizar") {
+      // Tu semana de Kairos en un calendario aparte de Google («Kairos · Bloques»).
+      if (a === "semana" && req.method === "POST") {
+        const { publicar } = (await cuerpo(req)) ?? {};
+        return json(publicar === false ? await google.dejarDePublicar(env, almacen) : await google.empezarAPublicar(env, almacen, await perfil()));
+      }
+      if (a && a !== "conectar" && a !== "vuelta" && a !== "sincronizar" && a !== "semana") {
         const servicio = `${google.PREFIJO}${decodeURIComponent(a).toLowerCase()}`;
         const c = await almacen.conexion(servicio);
         if (!c) return noEncontrado("Esa cuenta");

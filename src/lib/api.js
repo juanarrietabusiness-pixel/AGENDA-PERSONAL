@@ -52,6 +52,7 @@ export const juancitoDesconectar = () => pedir("juancito/desconectar", { metodo:
 export const googleConectar = () => pedir("google/conectar", { metodo: "POST", datos: {} });
 export const googleSincronizar = () => pedir("google/sincronizar", { metodo: "POST", datos: {} });
 export const googleAjustes = (cuenta, datos) => pedir(`google/${encodeURIComponent(cuenta)}`, { metodo: "PUT", datos });
+export const googleSemana = (publicar) => pedir("google/semana", { metodo: "POST", datos: { publicar } });
 export const googleDesconectar = (cuenta) => pedir(`google/${encodeURIComponent(cuenta)}`, { metodo: "DELETE" });
 export const mcpCliente = (clientId, redirectUri) => pedir(`mcp/cliente?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}`);
 export const mcpAutorizar = (datos) => pedir("mcp/autorizar", { metodo: "POST", datos });

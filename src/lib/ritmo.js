@@ -164,6 +164,22 @@ function comprobado(cambio, base = {}) {
     e.repite = { regla: `FREQ=WEEKLY${intervalo};BYDAY=${dias.join(",")}`, inicio: base.repite?.inicio ?? "2026-01-05" };
   }
   if (cambio.protegido !== undefined) e.protegido = Boolean(cambio.protegido);
+  // Un BLOQUE es un tramo de tu semana con su sombrero (Trabajo 8–12); un RECORDATORIO es un momento dentro de él
+  // (la lectura de Proverbios a las 11:45). El bloque avisa al empezar (con sus tareas); el recordatorio, `antes`
+  // minutos antes de su hora.
+  if (cambio.clase !== undefined) e.clase = cambio.clase === "recordatorio" ? "recordatorio" : "bloque";
+  if (cambio.avisar !== undefined) e.avisar = Boolean(cambio.avisar);
+  if (cambio.antes !== undefined) {
+    const n = Number(cambio.antes);
+    if (!Number.isInteger(n) || n < 0 || n > 120) throw new ErrorRitmo("El aviso va de 0 a 120 minutos antes.");
+    e.antes = n;
+  }
+  if (cambio.google !== undefined) e.google = cambio.google ? String(cambio.google).slice(0, 200) : null;
+  if (e.clase === "recordatorio" && e.inicio && (!e.fin || e.fin <= e.inicio)) {
+    const [h, m] = e.inicio.split(":").map(Number);
+    const fin = Math.min(h * 60 + m + 5, 23 * 60 + 59);
+    e.fin = `${String(Math.floor(fin / 60)).padStart(2, "0")}:${String(fin % 60).padStart(2, "0")}`;
+  }
   if (!e.titulo || !e.inicio || !e.fin || !e.repite) throw new ErrorRitmo("Un bloque fijo necesita nombre, hora de inicio, hora de fin y días.");
   if (e.fin <= e.inicio) throw new ErrorRitmo("El final tiene que ser después del inicio.");
   e.porConfirmar = false;

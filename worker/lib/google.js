@@ -33,6 +33,8 @@ import { hoyEn, horaEn, sumarDias, esFecha, esHora, ZONA } from "../../src/lib/f
 import { nuevaAccion } from "../../src/lib/metodo.js";
 import { sombrerosDe } from "../../src/lib/sombreros.js";
 import { clasificar } from "./clasificar.js";
+import { ocurrencias } from "../../src/lib/recurrencia.js";
+import { claseDeRitmo } from "../../src/lib/semana.js";
 
 export const ALCANCES = ["openid", "email", "https://www.googleapis.com/auth/calendar", "https://www.googleapis.com/auth/tasks"];
 const AUTH = "https://accounts.google.com/o/oauth2/v2/auth";
@@ -286,6 +288,98 @@ export const actualizarTarea = (env, almacen, accion) =>
 export const borrarTarea = (env, almacen, accion) =>
   api(env, almacen, accion.google.servicio, `${TASKS}/lists/${encodeURIComponent(accion.google.lista ?? "@default")}/tasks/${encodeURIComponent(accion.google.id)}`, { method: "DELETE" });
 
+// ── Tu semana de Kairos, publicada en un calendario aparte ──
+//
+// La semana tipo vive en Kairos; para verla en el teléfono, se publica en un calendario propio de la cuenta («Kairos ·
+// Bloques»), sólo de ida: lo que se cambie allá se reescribe al cambiar la semana aquí. Ese calendario NO se lee de
+// vuelta (saldría dos veces). Cada bloque guarda su evento y una huella: sólo se toca lo que cambió.
+
+export const NOMBRE_CAL_SEMANA = "Kairos · Bloques";
+const huellaBloque = (e) => JSON.stringify([e.titulo, e.inicio, e.fin, e.repite?.regla, e.repite?.inicio, e.sombrero, claseDeRitmo(e)]);
+
+/** Un bloque (o recordatorio) de la semana → un evento que se repite. Puro. */
+export function aEventoBloque(e, sombreros = [], zona = ZONA) {
+  const regla = e.repite.regla;
+  const desde = e.repite.inicio ?? "2026-01-05";
+  let primera = desde;
+  try {
+    primera = ocurrencias(regla, desde, desde, sumarDias(desde, 14), { max: 1 })[0] ?? desde;
+  } catch {
+    /* una regla rara: desde su inicio */
+  }
+  const nombre = sombreros.find((s) => s.id === e.sombrero)?.nombre;
+  const recordatorio = claseDeRitmo(e) === "recordatorio";
+  return {
+    summary: e.titulo,
+    description: [nombre ? `${recordatorio ? "Recordatorio" : "Bloque"} de ${nombre}.` : null, "De tu semana en Kairos: cámbialo allá, aquí se reescribe."].filter(Boolean).join("\n"),
+    start: { dateTime: `${primera}T${e.inicio}:00`, timeZone: zona },
+    end: { dateTime: `${primera}T${e.fin}:00`, timeZone: zona },
+    recurrence: [`RRULE:${regla}`],
+    transparency: recordatorio ? "transparent" : "opaque",
+    reminders: { useDefault: false, overrides: [] },
+  };
+}
+
+const cuentaQuePublica = async (almacen) => (await cuentas(almacen)).find((c) => c.datos.semana?.calendario) ?? null;
+
+/** Pone al día el calendario «Kairos · Bloques» con la semana de ahora (si se está publicando). */
+export async function publicarSemana(env, almacen, { ritmo = [], ajustes = {} } = {}) {
+  if (!hayGoogle(env)) return { ok: false, motivo: "sin-google" };
+  const c = await cuentaQuePublica(almacen);
+  if (!c) return { ok: true, saltada: true };
+  const sem = c.datos.semana;
+  const cal = encodeURIComponent(sem.calendario);
+  const eventos = { ...(sem.eventos ?? {}) };
+  const sombreros = sombrerosDe(ajustes);
+  const vivos = (ritmo ?? []).filter((e) => e.id && e.repite?.regla && e.inicio && e.fin);
+  let cambios = 0;
+  for (const e of vivos.slice(0, 40)) {
+    const h = huellaBloque(e);
+    const prev = eventos[e.id];
+    if (prev?.huella === h) continue;
+    if (prev?.id) await api(env, almacen, c.servicio, `${CAL}/calendars/${cal}/events/${encodeURIComponent(prev.id)}`, { method: "PUT", body: aEventoBloque(e, sombreros) });
+    else {
+      const r = await api(env, almacen, c.servicio, `${CAL}/calendars/${cal}/events`, { method: "POST", body: aEventoBloque(e, sombreros) });
+      eventos[e.id] = { id: r.id };
+    }
+    eventos[e.id] = { ...eventos[e.id], huella: h };
+    cambios++;
+  }
+  for (const [id, ev] of Object.entries(eventos)) {
+    if (vivos.some((e) => e.id === id)) continue;
+    await api(env, almacen, c.servicio, `${CAL}/calendars/${cal}/events/${encodeURIComponent(ev.id)}`, { method: "DELETE" });
+    delete eventos[id];
+    cambios++;
+  }
+  const fresca = (await almacen.conexion(c.servicio))?.datos ?? c.datos;
+  await almacen.guardarConexion(c.servicio, { ...fresca, semana: { ...sem, eventos } }, { error: null });
+  return { ok: true, cambios };
+}
+
+/** Empezar a publicar: crea el calendario «Kairos · Bloques» en la cuenta (la primera conectada) y lo llena. */
+export async function empezarAPublicar(env, almacen, perfil) {
+  const lista = await cuentas(almacen);
+  if (!lista.length) throw new ErrorGoogle("Conecta tu cuenta de Google primero (Ajustes → Google).");
+  const c = lista.find((x) => x.datos.semana?.calendario) ?? lista[0];
+  if (!c.datos.semana?.calendario) {
+    const cal = await api(env, almacen, c.servicio, `${CAL}/calendars`, { method: "POST", body: { summary: NOMBRE_CAL_SEMANA, description: "Tu semana tipo de Kairos (bloques y recordatorios). Se cambia desde la agenda.", timeZone: perfil?.ajustes?.zona ?? ZONA } });
+    const fresca = (await almacen.conexion(c.servicio))?.datos ?? c.datos;
+    await almacen.guardarConexion(c.servicio, { ...fresca, semana: { calendario: cal.id, eventos: {} } });
+  }
+  return publicarSemana(env, almacen, perfil);
+}
+
+/** Dejar de publicar: se borra el calendario «Kairos · Bloques» (con todo lo suyo). */
+export async function dejarDePublicar(env, almacen) {
+  const c = await cuentaQuePublica(almacen);
+  if (!c) return { ok: true };
+  await api(env, almacen, c.servicio, `${CAL}/calendars/${encodeURIComponent(c.datos.semana.calendario)}`, { method: "DELETE" }).catch(() => null);
+  const fresca = (await almacen.conexion(c.servicio))?.datos ?? c.datos;
+  const { semana: _, ...resto } = fresca;
+  await almacen.guardarConexion(c.servicio, resto);
+  return { ok: true };
+}
+
 // ── Leer de allá ──
 
 /**
@@ -330,7 +424,7 @@ export async function sincronizar(env, almacen, { hoy, forzar = false } = {}) {
       } catch {
         /* sin la lista se lee el principal, como antes */
       }
-      for (const cal of calendariosALeer(datos.lista, datos.ajustes).slice(0, 15)) {
+      for (const cal of calendariosALeer(datos.lista, datos.ajustes).filter((id) => id !== datos.semana?.calendario).slice(0, 15)) {
         const info = datos.lista?.find((x) => x.id === cal);
         const nombre = info?.nombre ?? null;
         try {

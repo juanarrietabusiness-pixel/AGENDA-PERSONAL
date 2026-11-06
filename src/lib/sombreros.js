@@ -18,9 +18,12 @@ export const SOMBREROS = Object.freeze([
   { id: "personal", nombre: "Personal", detalle: "Tu esposa, la familia, tus planes y tus proyectos", icono: "heart", color: "var(--s-personal)", fuente: "aqui" },
 ]);
 
+/** Reino: la intimidad con Dios (oración, la Palabra), aparte de las tareas de la iglesia. Va primero. */
+export const REINO = Object.freeze({ id: "reino", nombre: "Reino", detalle: "Tu intimidad con Dios: la oración, la Palabra, el ayuno", icono: "flame", color: "#e0b33a", fuente: "aqui" });
+
 /** Colores para los sombreros nuevos (se leen bien en claro y en oscuro). */
 export const COLORES = Object.freeze(["#4d9bff", "#e8619e", "#9b85f5", "#43c07a", "#f2994a", "#22b8b0", "#e0b33a", "#d9534f", "#8a9bb0", "#b06ad9"]);
-export const ICONOS = Object.freeze(["building", "music", "cross", "heart", "users", "home", "rocket", "bolt", "bulb", "globe", "star", "chart"]);
+export const ICONOS = Object.freeze(["building", "music", "cross", "heart", "users", "home", "rocket", "bolt", "bulb", "globe", "star", "chart", "flame"]);
 export const MAX_SOMBREROS = 10;
 
 const ID = /^[a-z0-9][a-z0-9-]{1,29}$/;

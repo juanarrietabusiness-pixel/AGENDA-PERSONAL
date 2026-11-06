@@ -8,6 +8,8 @@ import { cuadrante } from "../lib/prioridad.js";
 import { ordenarPor, claseDeGoogle } from "../lib/agenda.js";
 import { nuevaAccion } from "../lib/metodo.js";
 import { RITMO_BASE } from "../lib/ritmo.js";
+import SemanaTipo from "../componentes/SemanaTipo.jsx";
+import { seriesTraidas, horasPorSombrero, claseDeRitmo } from "../lib/semana.js";
 
 const PRIORIDADES = { alta: "Alta", media: "Media", baja: "Baja" };
 
@@ -16,14 +18,17 @@ const PRIORIDADES = { alta: "Alta", media: "Media", baja: "Baja" };
  * sombrero con sus proyectos y sus tareas listas para marcar. Aquí se renombran, se ordenan por prioridad y se crean
  * sombreros.
  */
-export default function Plan({ estado, hoy, cambiar, onHecha, onAbrir, avisar }) {
+export default function Plan({ estado, hoy, cambiar, onHecha, onAbrir, avisar, servidor = false, recargar }) {
   const id = useId();
   const { acciones, eventos, proyectos, ajustes } = estado;
   const sombreros = sombrerosDe(ajustes);
   const lunes = lunesDe(hoy);
   const dias = Array.from({ length: 7 }, (_, i) => sumarDias(lunes, i));
-  const todos = [...(estado.ritmo ?? RITMO_BASE), ...eventos];
-  const externos = estado.externos ?? [];
+  const ritmo = estado.ritmo ?? RITMO_BASE;
+  const todos = [...ritmo, ...eventos];
+  // Lo de Google que ya se trajo a tu semana no sale dos veces.
+  const traidas = seriesTraidas(ritmo);
+  const externos = (estado.externos ?? []).filter((x) => !traidas.has(x.serie));
   const propioDeGoogle = (x) => eventos.some((p) => p.google?.id && (p.google.id === x.id || String(x.id).startsWith(`${p.google.id}_`)));
   const porDia = dias.map((d) => {
     // Tu semana de Google Calendar (la rutina y las reuniones), con su hora; lo de todo el día, arriba.
@@ -32,14 +37,17 @@ export default function Plan({ estado, hoy, cambiar, onHecha, onAbrir, avisar })
       .map((x) => ({ ...x, fuente: "google", clase: claseDeGoogle(x, ajustes) }));
     const horas = new Set(google.map((x) => x.inicio).filter(Boolean));
     // Lo de la rutina de la agenda que ya está en Google a la misma hora no se repite.
-    const propios = eventosDelDia(todos, d).filter((e) => !e.devocional && !(e.porConfirmar && horas.has(e.inicio)));
+    const propios = eventosDelDia(todos, d).filter((e) => !(e.porConfirmar && horas.has(e.inicio)));
     return {
       dia: d,
       eventos: [...propios, ...google].sort((a, b) => (a.inicio ?? "00:00").localeCompare(b.inicio ?? "00:00")),
       acciones: acciones.filter((a) => a.estado === "abierta" && (a.cuando === d || a.limite === d)),
     };
   });
-  const filas = balance({ eventos: porDia.flatMap((p) => p.eventos.filter((e) => !e.devocional && e.fuente !== "google")), hechas: porDia.flatMap((p) => p.acciones) }, sombreros);
+  // El tiempo de cada sombrero sale de tus bloques; si todavía no hay bloques con sombrero, de lo que pasó esta semana.
+  const porBloques = horasPorSombrero(ritmo, sombreros);
+  const hayBloques = porBloques.some((f) => f.minutos > 0);
+  const filas = hayBloques ? porBloques : balance({ eventos: porDia.flatMap((p) => p.eventos.filter((e) => e.fuente !== "google")), hechas: porDia.flatMap((p) => p.acciones) }, sombreros);
   const flojos = descuidados(filas);
   const abiertas = acciones.filter((a) => a.estado === "abierta" && a.lista === "siguientes");
   const ctx = { hoy, proyectos, sombreros };
@@ -87,7 +95,7 @@ export default function Plan({ estado, hoy, cambiar, onHecha, onAbrir, avisar })
         </div>
         <div className="balance-leyenda">
           {filas.map((f) => (
-            <span key={f.id} style={estiloDe(f.id, sombreros)}><span className="punto" />{nombreDe(f.id, sombreros)} {f.porcentaje} %</span>
+            <span key={f.id} style={estiloDe(f.id, sombreros)}><span className="punto" />{nombreDe(f.id, sombreros)} {hayBloques ? `${Math.round((f.minutos / 60) * 10) / 10} h` : `${f.porcentaje} %`}</span>
           ))}
         </div>
         {flojos.length > 0 && (
@@ -106,16 +114,16 @@ export default function Plan({ estado, hoy, cambiar, onHecha, onAbrir, avisar })
                 <span>{DIAS_CORTOS[diaSemana(dia)]} {partes(dia).dia}</span>
                 {dia === hoy && <span className="chip acento">Hoy</span>}
               </h3>
-              {evs.filter((e) => !e.devocional).map((e) =>
+              {evs.map((e) =>
                 e.fuente === "google" ? (
                   <button key={`g:${e.id}`} type="button" className={`dia-item dia-google${e.clase === "rutina" ? " es-rutina" : ""}`} style={e.color ? { "--s": e.color } : undefined} onClick={() => onAbrir("google", e)}>
                     <span className="punto" />
                     <span><time>{e.inicio ? textoHora(e.inicio) : "Todo el día"}</time>{e.titulo}</span>
                   </button>
                 ) : (
-                  <div key={e.id} className="dia-item" style={estiloDe(e.sombrero, sombreros)}>
+                  <div key={e.id} className={`dia-item${claseDeRitmo(e) === "recordatorio" && e.repite ? " es-recordatorio" : ""}${e.repite && claseDeRitmo(e) === "bloque" ? " es-bloque" : ""}`} style={estiloDe(e.sombrero, sombreros)}>
                     <span className="punto" />
-                    <span><time>{textoHora(e.inicio)}</time>{e.titulo}</span>
+                    <span><time>{textoHora(e.inicio)}{e.repite && claseDeRitmo(e) === "bloque" ? `–${textoHora(e.fin)}` : ""}</time>{e.titulo}</span>
                   </div>
                 ),
               )}
@@ -125,14 +133,16 @@ export default function Plan({ estado, hoy, cambiar, onHecha, onAbrir, avisar })
                   <span>{a.titulo}</span>
                 </button>
               ))}
-              {!evs.some((e) => !e.devocional) && !acs.length && <div className="dia-item">Libre</div>}
+              {!evs.length && !acs.length && <div className="dia-item">Libre</div>}
             </article>
           ))}
         </div>
         <p style={{ color: "var(--texto-3)", fontSize: "var(--fs-xs)", marginTop: "var(--sp-3)" }}>
-          Aquí vive tu semana completa: lo de Google Calendar (toca un bloque para decir si es rutina, reunión o especial) y lo que planeaste. Los tiempos con Dios no cuentan en el reparto: van antes que los sombreros.
+          Aquí vive tu semana completa: tus bloques, lo de Google Calendar (toca un evento de Google para decir si es rutina, reunión o especial) y lo que planeaste.
         </p>
       </section>
+
+      <SemanaTipo estado={estado} sombreros={sombreros} cambiar={cambiar} avisar={avisar} servidor={servidor} recargar={recargar} />
 
       <section className="seccion" aria-labelledby={`${id}-somb`}>
         <div className="seccion-cabeza">
