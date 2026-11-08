@@ -7,7 +7,7 @@ import { elegirVersiculo, ATRIBUCION } from "../lib/versiculos.js";
 import { variante } from "../lib/mensajes.js";
 import { nuevaAccion } from "../lib/metodo.js";
 import { ahoraYDespues, tareasDelBloque, carga, semanaDelDia, seriesTraidas, claseDeRitmo, textoHoras } from "../lib/semana.js";
-import { PERIODOS, ORDENES, rango, mover, tituloDe, accionesDelPeriodo, sinFecha, reunionesDelPeriodo, especialesDelMes, rutinaDelPeriodo, ordenarPor, enfoqueDelDia, TRES } from "../lib/agenda.js";
+import { PERIODOS, ORDENES, rango, mover, tituloDe, accionesDelPeriodo, sinFecha, reunionesDelPeriodo, especialesDelMes, rutinaDelPeriodo, ordenarPor, enfoqueDelDia, TRES, eventosPorAgendar, textoHoraEvento } from "../lib/agenda.js";
 
 const SALUDO = ["Buenos días", "Buen día", "Arrancamos"];
 const saludo = (hora, dia) => (hora < "12:00" ? variante(SALUDO, dia) : hora < "19:00" ? "Buenas tardes" : "Buenas noches");
@@ -69,7 +69,7 @@ export default function Hoy({ estado, hoy, hora, onHecha, onAbrir, onDecidir, on
       recordatorios: ordenarPor(rc.abiertas.filter(deFiltro), "limite", ctx),
       recordatoriosHechos: rc.hechas.filter(deFiltro),
       libres: ordenarPor(sinFecha(acciones).filter(deFiltro), orden, ctx),
-      reuniones: reunionesDelPeriodo(eventos, externosVis, r, ajustes).filter((e) => !filtro || e.sombrero === filtro || e.fuente === "google"),
+      reuniones: [...reunionesDelPeriodo(eventos, externosVis, r, ajustes), ...eventosPorAgendar(eventos)].filter((e) => !filtro || e.sombrero === filtro || e.fuente === "google"),
       // Tu semana de hoy (los bloques y recordatorios de Kairos) y la rutina de Google que todavía no trajiste.
       rutina: [
         ...(periodo === "dia" ? (() => { const sd = semanaDelDia(ritmo, dia); return [...sd.bloques, ...sd.recordatorios].map((e) => ({ ...e, dia, fuente: "kairos" })); })() : []),
@@ -124,8 +124,8 @@ export default function Hoy({ estado, hoy, hora, onHecha, onAbrir, onDecidir, on
     const grupos = new Map();
     for (const x of lista) grupos.set(x.dia, [...(grupos.get(x.dia) ?? []), x]);
     return [...grupos.entries()].map(([d, xs]) => (
-      <div key={d} className="grupo-dia">
-        <h4 className={d === hoy ? "es-hoy" : undefined}>{d === hoy ? "Hoy" : textoCorto(d, hoy)}</h4>
+      <div key={d ?? "por-agendar"} className="grupo-dia">
+        <h4 className={d === hoy ? "es-hoy" : undefined}>{d === hoy ? "Hoy" : d ? textoCorto(d, hoy) : "Por agendar"}</h4>
         {pintar(xs)}
       </div>
     ));
@@ -177,8 +177,8 @@ export default function Hoy({ estado, hoy, hora, onHecha, onAbrir, onDecidir, on
       ? porDia(datos.reuniones, (xs) => (
           <ul className="lista">
             {xs.map((e) => (
-              <li key={e.clave ?? `${e.fuente ?? "aqui"}:${e.id}:${e.dia}`} className="evento" style={e.fuente === "google" && e.color ? { "--s": e.color } : estiloDe(e.sombrero, sombreros)}>
-                <span className="evento-hora">{e.inicio ? textoHora(e.inicio) : "Todo el día"}</span>
+              <li key={e.clave ?? `${e.fuente ?? "aqui"}:${e.id}:${e.dia ?? "sin-dia"}`} className="evento" style={e.fuente === "google" && e.color ? { "--s": e.color } : estiloDe(e.sombrero, sombreros)}>
+                <span className="evento-hora">{e.fuente === "google" ? (e.inicio ? textoHora(e.inicio) : "Todo el día") : textoHoraEvento(e)}</span>
                 <div>
                   {e.fuente === "google" ? (
                     <button type="button" className="evento-titulo enlace" onClick={() => onAbrir("google", e)}>{e.titulo}</button>
@@ -187,7 +187,7 @@ export default function Hoy({ estado, hoy, hora, onHecha, onAbrir, onDecidir, on
                   )}
                   <div className="accion-meta">
                     {e.fuente === "google" ? <span className="chip">{e.calendarioNombre ?? (e.cuenta ? `Google · ${e.cuenta}` : "Google Calendar")}</span> : <span>{nombreDe(e.sombrero, sombreros)}</span>}
-                    {e.fin && e.inicio && <span>hasta {textoHora(e.fin)}</span>}
+                    {e.fin && e.inicio && !e.horaPorDefinir && e.fin !== "23:59" && <span>hasta {textoHora(e.fin)}</span>}
                     {e.lugar && <span>{e.lugar}</span>}
                     {e.notas && <span title={e.notas}><Icon name="file" size={11} style={{ display: "inline", verticalAlign: "-1px" }} /> Notas</span>}
                   </div>

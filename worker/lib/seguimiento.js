@@ -92,7 +92,7 @@ export function queToca({ estado, ahora, hoy }) {
     const reuniones = reunionesDelPeriodo(estado.eventos ?? [], estado.externos ?? [], { desde: hoy, hasta: hoy }, aj);
     const texto = [
       resumenDeLaManana({ nombre, plan, versiculo }),
-      ...(reuniones.length ? [["Reuniones y citas de hoy:", ...reuniones.map((e) => `• ${textoHora(e.inicio)} ${e.titulo}`)].join("\n")] : []),
+      ...(reuniones.length ? [["Reuniones y citas de hoy:", ...reuniones.map((e) => `• ${e.horaPorDefinir ? "(hora por definir)" : e.inicio === "00:00" && e.fin === "23:59" ? "(todo el día)" : textoHora(e.inicio)} ${e.titulo}`)].join("\n")] : []),
       ...(extra.length ? [["Para tener presente:", ...extra].join("\n")] : []),
     ].join("\n\n");
     out.push({ clave: `resumen:${hoy}`, texto });
@@ -112,7 +112,7 @@ export function queToca({ estado, ahora, hoy }) {
   // Media hora antes de cada reunión (las propias; las de Google ya avisan solas).
   if (seg.reuniones) {
     for (const e of eventosDelDia(estado.eventos ?? [], hoy)) {
-      if (e.clase !== "reunion" || e.protegido) continue;
+      if (e.clase !== "reunion" || e.protegido || e.horaPorDefinir || (e.inicio === "00:00" && e.fin === "23:59")) continue;
       const antes = aHora(Math.max(0, minutos(e.inicio) - 30));
       if (enVentana(ahora, antes, VENTANA.reunion)) out.push({ clave: `reunion:${e.id}:${hoy}`, texto: `En media hora: ${e.titulo} (${textoHora(e.inicio)}).${e.notas ? `\n${e.notas}` : ""}` });
     }

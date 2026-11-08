@@ -23,6 +23,7 @@ import { sombrerosDe } from "../../src/lib/sombreros.js";
 
 const CAMPOS_TAREA = ["titulo", "notas", "cuando", "limite", "hora"];
 const CAMPOS_EVENTO = ["titulo", "notas", "fecha", "inicio", "fin", "clase"];
+const agendable = (e) => Boolean(e?.fecha || e?.repite?.regla);
 const cambio = (a, b, campos) => campos.some((k) => (a?.[k] ?? null) !== (b?.[k] ?? null));
 
 /**
@@ -62,7 +63,8 @@ export async function reflejar(env, almacen, cambios, { hoy, ajustes }) {
       } else if (tipo === "evento") {
         if (!cuentasG.length) continue;
         if (!despues && antes?.google?.id) await google.borrarEvento(env, almacen, antes);
-        else if (despues && !despues.google?.id && !antes && despues.fuente !== "google") {
+        // Lo que está «por agendar» (sin día) no va a Google hasta que tenga día; al tenerlo, se crea.
+        else if (despues && !despues.google?.id && despues.fuente !== "google" && agendable(despues) && (!antes || !agendable(antes))) {
           const g = await google.crearEvento(env, almacen, despues, cuentasG);
           if (g) guardar.push({ tipo, obj: { ...despues, google: g } });
         } else if (despues?.google?.id && cambio(antes, despues, CAMPOS_EVENTO)) {

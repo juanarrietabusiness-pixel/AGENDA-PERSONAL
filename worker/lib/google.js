@@ -171,14 +171,18 @@ export function deEventoGoogle(e, { cuenta, calendario, calendarioNombre = null,
   };
 }
 
-/** Un evento de la agenda → el cuerpo de Google. */
-export function aEventoGoogle(e, zona = ZONA) {
-  const especial = e.clase === "especial" && e.inicio === "00:00";
+/**
+ * Un evento de la agenda → el cuerpo de Google. Lo de todo el día (00:00–23:59: un especial, o uno con la hora por
+ * definir) va como día. Al cambiarlo (PATCH) se borra lo otro: si no, pasar de «todo el día» a una hora choca.
+ */
+export function aEventoGoogle(e, zona = ZONA, { parche = false } = {}) {
+  const dia = e.fecha ?? e.repite?.inicio;
+  const todoElDia = e.inicio === "00:00" && e.fin === "23:59";
   const cuerpo = {
     summary: e.titulo,
     description: [e.notas, "— Agenda personal"].filter(Boolean).join("\n\n"),
-    start: especial ? { date: e.fecha } : { dateTime: `${e.fecha ?? e.repite?.inicio}T${e.inicio}:00`, timeZone: zona },
-    end: especial ? { date: sumarDias(e.fecha, 1) } : { dateTime: `${e.fecha ?? e.repite?.inicio}T${e.fin}:00`, timeZone: zona },
+    start: todoElDia ? { date: dia, ...(parche ? { dateTime: null, timeZone: null } : {}) } : { dateTime: `${dia}T${e.inicio}:00`, timeZone: zona, ...(parche ? { date: null } : {}) },
+    end: todoElDia ? { date: sumarDias(dia, 1), ...(parche ? { dateTime: null, timeZone: null } : {}) } : { dateTime: `${dia}T${e.fin}:00`, timeZone: zona, ...(parche ? { date: null } : {}) },
   };
   if (!e.fecha && e.repite?.regla) cuerpo.recurrence = [`RRULE:${e.repite.regla}`];
   return cuerpo;
@@ -271,7 +275,7 @@ export async function crearEvento(env, almacen, evento, lista) {
   return { cuenta: c.datos.cuenta, servicio: c.servicio, calendario: cal, id: r.id };
 }
 export const actualizarEvento = (env, almacen, evento) =>
-  api(env, almacen, evento.google.servicio, `${CAL}/calendars/${encodeURIComponent(evento.google.calendario ?? "primary")}/events/${encodeURIComponent(evento.google.id)}`, { method: "PATCH", body: aEventoGoogle(evento) });
+  api(env, almacen, evento.google.servicio, `${CAL}/calendars/${encodeURIComponent(evento.google.calendario ?? "primary")}/events/${encodeURIComponent(evento.google.id)}`, { method: "PATCH", body: aEventoGoogle(evento, ZONA, { parche: true }) });
 export const borrarEvento = (env, almacen, evento) =>
   api(env, almacen, evento.google.servicio, `${CAL}/calendars/${encodeURIComponent(evento.google.calendario ?? "primary")}/events/${encodeURIComponent(evento.google.id)}`, { method: "DELETE" });
 

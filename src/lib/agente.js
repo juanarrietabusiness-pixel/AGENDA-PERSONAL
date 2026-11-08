@@ -30,12 +30,29 @@ import { SOMBREROS, esSombrero, nombreDe, aplicarSombrero } from "./sombreros.js
 import { aplicarAjuste, CLAVES_AJUSTE } from "./ajustes.js";
 import { aplicarRitmo } from "./ritmo.js";
 import { limpiarAprendizajes } from "./cerebro.js";
+import { porAgendar, esTodoElDia } from "./agenda.js";
 
 export const TIPOS = Object.freeze(["accion", "evento", "recordatorio", "idea", "fecha-especial", "referencia", "ajuste", "ritmo", "sombrero"]);
 export const OPERACIONES = Object.freeze(["completar", "reabrir", "posponer", "editar", "borrar", "soltar", "delegar"]);
 const CLASES_EVENTO = ["reunion", "evento", "especial"];
 
 const sinTildes = (s) => String(s ?? "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+
+// «Agendar reunión con Dayano» no es una tarea: es una reunión que todavía no tiene día (Juan la quiere en Reuniones).
+const VERBO_REUNION = /^(agendar|programar|cuadrar|coordinar|organizar|tener|hacer|fijar|concretar)\s+(una\s+|la\s+|un\s+|el\s+)?(reuni[oó]n|cita)\b/i;
+const tituloDeReunion = (t) => {
+  const r = t.replace(/^(agendar|programar|cuadrar|coordinar|organizar|tener|hacer|fijar|concretar)\s+(una\s+|la\s+|un\s+|el\s+)?/i, "");
+  return r.charAt(0).toUpperCase() + r.slice(1);
+};
+
+// Reino es la intimidad con Dios A SOLAS: lo que se hace con otras personas de la iglesia va a Iglesia.
+const EN_GRUPO = /\b(alabanza|culto|servicio|celula|retiro|congreso|vigilia|campamento|conferencia|ensayo|reunion)\b/;
+function sombreroDeEvento(s, clase, titulo, personas, sombreros) {
+  const reino = sombreros.find((x) => x.id === s && (x.id === "reino" || /\breino\b/.test(sinTildes(x.nombre))));
+  if (!reino) return s;
+  if (clase !== "reunion" && !personas.length && !EN_GRUPO.test(sinTildes(titulo))) return s;
+  return sombreros.find((x) => x.id === "iglesia" || /\biglesia\b/.test(sinTildes(x.nombre)))?.id ?? s;
+}
 
 /** El JSON de la respuesta del modelo, aunque venga entre ```json o con texto alrededor. null si no hay. */
 export function sacarJSON(texto) {
@@ -186,25 +203,24 @@ export function leerOrden(respuesta, ctx = {}) {
       todosLosProyectos.push(proyecto);
     }
 
-    if (e.tipo === "evento" && (cuando || repiteValida) && hora) {
-      const dura = minutosPedidos ?? 60;
-      r.eventos.push({
-        id: nuevoId("e"),
-        titulo,
-        sombrero: s,
-        clase: CLASES_EVENTO.includes(e.clase) ? e.clase : /reuni[oó]n|cita|llamada|junta/i.test(titulo) ? "reunion" : "evento",
-        fecha: repiteValida ? null : cuando,
-        repite: repiteValida,
-        inicio: hora,
-        fin: aHora(Math.min(minutos(hora) + dura, 23 * 60 + 59)),
-        protegido: false,
-        fuente: "asistente",
-        notas,
-        personas: Array.isArray(e.personas) ? e.personas.slice(0, 8).map((p) => texto(p, 60)) : [],
-      });
-    } else if (e.tipo === "evento" && e.clase === "especial" && cuando) {
-      // Un evento especial sin hora (una boda, un concierto) vale como evento de todo el día.
-      r.eventos.push({ id: nuevoId("e"), titulo, sombrero: s, clase: "especial", fecha: cuando, repite: null, inicio: "00:00", fin: "23:59", protegido: false, fuente: "asistente", notas, personas: [] });
+    const reunionDisfrazada = (e.tipo === "accion" || e.tipo === "recordatorio") && VERBO_REUNION.test(titulo);
+    if (e.tipo === "evento" || reunionDisfrazada) {
+      // Una reunión o un evento NUNCA se vuelve tarea: sin hora, va a su día con la hora por definir; sin día, queda
+      // «por agendar» en Reuniones. Y se pregunta lo que falta.
+      const tituloEv = reunionDisfrazada ? tituloDeReunion(titulo) : titulo;
+      const clase = reunionDisfrazada ? "reunion" : CLASES_EVENTO.includes(e.clase) ? e.clase : /reuni[oó]n|cita|llamada|junta|mentor/i.test(titulo) ? "reunion" : "evento";
+      const personasEv = Array.isArray(e.personas) ? e.personas.slice(0, 8).map((p) => texto(p, 60)) : [];
+      const comun = { id: nuevoId("e"), titulo: tituloEv, sombrero: sombreroDeEvento(s, clase, tituloEv, personasEv, sombreros), clase, protegido: false, fuente: "asistente", notas, personas: personasEv };
+      if ((cuando || repiteValida) && hora) {
+        const dura = minutosPedidos ?? 60;
+        r.eventos.push({ ...comun, fecha: repiteValida ? null : cuando, repite: repiteValida, inicio: hora, fin: aHora(Math.min(minutos(hora) + dura, 23 * 60 + 59)) });
+      } else if (cuando || repiteValida) {
+        r.eventos.push({ ...comun, fecha: repiteValida ? null : cuando, repite: repiteValida, inicio: "00:00", fin: "23:59", ...(clase !== "especial" ? { horaPorDefinir: true } : {}) });
+        if (clase !== "especial" && !preguntas.length) preguntas.push(`¿A qué hora es «${tituloEv}»?`);
+      } else {
+        r.eventos.push({ ...comun, fecha: null, repite: null, inicio: null, fin: null });
+        if (!preguntas.length) preguntas.push(`¿Qué día y a qué hora es «${tituloEv}»?`);
+      }
     } else {
       const base = {
         titulo,
@@ -241,7 +257,6 @@ export function leerOrden(respuesta, ctx = {}) {
         lista = "espera";
         base.espera = { persona: texto(e.espera_de ?? "alguien", 60), desde: hoy, preguntar: limite && limite > hoy ? sumarDias(limite, -1) : sumarDias(hoy, 3) };
       }
-      if (e.tipo === "evento") r.avisos.push(`«${titulo}» no traía hora: la dejé como tarea de ese día.`);
       // Un proyecto nuevo hecho de este elemento no se repite como acción: sus pasos son las subtareas.
       if (!(subtareas.length && r.proyectos.some((p) => p.nombre === titulo))) r.acciones.push(nuevaAccion({ ...base, lista }, hoy));
     }
@@ -276,7 +291,7 @@ export function leerOrden(respuesta, ctx = {}) {
     if (o.op === "posponer") {
       const a = fechaSegura(o.a, nombre);
       if (!a) continue;
-      if (tipo === "evento" && !obj.fecha) {
+      if (tipo === "evento" && !obj.fecha && obj.repite?.regla) {
         r.avisos.push(`«${nombre}» se repite: cambia su día en tu semana, no aquí.`);
         continue;
       }
@@ -312,13 +327,20 @@ export function leerOrden(respuesta, ctx = {}) {
         if (c.proyecto !== undefined) cambios.proyectoId = proyectoPara(c.proyecto, cambios.sombrero ?? obj.sombrero, todosLosProyectos)?.id ?? obj.proyectoId;
       }
       if (tipo === "evento") {
-        if (c.fecha !== undefined && obj.fecha) {
+        const sinDia = porAgendar(obj);
+        if (c.fecha !== undefined && (obj.fecha || sinDia)) {
           const f = fechaSegura(c.fecha, nombre);
           if (f) cambios.fecha = f;
         }
-        if (esHora(c.inicio)) cambios.inicio = c.inicio;
-        if (esHora(c.fin)) cambios.fin = c.fin;
         if (CLASES_EVENTO.includes(c.clase)) cambios.clase = c.clase;
+        if (esHora(c.inicio)) {
+          // Ya tiene hora: deja de ser «de todo el día» y, si no dijo hasta cuándo, dura una hora.
+          cambios.inicio = c.inicio;
+          cambios.horaPorDefinir = false;
+          if (!esHora(c.fin) && (!obj.fin || obj.fin === "23:59" || obj.fin <= c.inicio)) cambios.fin = aHora(Math.min(minutos(c.inicio) + 60, 23 * 60 + 59));
+        }
+        if (esHora(c.fin) && (!cambios.inicio || c.fin > cambios.inicio)) cambios.fin = c.fin;
+        if (cambios.fecha && sinDia && !cambios.inicio) Object.assign(cambios, { inicio: "00:00", fin: "23:59", horaPorDefinir: (cambios.clase ?? obj.clase) !== "especial" });
       }
       if (tipo === "proyecto") {
         if (["alta", "media", "baja"].includes(c.prioridad)) cambios.prioridad = c.prioridad;
@@ -420,7 +442,7 @@ export function aplicarOrden(estado, orden) {
     } else if (o.op === "reabrir") nuevo = { ...prev, estado: "abierta", hechaEl: null };
     else if (o.op === "soltar") nuevo = soltar(prev, hoy);
     else if (o.op === "posponer") {
-      nuevo = o.tipo === "evento" ? { ...prev, fecha: o.a } : prev.limite && !prev.cuando ? { ...posponer(prev, null), cuando: null, limite: o.a } : posponer(prev, o.a);
+      nuevo = o.tipo === "evento" ? { ...prev, fecha: o.a, ...(prev.inicio ? {} : { inicio: "00:00", fin: "23:59", horaPorDefinir: prev.clase !== "especial" }) } : prev.limite && !prev.cuando ? { ...posponer(prev, null), cuando: null, limite: o.a } : posponer(prev, o.a);
       detalle = textoCorto(o.a, hoy);
     } else if (o.op === "delegar") {
       nuevo = { ...prev, lista: "espera", delegable: null, espera: { persona: o.a, desde: hoy, preguntar: prev.limite && prev.limite > hoy ? sumarDias(prev.limite, -1) : sumarDias(hoy, 3) } };
@@ -501,7 +523,8 @@ export function tarjeta({ hecho, problemas = [] }, orden, hoy, { sombreros = SOM
   const nombreS = (id) => nombreDe(id, sombreros);
   const lineas = [];
   for (const e of hecho.eventos) {
-    const cuando = e.fecha ? (e.clase === "especial" && e.inicio === "00:00" ? textoCorto(e.fecha, hoy) : `${textoCorto(e.fecha, hoy)}, ${textoHora(e.inicio)}`) : `${textoHora(e.inicio)}, se repite`;
+    const hora = e.horaPorDefinir ? "hora por definir" : textoHora(e.inicio);
+    const cuando = porAgendar(e) ? "por agendar" : e.fecha ? (esTodoElDia(e) && !e.horaPorDefinir ? textoCorto(e.fecha, hoy) : `${textoCorto(e.fecha, hoy)}, ${hora}`) : `${hora}, se repite`;
     lineas.push(`• ${e.clase === "reunion" ? "Reunión" : e.clase === "especial" ? "Evento especial" : "Evento"}: «${e.titulo}» · ${nombreS(e.sombrero)} · ${cuando}`);
   }
   for (const p of hecho.proyectos) lineas.push(`• Proyecto nuevo: «${p.nombre}» · ${nombreS(p.sombrero)}`);

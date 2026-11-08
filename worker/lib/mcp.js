@@ -23,7 +23,7 @@ import { ordenarCaptura } from "./ordenar.js";
 import { reflejar } from "./reflejar.js";
 import { hoyEn, sumarDias, textoCorto, textoHora } from "../../src/lib/fechas.js";
 import { completar as completarAccion } from "../../src/lib/metodo.js";
-import { rango, accionesDelPeriodo, reunionesDelPeriodo, especialesDelMes, rutinaDelPeriodo, ordenarPor, sinFecha } from "../../src/lib/agenda.js";
+import { rango, accionesDelPeriodo, reunionesDelPeriodo, especialesDelMes, rutinaDelPeriodo, ordenarPor, sinFecha, eventosPorAgendar, textoHoraEvento } from "../../src/lib/agenda.js";
 import { sombrerosDe, nombreDe } from "../../src/lib/sombreros.js";
 import { buscar as buscarCerebro, fold } from "../../src/lib/cerebro.js";
 
@@ -130,7 +130,8 @@ export function crearHerramientas({ env, ownerId, despues }) {
         `Agenda de ${periodo === "manana" ? "mañana" : periodo === "hoy" ? "hoy" : `la ${periodo}`} (${r.desde}${r.hasta !== r.desde ? ` a ${r.hasta}` : ""}).`,
         `TAREAS (por prioridad):\n${ordenarPor(tareas.abiertas, "prioridad", ctx).map((a) => linea(a, sombreros, hoy)).join("\n") || "(ninguna)"}`,
         `RECORDATORIOS:\n${recs.abiertas.map((a) => linea(a, sombreros, hoy)).join("\n") || "(ninguno)"}`,
-        `REUNIONES Y CITAS:\n${reuniones.map((e) => `· ${textoCorto(e.dia, hoy)} ${e.inicio ? textoHora(e.inicio) : "todo el día"} · ${e.titulo}${e.fuente === "google" ? ` (${e.calendarioNombre ?? "Google"})` : ` (id ${e.id})`}`).join("\n") || "(ninguna)"}`,
+        `REUNIONES Y CITAS:\n${reuniones.map((e) => `· ${textoCorto(e.dia, hoy)} ${e.fuente === "google" ? (e.inicio ? textoHora(e.inicio) : "todo el día") : textoHoraEvento(e).toLowerCase()} · ${e.titulo}${e.fuente === "google" ? ` (${e.calendarioNombre ?? "Google"})` : ` (id ${e.id})`}`).join("\n") || "(ninguna)"}`,
+        ...(eventosPorAgendar(estado.eventos).length ? [`POR AGENDAR (sin día todavía):\n${eventosPorAgendar(estado.eventos).map((e) => `· ${e.titulo} [${nombreDe(e.sombrero, sombreros)}] (id ${e.id})`).join("\n")}`] : []),
         ...(rutina.length ? [`TU RUTINA (de Google Calendar; no son reuniones):\n${rutina.slice(0, 20).map((e) => `· ${textoCorto(e.dia, hoy)} ${e.inicio ? textoHora(e.inicio) : ""} · ${e.titulo}`).join("\n")}`] : []),
         `EVENTOS ESPECIALES DEL MES:\n${especiales.map((e) => `· ${textoCorto(e.dia, hoy)} · ${e.titulo}`).join("\n") || "(ninguno)"}`,
       ];
@@ -164,7 +165,7 @@ export function crearHerramientas({ env, ownerId, despues }) {
       const notas = buscarCerebro(await almacen.cerebro(), texto, { n: 5 });
       return [
         acciones.length ? `TAREAS:\n${acciones.map((a) => linea(a, sombreros, hoy)).join("\n")}` : "",
-        eventos.length ? `EVENTOS:\n${eventos.map((e) => `· ${e.fecha ?? "se repite"} ${textoHora(e.inicio)} · ${e.titulo} (id ${e.id})`).join("\n")}` : "",
+        eventos.length ? `EVENTOS:\n${eventos.map((e) => `· ${e.fecha ?? (e.repite?.regla ? "se repite" : "por agendar")} ${e.fecha || e.repite?.regla ? textoHoraEvento(e).toLowerCase() : ""} · ${e.titulo} (id ${e.id})`).join("\n")}` : "",
         proyectos.length ? `PROYECTOS:\n${proyectos.map((p) => `· ${p.nombre} [${nombreDe(p.sombrero, sombreros)}] · prioridad ${p.prioridad ?? "media"} (id ${p.id})`).join("\n")}` : "",
         notas.length ? `LO QUE SABE DE ÉL:\n${notas.map((n) => `· ${n.titulo}: ${n.texto}`).join("\n")}` : "",
       ].filter(Boolean).join("\n\n") || "No encontré nada con eso.";

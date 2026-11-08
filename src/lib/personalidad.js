@@ -125,10 +125,13 @@ Reglas:
 - Una captura puede traer varias cosas: un elemento por cada una.
 - Para cambiar algo que YA existe (marcarlo hecho, moverlo, cambiarle la hora, borrarlo, delegarlo) usa "operaciones" con su id de las listas. Nunca inventes un id; si no sabes cuál es, pregunta.
 - "recordatorio" es algo que hay que tener presente a un día u hora (comprar algo, felicitar, llevar algo); "accion" es una tarea que se hace y se termina.
-- Una reunión, cita o ensayo con día y hora es un "evento" (clase "reunion" si es con gente); sin hora, una acción para ese día. Una boda o un concierto: evento clase "especial". Un cumpleaños o aniversario: "fecha-especial".
+- Una reunión, cita, mentoría, ensayo o evento SIEMPRE es tipo "evento", NUNCA una acción: clase "reunion" si es con gente (una cita, una mentoría, una llamada acordada), "evento" si va o participa (un ensayo, una noche de alabanza, un retiro), "especial" si es único y grande (una boda, un concierto suyo). Sin hora, va con su día y queda «hora por definir»; sin día, queda «por agendar» en sus Reuniones. Jamás la conviertas en una tarea «Agendar reunión…»: crea la reunión y pregunta el día o la hora que falte. Un cumpleaños o aniversario: "fecha-especial".
+- Si pide un recordatorio («recuérdame…», «ponme un recordatorio»), es tipo "recordatorio" (con hora si la dijo), no una acción.
+- Lo que tiene que PREPARAR antes de un evento (ensayar, preparar dos canciones, comprar algo) es una "accion" aparte, antes del evento y con el sombrero de lo que se hace (cantar o tocar es Artístico; predicar o dirigir la célula, Iglesia).
+- Si te da el día o la hora de una reunión o un evento que ya está en sus listas (también los «por agendar» o con «hora por definir»), usa "operaciones" → "editar" con su id y "fecha"/"inicio"; no crees otro.
 - Lo del sombrero de Juancito Ads va con ese sombrero y, si es de un cliente, con "cliente" (nombre exacto de la lista).
 - Su semana tiene BLOQUES por sombrero (Trabajo 8–12) y RECORDATORIOS fijos (Proverbios 11:45). Si dice en qué bloque va una tarea, pon "bloque" con su id y "cuando" ese día. Un recordatorio fijo de cada semana («recuérdame la lectura de Proverbios a las 11:45 de lunes a viernes, 15 min antes») es "ritmo" con clase "recordatorio"; uno de una sola vez es un "recordatorio" normal.
-- Reino es su intimidad con Dios (oración, la Palabra); Iglesia, las tareas de la iglesia (célula, servicios, liderazgo).
+- Reino es SÓLO su intimidad con Dios a solas (orar, leer la Palabra, ayunar, adorar en privado). Todo lo que es CON otras personas de la iglesia (reuniones con un hermano, servicios, la célula, noches de alabanza, retiros, discipulados, liderazgo) es Iglesia.
 - valor «alto» si lo acerca a lo que más le importa (sus sombreros de más prioridad, proyectos de prioridad alta, lo que dice su ficha); «bajo» si no mueve nada o cualquiera podría hacerlo.
 - delegable sólo si una persona concreta (de las que conoces o de su equipo) podría hacerla de verdad.
 - aprendizajes: sólo hechos estables y útiles (quién es alguien, cómo funciona algo en su vida, una preferencia). Nada confidencial. Si no aprendiste nada, [].
@@ -149,7 +152,9 @@ export function listasParaLaIA({ acciones = [], eventos = [], proyectos = [], ex
   const lineaAccion = (a) =>
     `- ${a.id} · ${a.clase === "recordatorio" ? "recordatorio" : "tarea"} · ${a.titulo} · ${nom(a.sombrero)}${proyecto(a.proyectoId) ? ` · ${proyecto(a.proyectoId)}` : ""}${fechaDe(a) ? ` · ${fechaDe(a)}` : ""}${a.lista !== "siguientes" ? ` · ${a.lista}` : ""}${a.valor ? ` · valor ${a.valor}` : ""}${a.delegable?.a ? ` · delegable a ${a.delegable.a}` : ""}${a.juancito?.id ? " · en Juancito Ads" : ""}`;
   const hasta = (n) => sumarDias(hoy, n);
-  const proximos = eventos.filter((e) => e.fecha && e.fecha >= hoy && e.fecha <= hasta(60)).sort((a, b) => (a.fecha + a.inicio).localeCompare(b.fecha + b.inicio)).slice(0, 60);
+  const proximos = eventos.filter((e) => e.fecha && e.fecha >= hoy && e.fecha <= hasta(60)).sort((a, b) => (a.fecha + (a.inicio ?? "")).localeCompare(b.fecha + (b.inicio ?? ""))).slice(0, 60);
+  const sinDia = eventos.filter((e) => !e.fecha && !e.repite?.regla).slice(0, 30);
+  const horaEv = (e) => (e.horaPorDefinir ? "hora por definir" : e.inicio === "00:00" && e.fin === "23:59" ? "todo el día" : hora(e.inicio));
   const repetidos = eventos.filter((e) => !e.fecha && e.repite?.regla).slice(0, 30);
   const hechas = acciones.filter((a) => a.estado === "hecha" && a.hechaEl && a.hechaEl >= hasta(-7)).slice(-30);
   const enGoogle = externos.filter((x) => x.tipo === "evento" && x.dia >= hoy && x.dia <= hasta(30)).map((x) => ({ ...x, clase: claseDeGoogle(x, ajustes) }));
@@ -164,7 +169,8 @@ export function listasParaLaIA({ acciones = [], eventos = [], proyectos = [], ex
     abiertas.map(lineaAccion).join("\n") || "- (nada)",
     "",
     "SUS EVENTOS PRÓXIMOS (id · día hora · qué):",
-    [...proximos.map((e) => `- ${e.id} · ${e.fecha} ${hora(e.inicio)} · ${e.titulo}${e.clase ? ` (${e.clase})` : ""} · ${nom(e.sombrero)}`), ...repetidos.map((e) => `- ${e.id} · se repite (${e.repite.regla}) ${hora(e.inicio)} · ${e.titulo}`)].join("\n") || "- (ninguno)",
+    [...proximos.map((e) => `- ${e.id} · ${e.fecha} ${horaEv(e)} · ${e.titulo}${e.clase ? ` (${e.clase})` : ""} · ${nom(e.sombrero)}`), ...repetidos.map((e) => `- ${e.id} · se repite (${e.repite.regla}) ${horaEv(e)} · ${e.titulo}`)].join("\n") || "- (ninguno)",
+    ...(sinDia.length ? ["", "REUNIONES Y EVENTOS POR AGENDAR (todavía sin día; id · qué · sombrero):", sinDia.map((e) => `- ${e.id} · ${e.titulo}${e.clase ? ` (${e.clase})` : ""} · ${nom(e.sombrero)}`).join("\n")] : []),
     ...(deGoogle.length ? ["", "EN SU GOOGLE CALENDAR (sólo para consultar):", deGoogle.map((x) => `- ${x.dia}${x.inicio ? ` ${hora(x.inicio)}` : ""} · ${x.titulo}${x.clase === "especial" ? " (especial)" : ""}`).join("\n")] : []),
     ...(rutinaGoogle.length ? ["", "SU RUTINA EN GOOGLE CALENDAR (se repite; sus bloques de tiempo, no reuniones):", rutinaGoogle.map((x) => `- ${x.inicio ? `${hora(x.inicio)}${x.fin ? `–${hora(x.fin)}` : ""}` : "todo el día"} · ${x.titulo}`).join("\n")] : []),
     "",

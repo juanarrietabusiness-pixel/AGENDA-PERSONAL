@@ -13,7 +13,7 @@
 // proyecto). Nada se delega ni se suelta solo: se sugiere.
 // ============================================================
 
-import { sumarDias, lunesDe, partes, fecha, diasDelMes, diasEntre, MESES, textoCorto, minutos, aHora } from "./fechas.js";
+import { sumarDias, lunesDe, partes, fecha, diasDelMes, diasEntre, MESES, textoCorto, textoHora, esHora, minutos, aHora } from "./fechas.js";
 import { nuevaAccion, nuevoId, DURACIONES } from "./metodo.js";
 import { ocurrencias, tocaEl } from "./recurrencia.js";
 import { urgencia } from "./prioridad.js";
@@ -221,6 +221,43 @@ export function reunionesDelPeriodo(eventos, externos, r, ajustes = {}) {
   return [...propios, ...deGoogle].sort((a, b) => (a.dia + (a.inicio ?? "00:00")).localeCompare(b.dia + (b.inicio ?? "00:00")));
 }
 
+// ------------------------------------------------------------
+// Un evento sin hora o sin día no se vuelve una tarea
+// ------------------------------------------------------------
+
+/** De todo el día: 00:00–23:59 (un evento especial, o uno con día y la hora por definir). */
+export const esTodoElDia = (e) => e?.inicio === "00:00" && e?.fin === "23:59";
+/** Por agendar: una reunión o un evento que todavía no tiene día (ni se repite). */
+export const porAgendar = (e) => Boolean(e) && !e.fecha && !e.repite?.regla;
+/** Lo que está por agendar, para la columna de Reuniones. */
+export const eventosPorAgendar = (eventos) => (eventos ?? []).filter(porAgendar);
+/** «10:00 a. m.», «Hora por definir», «Todo el día» o «Por agendar». */
+export function textoHoraEvento(e) {
+  if (porAgendar(e)) return "Por agendar";
+  if (e.horaPorDefinir) return "Hora por definir";
+  if (esTodoElDia(e) || !e.inicio) return "Todo el día";
+  return textoHora(e.inicio);
+}
+
+/**
+ * Un evento como se guarda, sea cual sea lo que se tocó: sin hora (o con la de «todo el día») va de 00:00 a 23:59 y,
+ * si no es especial, con la hora por definir; con hora, dura al menos hasta que termina (una hora si no se dijo); sin
+ * día ni repetición, por agendar. Puro.
+ */
+export function normalizarEvento(e) {
+  const x = { ...e };
+  const conHora = esHora(x.inicio) && !(x.inicio === "00:00" && x.fin === "23:59");
+  if (porAgendar(x)) {
+    if (!conHora) Object.assign(x, { inicio: null, fin: null });
+    x.horaPorDefinir = false;
+    return x;
+  }
+  if (!conHora) return { ...x, inicio: "00:00", fin: "23:59", horaPorDefinir: x.clase !== "especial" };
+  x.horaPorDefinir = false;
+  if (!esHora(x.fin) || x.fin <= x.inicio) x.fin = aHora(Math.min(minutos(x.inicio) + 60, 23 * 60 + 59));
+  return x;
+}
+
 /** ¿Toca este evento ese día? (para la vista de un día) */
 export const tocaElDia = (e, dia) => (e.fecha ? e.fecha === dia : e.repite?.regla ? tocaEl(e.repite.regla, e.repite.inicio, dia) : false);
 
@@ -274,16 +311,16 @@ export function convertir(obj, tipo, clase, hoy) {
   if (!QUE_ES[clase]) return { tipo, obj };
   if (tipo === "accion" && esDeAccion(clase)) return { tipo, obj: { ...obj, clase } };
   if (tipo === "evento" && !esDeAccion(clase)) {
-    return { tipo, obj: { ...obj, clase, ...(clase === "especial" && !obj.inicio ? { inicio: "00:00", fin: "23:59" } : {}) } };
+    return { tipo, obj: normalizarEvento({ ...obj, clase }) };
   }
   const comunes = { titulo: obj.titulo, notas: obj.notas ?? "", sombrero: obj.sombrero ?? null, personas: Array.isArray(obj.personas) ? obj.personas : [] };
   if (tipo === "accion") {
     const dia = obj.cuando ?? obj.limite ?? hoy;
-    const especial = clase === "especial";
-    const inicio = especial ? "00:00" : obj.hora ?? "09:00";
-    const fin = especial ? "23:59" : aHora(Math.min(minutos(inicio) + (Number(obj.minutos) || 60), 23 * 60 + 59));
     const repite = obj.repite?.regla ? { regla: obj.repite.regla, inicio: obj.repite.inicio ?? dia } : null;
-    return { tipo: "evento", obj: { id: nuevoId("e"), ...comunes, clase, fecha: repite ? null : dia, repite, inicio, fin, protegido: false, fuente: "app" } };
+    // Sin hora no se inventa una: queda de todo el día (con la hora por definir si no es especial).
+    const inicio = clase !== "especial" && esHora(obj.hora) ? obj.hora : null;
+    const fin = inicio ? aHora(Math.min(minutos(inicio) + (Number(obj.minutos) || 60), 23 * 60 + 59)) : null;
+    return { tipo: "evento", obj: normalizarEvento({ id: nuevoId("e"), ...comunes, clase, fecha: repite ? null : dia, repite, inicio, fin, protegido: false, fuente: "app" }) };
   }
   const dia = obj.fecha ?? obj.repite?.inicio ?? hoy;
   const dura = obj.inicio && obj.fin ? minutos(obj.fin) - minutos(obj.inicio) : 30;

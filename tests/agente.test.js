@@ -138,3 +138,73 @@ describe("aplicar, deshacer y la tarjeta", () => {
     expect(atras.ritmo.find((e) => e.id === "celula").inicio).toBe("20:00");
   });
 });
+
+describe("reuniones, eventos y recordatorios van a su sitio (casos reales)", () => {
+  const sombreros = [
+    { id: "reino", nombre: "El Reino" },
+    { id: "trabajo", nombre: "Trabajo" },
+    { id: "artistico", nombre: "Artístico" },
+    { id: "iglesia", nombre: "Iglesia" },
+    { id: "personal", nombre: "Personal" },
+  ];
+
+  it("«Agendar reunión con Dayano» (sin día) es una reunión POR AGENDAR en Iglesia, no una tarea en Reino", () => {
+    const o = leerOrden(
+      { elementos: [{ tipo: "accion", titulo: "Agendar reunión con Dayano", sombrero: "reino", personas: ["Dayano"] }], respuesta: "Listo" },
+      { hoy: HOY, texto: "Tengo una reunión pendiente con Dayano, un hermano de la iglesia, agendarlo en reuniones.", sombreros },
+    );
+    expect(o.acciones).toHaveLength(0);
+    expect(o.eventos).toHaveLength(1);
+    expect(o.eventos[0]).toMatchObject({ titulo: "Reunión con Dayano", clase: "reunion", sombrero: "iglesia", fecha: null, repite: null, inicio: null });
+    expect(o.pregunta).toMatch(/día y a qué hora/);
+    expect(tarjeta(aplicarOrden(estado0(), o), o, HOY, { sombreros })).toMatch(/Reunión: «Reunión con Dayano».*por agendar/);
+  });
+
+  it("la noche de alabanza el 20 sin hora es un EVENTO de ese día con la hora por definir; lo que prepara, una tarea", () => {
+    const o = leerOrden(
+      {
+        elementos: [
+          { tipo: "evento", titulo: "Noche de alabanza", sombrero: "reino", cuando: "2026-11-20" },
+          { tipo: "accion", titulo: "Preparar dos canciones para la noche de alabanza", sombrero: "artistico", cuando: "2026-11-18" },
+          { tipo: "recordatorio", titulo: "Noche de alabanza: participación especial", sombrero: "iglesia", cuando: "2026-11-20" },
+        ],
+        pregunta: "¿A qué hora es la noche de alabanza?",
+      },
+      { hoy: HOY, texto: "El 20 de noviembre tenemos la noche de alabanza, tengo que preparar dos canciones, agéndalo y el recordatorio", sombreros },
+    );
+    expect(o.eventos).toHaveLength(1);
+    expect(o.eventos[0]).toMatchObject({ titulo: "Noche de alabanza", clase: "evento", fecha: "2026-11-20", inicio: "00:00", fin: "23:59", horaPorDefinir: true, sombrero: "iglesia" });
+    expect(o.acciones.map((a) => [a.titulo, a.clase])).toEqual([
+      ["Preparar dos canciones para la noche de alabanza", "tarea"],
+      ["Noche de alabanza: participación especial", "recordatorio"],
+    ]);
+    expect(o.avisos.join(" ")).not.toMatch(/tarea de ese día/);
+    expect(o.pregunta).toBe("¿A qué hora es la noche de alabanza?");
+  });
+
+  it("al darle la hora, la reunión por agendar se agenda (no se crea otra)", () => {
+    const pendiente = { id: "e1", titulo: "Reunión con Dayano", clase: "reunion", sombrero: "iglesia", fecha: null, repite: null, inicio: null, fin: null };
+    const o = leerOrden({ operaciones: [{ op: "editar", tipo: "evento", id: "e1", cambios: { fecha: "2026-11-10", inicio: "15:00" } }] }, { hoy: HOY, eventos: [pendiente], sombreros });
+    expect(o.operaciones[0].cambios).toMatchObject({ fecha: "2026-11-10", inicio: "15:00", fin: "16:00", horaPorDefinir: false });
+    const sinHora = leerOrden({ operaciones: [{ op: "editar", tipo: "evento", id: "e1", cambios: { fecha: "2026-11-10" } }] }, { hoy: HOY, eventos: [pendiente], sombreros });
+    expect(sinHora.operaciones[0].cambios).toMatchObject({ fecha: "2026-11-10", inicio: "00:00", fin: "23:59", horaPorDefinir: true });
+    const conHora = leerOrden({ operaciones: [{ op: "editar", tipo: "evento", id: "e2", cambios: { inicio: "19:30" } }] }, {
+      hoy: HOY,
+      eventos: [{ id: "e2", titulo: "Noche de alabanza", clase: "evento", fecha: "2026-11-20", inicio: "00:00", fin: "23:59", horaPorDefinir: true }],
+      sombreros,
+    });
+    expect(conHora.operaciones[0].cambios).toMatchObject({ inicio: "19:30", fin: "20:30", horaPorDefinir: false });
+  });
+
+  it("Reino se queda con lo que es a solas; un evento sin gente en Reino no se mueve", () => {
+    const o = leerOrden({ elementos: [{ tipo: "evento", titulo: "Ayuno", sombrero: "reino", cuando: "2026-11-09", hora: "06:00" }] }, { hoy: HOY, sombreros });
+    expect(o.eventos[0].sombrero).toBe("reino");
+  });
+
+  it("las reglas que lee el modelo ya no le dicen que una reunión sin hora es una tarea", () => {
+    const sistema = instruccionesParaOrdenar({ ajustes: { ...structuredClone(AJUSTES_BASE), nombre: "Juan", zona: "America/Panama" }, hoy: HOY, eventos: [{ id: "e1", titulo: "Reunión con Dayano", clase: "reunion", sombrero: "iglesia", fecha: null, repite: null }] });
+    expect(sistema).not.toMatch(/sin hora, una acción/);
+    expect(sistema).toMatch(/NUNCA una acción/);
+    expect(sistema).toMatch(/POR AGENDAR[\s\S]*e1 · Reunión con Dayano/);
+  });
+});

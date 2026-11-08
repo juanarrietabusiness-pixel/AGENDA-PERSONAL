@@ -2,7 +2,7 @@ import { useId, useState } from "react";
 import Icon from "./Icon.jsx";
 import { useDialogo } from "../hooks/useDialogo.js";
 import { DURACIONES } from "../lib/metodo.js";
-import { QUE_ES, esDeAccion } from "../lib/agenda.js";
+import { QUE_ES, esDeAccion, normalizarEvento, esTodoElDia } from "../lib/agenda.js";
 import { describir } from "../lib/recurrencia.js";
 
 const LISTAS = { siguientes: "Siguientes acciones", espera: "En espera de alguien", "algun-dia": "Algún día", referencia: "Referencia" };
@@ -14,7 +14,8 @@ const LISTAS = { siguientes: "Siguientes acciones", espera: "En espera de alguie
 export default function Editar({ tipo, obj, sombreros, proyectos = [], hoy, onGuardar, onBorrar, onCerrar }) {
   const ref = useDialogo(onCerrar);
   const id = useId();
-  const [f, setF] = useState(() => ({ ...obj }));
+  // Lo de todo el día (o con la hora por definir) se enseña sin hora: se escribe la que sea y ya.
+  const [f, setF] = useState(() => (tipo !== "accion" && esTodoElDia(obj) ? { ...obj, inicio: null, fin: null } : { ...obj }));
   // Qué es: se puede cambiar entre los cinco; si pasa de acción a evento (o al revés), se convierte al guardar.
   const [que, setQue] = useState(() => (tipo === "accion" ? obj.clase ?? "tarea" : obj.clase ?? "evento"));
   const cambiaDeTipo = esDeAccion(que) !== (tipo === "accion");
@@ -30,11 +31,9 @@ export default function Editar({ tipo, obj, sombreros, proyectos = [], hoy, onGu
     if (esAccion) {
       limpio.minutos = Number(limpio.minutos) || 30;
       if (!limpio.delegable?.a) limpio.delegable = null;
-    } else if (limpio.fin && limpio.inicio && limpio.fin <= limpio.inicio) {
-      limpio.fin = limpio.inicio;
     }
-    if (cambiaDeTipo) onGuardar(limpio, { como: que });
-    else onGuardar({ ...limpio, clase: que });
+    if (cambiaDeTipo) onGuardar(esAccion ? limpio : normalizarEvento(limpio), { como: que });
+    else onGuardar(esAccion ? { ...limpio, clase: que } : normalizarEvento({ ...limpio, clase: que }));
   };
 
   return (
@@ -114,11 +113,11 @@ export default function Editar({ tipo, obj, sombreros, proyectos = [], hoy, onGu
           <div className="campos-2">
             <div>
               <label className="etiqueta" htmlFor={`${id}-f`}>Día</label>
-              <input id={`${id}-f`} type="date" className="campo" value={f.fecha ?? ""} onChange={poner("fecha")} disabled={!obj.fecha} />
+              <input id={`${id}-f`} type="date" className="campo" value={f.fecha ?? ""} onChange={poner("fecha")} disabled={!obj.fecha && Boolean(obj.repite?.regla)} />
             </div>
             <div className="campos-2" style={{ marginTop: 0 }}>
               <div>
-                <label className="etiqueta" htmlFor={`${id}-i`}>Empieza</label>
+                <label className="etiqueta" htmlFor={`${id}-i`}>Empieza{!f.inicio ? <span className="nota"> (vacío: todo el día)</span> : null}</label>
                 <input id={`${id}-i`} type="time" className="campo" value={f.inicio ?? ""} onChange={poner("inicio")} />
               </div>
               <div>

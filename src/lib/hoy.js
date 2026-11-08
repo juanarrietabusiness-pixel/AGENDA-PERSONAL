@@ -31,7 +31,7 @@ export function eventosDelDia(eventos, dia) {
   return eventos
     .filter((e) => (e.fecha ? e.fecha === dia : e.repite?.regla ? tocaEl(e.repite.regla, e.repite.inicio, dia) : false))
     .map((e) => ({ ...e, minutos: Math.max(0, minutos(e.fin) - minutos(e.inicio)) }))
-    .sort((a, b) => a.inicio.localeCompare(b.inicio));
+    .sort((a, b) => (a.inicio ?? "").localeCompare(b.inicio ?? ""));
 }
 
 /** Las acciones con hora puesta (un bloque o un recordatorio) son fijas ese día. */
@@ -165,7 +165,8 @@ function buscarSitio(capacidad, sombrero, dura, dia, ajustes) {
  */
 export function planDelDia({ dia, eventos = [], acciones = [], ajustes, ahora: horaActual = null }) {
   const conf = ajustes?.dias?.[diaSemana(dia)] ?? { despierta: "06:00", duerme: "22:00" };
-  const fijosEventos = eventosDelDia(eventos, dia);
+  // Lo de todo el día (un evento especial, uno con la hora por definir) no ocupa horas del plan.
+  const fijosEventos = eventosDelDia(eventos, dia).filter((e) => !(e.inicio === "00:00" && e.fin === "23:59"));
   const fijosAcciones = accionesConHora(acciones, dia);
   const fijos = [...fijosEventos, ...fijosAcciones].sort((a, b) => a.inicio.localeCompare(b.inicio));
   // Se planea desde el resumen de la mañana (después de la oración), no desde que suena el despertador.

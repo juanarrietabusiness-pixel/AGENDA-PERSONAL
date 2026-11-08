@@ -5,7 +5,7 @@ import { lunesDe, sumarDias, DIAS, DIAS_CORTOS, partes, diaSemana, horaCorta, ra
 import { eventosDelDia } from "../lib/hoy.js";
 import { sombrerosDe, estiloDe, nombreDe, balance, descuidados, aplicarSombrero, COLORES } from "../lib/sombreros.js";
 import { cuadrante } from "../lib/prioridad.js";
-import { ordenarPor, claseDeGoogle } from "../lib/agenda.js";
+import { ordenarPor, claseDeGoogle, esTodoElDia } from "../lib/agenda.js";
 import { nuevaAccion } from "../lib/metodo.js";
 import { RITMO_BASE } from "../lib/ritmo.js";
 import SemanaTipo from "../componentes/SemanaTipo.jsx";
@@ -141,11 +141,11 @@ export default function Plan({ estado, hoy, cambiar, onHecha, onAbrir, avisar, s
 
 /** Un día: lo de todo el día arriba, luego en orden de hora los bloques (con lo suyo dentro), los recordatorios sueltos y las reuniones; al final, las tareas sin bloque. */
 function DiaPlan({ dia, hoy, visto, eventos, bloques, recordatorios, tareas, sombreros, onBloque, onAbrir }) {
-  const todoElDia = eventos.filter((e) => !e.inicio || e.todoElDia);
+  const todoElDia = eventos.filter((e) => !e.inicio || e.todoElDia || esTodoElDia(e));
   const conHora = [
     ...bloques.map((b) => ({ tipo: "bloque", inicio: b.bloque.inicio, ...b })),
     ...recordatorios.map((r) => ({ tipo: "recordatorio", inicio: r.inicio ?? "99", r })),
-    ...eventos.filter((e) => e.inicio && !e.todoElDia).map((e) => ({ tipo: "evento", inicio: e.inicio, e })),
+    ...eventos.filter((e) => e.inicio && !e.todoElDia && !esTodoElDia(e)).map((e) => ({ tipo: "evento", inicio: e.inicio, e })),
   ].sort((a, b) => a.inicio.localeCompare(b.inicio));
   const vacio = !conHora.length && !todoElDia.length && !tareas.length;
 
@@ -232,7 +232,7 @@ function Evento({ e, sombreros, onAbrir }) {
     <li className={`pl-evento${rutina ? " es-rutina" : ""}`} style={e.fuente === "google" ? (e.color ? { "--s": e.color } : undefined) : estiloDe(e.sombrero, sombreros)}>
       <button type="button" onClick={() => (e.fuente === "google" ? onAbrir("google", e) : onAbrir("evento", e))}>
         <Icon name={icono} size={12} />
-        <time>{e.inicio && !e.todoElDia ? horaCorta(e.inicio) : "Todo el día"}</time>
+        <time>{e.horaPorDefinir ? "Hora por definir" : e.inicio && !e.todoElDia && !esTodoElDia(e) ? horaCorta(e.inicio) : "Todo el día"}</time>
         <span>{e.titulo}</span>
       </button>
     </li>
