@@ -6,13 +6,13 @@ import EventoGoogle from "./componentes/EventoGoogle.jsx";
 import Burbuja from "./componentes/Burbuja.jsx";
 import Hoy from "./pantallas/Hoy.jsx";
 import Plan from "./pantallas/Plan.jsx";
-import Mentor from "./pantallas/Mentor.jsx";
+import Revision from "./pantallas/Revision.jsx";
 import Ajustes from "./pantallas/Ajustes.jsx";
 import Entrar from "./pantallas/Entrar.jsx";
 import Autorizar from "./pantallas/Autorizar.jsx";
 import Recuperar from "./pantallas/Recuperar.jsx";
 import { useAlmacen } from "./hooks/useAlmacen.js";
-import { hoyEn, horaEn, sumarDias, textoLargo } from "./lib/fechas.js";
+import { hoyEn, horaEn, sumarDias, lunesDe, textoLargo } from "./lib/fechas.js";
 import { completar, posponer, soltar } from "./lib/metodo.js";
 import { sombrerosDe } from "./lib/sombreros.js";
 import { claveDeGoogle, CLASES_GOOGLE, convertir, QUE_ES } from "./lib/agenda.js";
@@ -22,10 +22,10 @@ import { elegirVersiculo, ATRIBUCION } from "./lib/versiculos.js";
 const PANTALLAS = [
   { id: "hoy", nombre: "Hoy", icono: "sun" },
   { id: "plan", nombre: "Plan", icono: "calendar" },
-  { id: "mentor", nombre: "Mentor", icono: "brain" },
+  { id: "revision", nombre: "Revisión", icono: "clipboardCheck" },
 ];
 // Las direcciones de antes siguen llevando a algún sitio.
-const ANTES = { semana: "plan", sombreros: "plan", asistente: "hoy" };
+const ANTES = { semana: "plan", sombreros: "plan", asistente: "hoy", mentor: "revision" };
 
 const mayuscula = (t) => t.charAt(0).toUpperCase() + t.slice(1);
 
@@ -132,6 +132,7 @@ export default function App() {
       if (x.id !== id) return x;
       if (opcion === "hoy") return posponer(x, hoy);
       if (opcion === "manana") return posponer(x, sumarDias(hoy, 1));
+      if (opcion === "semana") return posponer(x, lunesDe(sumarDias(hoy, 7)));
       if (opcion === "algun-dia") return { ...x, lista: "algun-dia", cuando: null };
       return soltar(x, hoy);
     }));
@@ -215,7 +216,7 @@ export default function App() {
         <main className="contenido" id="contenido">
           {pantalla === "hoy" && <Hoy {...comunes} cambiar={cambiar} hora={hora} onDecidir={onDecidir} onEnfoque={onEnfoque} onNoHoy={onNoHoy} onAsistente={() => (servidor ? setAsistente(true) : estado.bandeja[0] && setAclarando(estado.bandeja[0]))} />}
           {pantalla === "plan" && <Plan {...comunes} cambiar={cambiar} servidor={servidor} recargar={almacen.recargar} />}
-          {pantalla === "mentor" && <Mentor {...comunes} cambiar={cambiar} recargar={almacen.recargar} servidor={servidor} />}
+          {pantalla === "revision" && <Revision {...comunes} cambiar={cambiar} onDecidir={onDecidir} recargar={almacen.recargar} servidor={servidor} onAsistente={() => (servidor ? setAsistente(true) : estado.bandeja[0] && setAclarando(estado.bandeja[0]))} />}
           {pantalla === "ajustes" && (
             <Ajustes estado={estado} cambiar={cambiar} reiniciar={modo === "prototipo" ? reiniciar : null} salir={servidor ? almacen.salir : null} servidor={servidor} recargar={almacen.recargar} avisar={avisar} />
           )}

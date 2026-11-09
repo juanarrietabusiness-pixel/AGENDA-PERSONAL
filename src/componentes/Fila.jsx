@@ -3,7 +3,6 @@ import { sombrero, estiloDe } from "../lib/sombreros.js";
 import { urgencia } from "../lib/prioridad.js";
 import { textoFecha, textoHora } from "../lib/fechas.js";
 import { describir } from "../lib/recurrencia.js";
-import { valorDe } from "../lib/agenda.js";
 
 const TEXTO_URGENCIA = { vencida: "Se pasó", hoy: "Vence hoy", mañana: "Vence mañana", pronto: "Vence pronto" };
 
@@ -15,7 +14,6 @@ export default function Fila({ accion, hoy, sombreros, proyectos = [], onHecha, 
   const s = sombrero(accion.sombrero, sombreros);
   const u = urgencia(accion, hoy);
   const hecha = accion.estado === "hecha";
-  const valor = valorDe(accion, { proyectos, sombreros });
   const proyecto = proyectos.find((p) => p.id === accion.proyectoId);
   const planeadaAntes = accion.estado === "abierta" && accion.cuando && accion.cuando < hoy && !u;
   const urgente = u && <span className={`chip ${u === "vencida" ? "rojo" : "ambar"}`}>{TEXTO_URGENCIA[u]}{accion.limite && u !== "hoy" && u !== "mañana" ? ` · ${textoFecha(accion.limite, hoy)}` : ""}</span>;
@@ -49,7 +47,6 @@ export default function Fila({ accion, hoy, sombreros, proyectos = [], onHecha, 
             {accion.cliente && <span className="chip">{accion.cliente}</span>}
             {urgente}
             {planeadaAntes && <span className="chip ambar">Quedó del {textoFecha(accion.cuando, hoy)}</span>}
-            {valor === "alto" && !hecha && <span className="valor-alto">valor alto</span>}
             {mostrarDia && accion.cuando && accion.cuando !== hoy && !planeadaAntes && <span>{textoFecha(accion.cuando, hoy)}</span>}
             {accion.hora && <span>{textoHora(accion.hora)}</span>}
             {accion.repite?.regla && (

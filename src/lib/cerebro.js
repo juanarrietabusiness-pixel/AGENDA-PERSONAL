@@ -12,7 +12,7 @@
 //   · NOTAS que escribe Juan (de un sombrero, de un proyecto, de una persona).
 //   · Lo APRENDIDO: lo que el asistente nota al ordenar lo que se le dice
 //     («la célula se prepara los miércoles», «Adolfo lleva el retiro»). Entra
-//     solo, se ve en Mentor → «Lo que sé de ti» y se borra con un toque.
+//     solo, se ve en Ajustes → «Lo que sé de ti» y se borra con un toque.
 //
 // Al ordenar, el asistente recibe la ficha y las notas que más tienen que
 // ver con lo que se dijo: así deja de sonar genérico.

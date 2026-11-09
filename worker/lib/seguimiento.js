@@ -174,7 +174,7 @@ export function queToca({ estado, ahora, hoy }) {
     const v = elegirVersiculo({ momento: "revision", hoy, frecuencia: aj.frecuenciaVersiculos });
     out.push({
       clave: `revision:${hoy}`,
-      texto: [`${nombre}, es hora de tu revisión semanal (${aj.revision.minutos ?? 30} min).`, `Esta semana cerraste ${hechas} y tienes ${abiertas} abiertas.`, "Vacía la bandeja, mira cada sombrero y escoge las piedras grandes de la semana que viene.", `${APP}/#plan`, ...(v ? [bloqueVersiculo(v.id)] : [])].join("\n\n"),
+      texto: [`${nombre}, es hora de tu revisión semanal (${aj.revision.minutos ?? 30} min).`, `Esta semana cerraste ${hechas} y tienes ${abiertas} abiertas.`, "Diez minutos: lo que quedó, los proyectos sin siguiente paso y las piedras grandes de la semana que viene.", `${APP}/#revision`, ...(v ? [bloqueVersiculo(v.id)] : [])].join("\n\n"),
     });
   }
   return out;

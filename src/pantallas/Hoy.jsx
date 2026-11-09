@@ -7,7 +7,7 @@ import { sombrerosDe, estiloDe, nombreDe } from "../lib/sombreros.js";
 import { variante } from "../lib/mensajes.js";
 import { nuevaAccion } from "../lib/metodo.js";
 import { ahoraYDespues, tareasDelBloque, carga, semanaDelDia, seriesTraidas, claseDeRitmo, textoHoras } from "../lib/semana.js";
-import { PERIODOS, ORDENES, rango, mover, tituloDe, accionesDelPeriodo, sinFecha, reunionesDelPeriodo, especialesDelMes, rutinaDelPeriodo, ordenarPor, enfoqueDelDia, TRES, eventosPorAgendar, textoHoraEvento } from "../lib/agenda.js";
+import { ORDENES, rango, mover, tituloDe, accionesDelPeriodo, sinFecha, reunionesDelPeriodo, especialesDelMes, rutinaDelPeriodo, ordenarPor, enfoqueDelDia, TRES, eventosPorAgendar, textoHoraEvento } from "../lib/agenda.js";
 
 const SALUDO = ["Buenos días", "Buen día", "Arrancamos"];
 const saludo = (hora, dia) => (hora < "12:00" ? variante(SALUDO, dia) : hora < "19:00" ? "Buenas tardes" : "Buenas noches");
@@ -44,7 +44,8 @@ const recordado = (k, base, validos) => {
 export default function Hoy({ estado, hoy, hora, onHecha, onAbrir, onDecidir, onAsistente, cambiar, onEnfoque, onNoHoy }) {
   const { acciones, eventos, proyectos, ajustes, bandeja = [], externos = [] } = estado;
   const sombreros = sombrerosDe(ajustes);
-  const [periodo, setPeriodo] = useState(() => recordado("periodo", "dia", Object.keys(PERIODOS)));
+  // Hoy mira un día (hoy, mañana…): la semana se mira en Plan.
+  const [periodo, setPeriodo] = useState("dia");
   const [orden, setOrden] = useState(() => recordado("orden", "prioridad", Object.keys(ORDENES)));
   const [dia, setDia] = useState(hoy);
   const [filtro, setFiltro] = useState(null);
@@ -97,10 +98,7 @@ export default function Hoy({ estado, hoy, hora, onHecha, onAbrir, onDecidir, on
   const variosDias = periodo !== "dia";
   const conFoco = hayBloques || enfoque.tres.length > 0 || enfoque.reserva.length > 0;
 
-  const ponerPeriodo = (p) => {
-    setPeriodo(p);
-    recordar("periodo", p);
-  };
+  const ponerPeriodo = (p) => setPeriodo(p);
   const ponerOrden = (o) => {
     setOrden(o);
     recordar("orden", o);
@@ -286,11 +284,6 @@ export default function Hoy({ estado, hoy, hora, onHecha, onAbrir, onDecidir, on
       </div>
 
       <div className="hoy-controles">
-        <div className="segmentado" role="group" aria-label="Periodo">
-          {Object.entries(PERIODOS).map(([p, t]) => (
-            <button key={p} type="button" aria-pressed={periodo === p} onClick={() => ponerPeriodo(p)}>{t}</button>
-          ))}
-        </div>
         <div className="navegar-periodo">
           <button type="button" className="boton fantasma" aria-label="Anterior" onClick={() => setDia((d) => mover(periodo, d, -1))}><Icon name="chevronLeft" size={18} /></button>
           <strong aria-live="polite">{tituloDe(periodo, dia, hoy)}</strong>

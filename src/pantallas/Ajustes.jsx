@@ -6,6 +6,7 @@ import { MODELOS, FUNCIONES, PROVEEDORES, modeloEscogido, advertencias, costo } 
 import { FUERA_DE_CONTEXTO, ATRIBUCION } from "../lib/versiculos.js";
 import Telegram from "../componentes/Telegram.jsx";
 import Conexiones from "../componentes/Conexiones.jsx";
+import Cerebro from "../componentes/Cerebro.jsx";
 import { PARTES_SEGUIMIENTO, seguimientoDe, DIAS_BORRAR, diasParaBorrar } from "../lib/ajustes.js";
 import { sombrerosDe } from "../lib/sombreros.js";
 import { DIAS } from "../lib/fechas.js";
@@ -67,6 +68,8 @@ export default function Ajustes({ estado, cambiar, reiniciar, salir, servidor = 
           </select>
         </div>
       </section>
+
+      <Cerebro cerebro={estado.cerebro ?? []} sombreros={sombrerosDe(estado.ajustes)} servidor={servidor} recargar={recargar} avisar={avisar} />
       {servidor && <Telegram />}
       {servidor && <Conexiones estado={estado} sombreros={sombrerosDe(ajustes)} recargar={recargar} avisar={avisar} />}
 

@@ -99,6 +99,14 @@ burbuja es un micrófono** (si el navegador dicta): tocarla escucha al momento, 
 `horaPorDefinir`); sin día, «por agendar» (`porAgendar`, sin fecha ni repetición, no va a Google hasta tener día);
 `normalizarEvento` lo deja bien al editar o convertir. Reino no lleva reuniones con gente (`sombreroDeEvento`).
 
+**La revisión semanal guiada** (`src/pantallas/Revision.jsx`, en la navegación donde estaba Mentor; `#mentor` lleva ahí):
+seis pasos —lo que quedó (mañana, la semana que viene, algún día, ya no aplica), la bandeja, los proyectos sin siguiente
+paso (se escribe ahí mismo), lo que esperas de otros, delegar o soltar, y la semana que viene (cómo va cada sombrero y
+sus piedras grandes = `importante`)— con el consejo del mentor. «Terminé» deja `ajustes.ultimaRevision`. El aviso de
+Telegram del día de la revisión lleva a `#revision`. «Lo que sé de ti» (el cerebro) pasó a Ajustes
+(`componentes/Cerebro.jsx`). Hoy mira sólo un día (la semana se mira en Plan) y las filas ya no dicen «valor alto»: el
+valor ordena, no se enseña.
+
 **Reflejar** (`worker/lib/reflejar.js`): UN sitio para que un cambio (pantalla, asistente, Telegram, Claude) vaya a
 Juancito Ads y a Google. Lo que falla fuera NO deshace lo de aquí: la agenda es la verdad y la vuelta reintenta.
 
