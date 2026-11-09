@@ -8,7 +8,7 @@ import { SOMBREROS, sombrerosDe } from "../src/lib/sombreros.js";
 import { claseDeGoogle } from "../src/lib/agenda.js";
 import { nuevaAccion } from "../src/lib/metodo.js";
 import { aEventoBloque } from "../worker/lib/google.js";
-import { queToca, enSilencio } from "../worker/lib/seguimiento.js";
+import { queToca, enSilencio, botonesDeVarias, enEnfoque } from "../worker/lib/seguimiento.js";
 import { AJUSTES_BASE } from "../src/lib/ajustes.js";
 import { leerOrden } from "../src/lib/agente.js";
 
@@ -303,5 +303,24 @@ describe("ver la semana sin ruido", () => {
     expect(sombreroPorTitulo("RETIRO", conReino)).toBe("iglesia");
     expect(sombreroPorTitulo("TIME MATRIMONIO", conReino)).toBe("personal");
     expect(sombreroPorTitulo("HOGAR - TASK", conReino)).toBe("personal");
+  });
+});
+
+describe("botones por tarea en Telegram", () => {
+  it("una fila por tarea, con el título corto, Hecha y Mañana", () => {
+    const filas = botonesDeVarias([{ id: "a1", titulo: "Enviar la propuesta de pauta a Dcasa antes del mediodía" }, { id: "a2", titulo: "Llamar a Rofer" }]);
+    expect(filas).toHaveLength(2);
+    expect(filas[0][0]).toEqual({ text: "✓ Enviar la propuesta de pa…", callback_data: "h:a1" });
+    expect(filas[1]).toEqual([{ text: "✓ Llamar a Rofer", callback_data: "h:a2" }, { text: "Mañana", callback_data: "m:a2" }]);
+  });
+});
+
+describe("modo enfoque", () => {
+  it("calla mientras dura, sólo ese día y hasta su hora", () => {
+    const aj = { enfoque: { dia: LUNES, hasta: "12:00" } };
+    expect(enEnfoque(aj, LUNES, "10:15")).toBe(true);
+    expect(enEnfoque(aj, LUNES, "12:00")).toBe(false);
+    expect(enEnfoque(aj, "2026-11-10", "10:15")).toBe(false);
+    expect(enEnfoque({ enfoque: null }, LUNES, "10:15")).toBe(false);
   });
 });

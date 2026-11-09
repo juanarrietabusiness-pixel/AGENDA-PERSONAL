@@ -117,6 +117,25 @@ export default function Burbuja({ estado, servidor, recargar, avisar, abierta, s
     }
   };
 
+  // Desde el atajo «Hablar» del ícono (/?hablar=1): el micrófono listo. Sin un toque, el navegador puede no dejar
+  // escuchar; entonces queda el botón «Hablar» a mano.
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    if (!q.has("hablar")) return;
+    window.history.replaceState(null, "", window.location.pathname + window.location.hash);
+    if (!SR) {
+      setAbierta(true);
+      return;
+    }
+    setRapido(true);
+    try {
+      dictar();
+    } catch {
+      /* sin permiso todavía: queda el botón «Hablar» */
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const escucharYa = () => {
     setError("");
     setRapido(true);
@@ -169,10 +188,10 @@ export default function Burbuja({ estado, servidor, recargar, avisar, abierta, s
           <button
             type="button"
             className={`burbuja-boton mic${rapido && escuchando ? " escuchando" : ""}`}
-            onClick={rapido ? enviarRapido : escucharYa}
-            aria-label={rapido ? "Enviar lo que dije al asistente" : `Hablarle al asistente${nuevas ? ` (${nuevas} respuesta${nuevas === 1 ? "" : "s"} nueva${nuevas === 1 ? "" : "s"})` : ""}`}
+            onClick={rapido && (escuchando || texto.trim() || provisional.trim()) ? enviarRapido : escucharYa}
+            aria-label={rapido && (escuchando || texto.trim()) ? "Enviar lo que dije al asistente" : `Hablarle al asistente${nuevas ? ` (${nuevas} respuesta${nuevas === 1 ? "" : "s"} nueva${nuevas === 1 ? "" : "s"})` : ""}`}
           >
-            <Icon name={rapido ? "send" : "mic"} size={26} />
+            <Icon name={rapido && (escuchando || texto.trim()) ? "send" : "mic"} size={26} />
             {(nuevas > 0 || pendientes.length > 0) && <span className="burbuja-insignia" aria-hidden="true">{pendientes.length ? "…" : nuevas}</span>}
           </button>
           {!rapido && (
@@ -201,9 +220,13 @@ export default function Burbuja({ estado, servidor, recargar, avisar, abierta, s
           <div className="botones">
             <button type="button" className="boton fantasma" onClick={cancelarRapido}>Cancelar</button>
             <button type="button" className="boton fantasma" onClick={escribirEnVez}>Escribir</button>
-            <button type="button" className="boton primario" onClick={enviarRapido} disabled={!texto.trim() && !provisional.trim()}>
-              <Icon name="send" size={16} /> Enviar
-            </button>
+            {!escuchando && !texto.trim() ? (
+              <button type="button" className="boton primario" onClick={escucharYa}><Icon name="mic" size={16} /> Hablar</button>
+            ) : (
+              <button type="button" className="boton primario" onClick={enviarRapido} disabled={!texto.trim() && !provisional.trim()}>
+                <Icon name="send" size={16} /> Enviar
+              </button>
+            )}
           </div>
         </div>
       )}

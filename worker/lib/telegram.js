@@ -190,10 +190,14 @@ async function alPulsar(env, cq) {
   }
   await llamar(env, "answerCallbackQuery", { callback_query_id: cq.id, text: r.ok ? linea.replace(/[:.].*$/, "") : r.error });
   if (r.ok && cq.message?.message_id) {
+    // Con varias tareas en el mensaje, sólo se quita la fila de la que se tocó; las demás siguen pulsables.
+    const filas = (cq.message.reply_markup?.inline_keyboard ?? []).filter((fila) => !fila.some((b) => String(b.callback_data ?? "").endsWith(`:${id}`)));
+    const titulo = tipo === "d" ? "" : (await almacen.elemento("accion", id).catch(() => null))?.titulo;
     await llamar(env, "editMessageText", {
       chat_id: chatId,
       message_id: cq.message.message_id,
-      text: `${cq.message.text ?? ""}\n\n${linea}`.slice(0, MAX_TEXTO),
+      text: `${cq.message.text ?? ""}\n\n${titulo && filas.length ? `«${titulo}»: ${linea}` : linea}`.slice(0, MAX_TEXTO),
+      ...(filas.length && tipo !== "d" ? { reply_markup: { inline_keyboard: filas } } : {}),
     }).catch(() => {});
   }
 }

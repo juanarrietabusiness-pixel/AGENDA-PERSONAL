@@ -730,3 +730,29 @@ button.dia-item { width: 100%; background: none; border: 0; text-align: left; fo
 .lista-revision small { color: var(--texto-3); font-weight: 400; }
 .lista-revision .anadir-rapido { margin-top: var(--sp-1); }
 .reparto-lista { display: grid; gap: var(--sp-1); }
+
+/* Proyectos con fecha */
+.proyectos-fecha { display: grid; gap: var(--sp-3); }
+@media (min-width: 900px) { .proyectos-fecha { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.proyecto-fecha { border-left: 4px solid var(--s, var(--acento)); display: grid; gap: var(--sp-1); }
+.proyecto-fecha-cabeza { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--sp-2); }
+.proyecto-fecha h3 { margin: 0; font-size: var(--fs-md); }
+.proyecto-fecha .nota { margin: 0; font-size: var(--fs-xs); color: var(--texto-3); }
+.proyecto-fecha .carga { margin-top: var(--sp-2); }
+.proyecto-siguiente-paso { margin: var(--sp-1) 0 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; font-size: var(--fs-sm); }
+.proyecto-siguiente-paso small { color: var(--texto-3); }
+
+/* Modo enfoque: una tarea, a pantalla completa */
+.enfoque-capa { z-index: 80; align-items: stretch; justify-content: stretch; padding: 0; }
+.enfoque-modo { display: flex; flex-direction: column; width: 100%; min-height: 100dvh; padding: calc(var(--sp-4) + env(safe-area-inset-top)) var(--sp-5) calc(var(--sp-5) + env(safe-area-inset-bottom)); background: var(--bg); border-top: 6px solid var(--s, var(--acento)); }
+.enfoque-modo-cabeza { display: flex; justify-content: space-between; align-items: center; gap: var(--sp-3); }
+.enfoque-modo-bloque { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0; font-size: var(--fs-sm); color: var(--texto-2); }
+.enfoque-modo-tarea { flex: 1; display: flex; flex-direction: column; justify-content: center; max-width: 720px; width: 100%; margin: 0 auto; text-align: center; }
+.enfoque-modo-tarea h2 { margin: var(--sp-2) 0; font-size: clamp(26px, 6vw, 40px); line-height: 1.2; }
+.enfoque-modo-cuenta { margin: 0; color: var(--texto-3); font-size: var(--fs-sm); }
+.enfoque-modo-notas { margin: 0 0 var(--sp-4); color: var(--texto-2); white-space: pre-wrap; }
+.enfoque-modo-botones { display: flex; flex-wrap: wrap; gap: var(--sp-3); justify-content: center; margin-top: var(--sp-4); }
+.enfoque-modo-botones .boton { min-width: 140px; }
+.enfoque-modo-pie { display: flex; align-items: center; justify-content: center; gap: 6px; margin: 0; font-size: var(--fs-xs); color: var(--texto-3); text-align: center; }
+.foco-cabeza .boton-enfocarme { margin-left: auto; min-height: 32px; padding: 0 var(--sp-3); font-size: var(--fs-xs); }
+.foco-cabeza .nota { margin-left: var(--sp-2); }

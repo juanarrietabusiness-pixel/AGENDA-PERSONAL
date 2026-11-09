@@ -208,3 +208,28 @@ describe("reuniones, eventos y recordatorios van a su sitio (casos reales)", () 
     expect(sistema).toMatch(/POR AGENDAR[\s\S]*e1 · Reunión con Dayano/);
   });
 });
+
+describe("un proyecto con fecha: el evento, los ensayos y lo que hay que preparar", () => {
+  it("el evento le da la fecha al proyecto, los ensayos se ligan y terminan el día antes, las tareas van al proyecto", async () => {
+    const { proyectosConFecha } = await import("../src/lib/proyectos.js");
+    const o = leerOrden({
+      elementos: [
+        { tipo: "evento", titulo: "Ensayo con la banda", sombrero: "artistico", proyecto: "Concierto de febrero", cuando: "2026-11-05", hora: "19:00", repite: { regla: "FREQ=WEEKLY;BYDAY=TH" } },
+        { tipo: "evento", titulo: "Concierto de febrero", clase: "especial", sombrero: "artistico", proyecto: "Concierto de febrero", cuando: "2027-02-14" },
+        { tipo: "accion", titulo: "Escoger el repertorio", sombrero: "artistico", proyecto: "Concierto de febrero", cuando: "2026-11-20" },
+      ],
+    }, { hoy: HOY });
+    expect(o.proyectos).toHaveLength(1);
+    expect(o.proyectos[0]).toMatchObject({ nombre: "Concierto de febrero", tipo: "proyecto", limite: "2027-02-14" });
+    const pid = o.proyectos[0].id;
+    expect(o.eventos.every((e) => e.proyectoId === pid)).toBe(true);
+    expect(o.eventos[0].repite.regla).toBe("FREQ=WEEKLY;BYDAY=TH;UNTIL=20270213");
+    expect(o.acciones[0].proyectoId).toBe(pid);
+    const [p] = proyectosConFecha({ proyectos: o.proyectos, acciones: o.acciones, eventos: o.eventos, hoy: HOY });
+    expect(p.siguiente.titulo).toBe("Escoger el repertorio");
+    expect(p.evento?.titulo).toBe("Concierto de febrero");
+    expect(p.ensayos.length).toBeGreaterThan(10);
+    expect(p.ensayos.every((e) => e.dia < "2027-02-14")).toBe(true);
+    expect(p.pasos).toEqual({ hechos: 0, abiertos: 1, total: 1 });
+  });
+});

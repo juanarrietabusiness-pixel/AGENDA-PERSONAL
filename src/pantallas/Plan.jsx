@@ -10,6 +10,7 @@ import { nuevaAccion } from "../lib/metodo.js";
 import { RITMO_BASE } from "../lib/ritmo.js";
 import SemanaTipo from "../componentes/SemanaTipo.jsx";
 import AsignarBloque from "../componentes/AsignarBloque.jsx";
+import ProyectosConFecha from "../componentes/ProyectosConFecha.jsx";
 import { seriesTraidas, horasPorSombrero, semanaDelDia, diaEnBloques, minutosSinSombrero, porRevisar, textoHoras } from "../lib/semana.js";
 
 const PRIORIDADES = { alta: "Alta", media: "Media", baja: "Baja" };
@@ -133,6 +134,8 @@ export default function Plan({ estado, hoy, cambiar, onHecha, onAbrir, avisar, s
           onCerrar={() => setAsignando(null)}
         />
       )}
+
+      <ProyectosConFecha estado={estado} hoy={hoy} sombreros={sombreros} cambiar={cambiar} onHecha={onHecha} onAbrir={onAbrir} avisar={avisar} />
 
       <Sombreros estado={estado} hoy={hoy} sombreros={sombreros} cambiar={cambiar} onHecha={onHecha} onAbrir={onAbrir} avisar={avisar} />
     </>

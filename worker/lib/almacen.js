@@ -264,7 +264,10 @@ export function crearAlmacen(db, ownerId) {
     async purgarHechas(antesDe) {
       const r = await db
         .prepare(
-          "delete from elementos where owner_id = ? and tipo = 'accion' and json_extract(datos, '$.estado') in ('hecha', 'soltada') and json_extract(datos, '$.hechaEl') < ?",
+          // Los pasos de un proyecto con fecha que sigue activo no se borran: son su progreso.
+          "delete from elementos where owner_id = ? and tipo = 'accion' and json_extract(datos, '$.estado') in ('hecha', 'soltada') and json_extract(datos, '$.hechaEl') < ? " +
+            "and not exists (select 1 from elementos p where p.owner_id = elementos.owner_id and p.tipo = 'proyecto' and p.id = json_extract(elementos.datos, '$.proyectoId') " +
+            "and json_extract(p.datos, '$.limite') is not null and coalesce(json_extract(p.datos, '$.estado'), 'activo') != 'terminado')",
         )
         .bind(ownerId, antesDe)
         .run();

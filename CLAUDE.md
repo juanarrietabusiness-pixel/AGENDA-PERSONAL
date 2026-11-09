@@ -107,6 +107,18 @@ Telegram del día de la revisión lleva a `#revision`. «Lo que sé de ti» (el 
 (`componentes/Cerebro.jsx`). Hoy mira sólo un día (la semana se mira en Plan) y las filas ya no dicen «valor alto»: el
 valor ordena, no se enseña.
 
+**Proyectos con fecha** (`src/lib/proyectos.js`, `componentes/ProyectosConFecha.jsx` en Plan): un evento que pide
+preparación. El proyecto lleva la fecha del evento (`limite`); el evento y los ensayos son eventos con `proyectoId`; los
+pasos, acciones con `proyectoId`. El asistente los devuelve con el mismo «proyecto»: el evento le da la fecha al proyecto y
+el ensayo que se repite se corta el día antes (`hastaElEvento`, UNTIL). La tarjeta dice cuánto falta, cuántos pasos llevas,
+el siguiente y el próximo ensayo. La purga no borra los pasos hechos de un proyecto con fecha que sigue activo (son su
+progreso). **Telegram con botones por tarea** (`botonesDeVarias`): el aviso de cada bloque y Tus 3 del resumen llevan
+«✓ tarea» y «Mañana»; al pulsar se quita sólo esa fila. **Modo enfoque** (`componentes/ModoEnfoque.jsx`, «Enfocarme» en
+Tus 3): una tarea a la vez hasta el final del bloque; `ajustes.enfoque = { dia, hasta }` calla los avisos de la escalera y
+los de inicio de bloque (`enEnfoque`), no los recordatorios fijos ni las reuniones. **La app se instala**
+(`public/manifest.webmanifest` con íconos) y el ícono tiene dos atajos: «Hablar» (`/?hablar=1`, el micrófono listo; si el
+navegador no deja escuchar sin un toque, queda el botón «Hablar») y «Añadir» (`/?anadir=1`, el campo con el foco).
+
 **Reflejar** (`worker/lib/reflejar.js`): UN sitio para que un cambio (pantalla, asistente, Telegram, Claude) vaya a
 Juancito Ads y a Google. Lo que falla fuera NO deshace lo de aquí: la agenda es la verdad y la vuelta reintenta.
 

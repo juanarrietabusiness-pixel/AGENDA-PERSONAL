@@ -1,8 +1,9 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Icon from "../componentes/Icon.jsx";
 import Fila from "../componentes/Fila.jsx";
 import AnadirRapido from "../componentes/AnadirRapido.jsx";
-import { textoCorto, textoHora, sumarDias, rangoCorto, horaCorta } from "../lib/fechas.js";
+import ModoEnfoque from "../componentes/ModoEnfoque.jsx";
+import { textoCorto, textoHora, sumarDias, rangoCorto, horaCorta, minutos, aHora } from "../lib/fechas.js";
 import { sombrerosDe, estiloDe, nombreDe } from "../lib/sombreros.js";
 import { variante } from "../lib/mensajes.js";
 import { nuevaAccion } from "../lib/metodo.js";
@@ -55,6 +56,7 @@ export default function Hoy({ estado, hoy, hora, onHecha, onAbrir, onDecidir, on
   const [verSinFecha, setVerSinFecha] = useState(false);
   const [verRutina, setVerRutina] = useState(false);
   const [verReserva, setVerReserva] = useState(false);
+  const [enfocado, setEnfocado] = useState(false);
 
   const r = rango(periodo, dia);
   const ctx = { hoy, proyectos, sombreros };
@@ -99,6 +101,26 @@ export default function Hoy({ estado, hoy, hora, onHecha, onAbrir, onDecidir, on
   const conFoco = hayBloques || enfoque.tres.length > 0 || enfoque.reserva.length > 0;
 
   const ponerPeriodo = (p) => setPeriodo(p);
+  // Modo enfoque: Tus 3 y las tareas del bloque, una a una; los avisos callan hasta el final del bloque (o una hora).
+  const paraEnfocar = [...enfoque.tres, ...tareasAhora.filter((a) => !enfoque.tres.some((x) => x.id === a.id))].filter((a) => a.estado === "abierta");
+  const hastaEnfoque = ahora?.fin ?? aHora(Math.min(minutos(hora ?? "00:00") + 60, 23 * 60 + 59));
+  const enfocarme = () => {
+    setEnfocado(true);
+    cambiar?.((e) => ({ ...e, ajustes: { ...e.ajustes, enfoque: { dia: hoy, hasta: hastaEnfoque } } }));
+  };
+  const salirDelEnfoque = () => {
+    setEnfocado(false);
+    cambiar?.((e) => ({ ...e, ajustes: { ...e.ajustes, enfoque: null } }));
+  };
+
+  // Abrir desde el atajo del ícono «Añadir tarea» (/?anadir=1): el campo de añadir, listo para escribir.
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    if (!q.has("anadir")) return;
+    setTimeout(() => [...document.querySelectorAll(".anadir-campo")].find((x) => x.offsetParent)?.focus(), 50);
+    window.history.replaceState(null, "", window.location.pathname + window.location.hash);
+  }, []);
+
   const ponerOrden = (o) => {
     setOrden(o);
     recordar("orden", o);
@@ -276,6 +298,7 @@ export default function Hoy({ estado, hoy, hora, onHecha, onAbrir, onDecidir, on
 
   return (
     <div className="hoy">
+      {enfocado && <ModoEnfoque tareas={paraEnfocar} bloque={ahora} hasta={hastaEnfoque} hora={hora} sombreros={sombreros} onHecha={(id) => onHecha(id, { fijar: true })} onSalir={salirDelEnfoque} />}
       <div className="hoy-saludo">
         <h1 className="titulo-pantalla">{saludo(hora, hoy)}, {ajustes.nombre}.</h1>
         <p className="subtitulo">
@@ -365,6 +388,9 @@ export default function Hoy({ estado, hoy, hora, onHecha, onAbrir, onDecidir, on
                 <div className="foco-cabeza">
                   <h2 id="enfoque-t"><Icon name="target" size={14} /> Tus {TRES} de hoy</h2>
                   <span className="nota">{enfoque.tres.filter((a) => a.estado === "hecha").length} de {enfoque.tres.length}</span>
+                  {paraEnfocar.length > 0 && cambiar && (
+                    <button type="button" className="boton primario boton-enfocarme" onClick={enfocarme}><Icon name="target" size={15} /> Enfocarme</button>
+                  )}
                 </div>
                 {compactas(enfoque.tres, (a) => ({ onHecha: (id) => onHecha(id, { fijar: true }), onHoyNo: a.enfoque !== hoy ? onNoHoy : undefined }))}
                 {enfoque.tres.some((a) => a.estado === "abierta" && a.enfoque !== hoy) && (

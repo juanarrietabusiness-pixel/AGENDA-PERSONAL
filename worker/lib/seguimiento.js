@@ -40,6 +40,9 @@ export const APP = "https://agenda.juancitoads.com";
 const VENTANA = { resumen: 60, aviso: 20, reunion: 10, cierre: 60, revision: 90, bloque: 15 };
 const MAX_TAREAS_BLOQUE = 6;
 
+/** ¿Está en modo enfoque? (lo puso al entrar, hasta el final del bloque) */
+export const enEnfoque = (ajustes, hoy, ahora) => ajustes?.enfoque?.dia === hoy && Boolean(ajustes.enfoque.hasta) && ahora < ajustes.enfoque.hasta;
+
 /** ¿Es hora de silencio? (de noche, el tramo que cruza la medianoche) */
 export function enSilencio(hora, ajustes) {
   const s = ajustes?.avisos?.silencio;
@@ -57,6 +60,9 @@ export const enVentana = (ahora, objetivo, margen) => {
 
 /** Los botones de decidir sobre una acción. */
 export const botonesDe = (id) => [[{ text: "Hecho", callback_data: `h:${id}` }, { text: "Mañana", callback_data: `m:${id}` }, { text: "Ya no aplica", callback_data: `s:${id}` }]];
+/** Varias tareas en un mensaje: una fila por tarea, «✓ título» y «Mañana». Al pulsar, se quita sólo su fila. */
+const corto = (t, n = 26) => (String(t).length > n ? `${String(t).slice(0, n - 1).trimEnd()}…` : String(t));
+export const botonesDeVarias = (tareas) => tareas.map((a) => [{ text: `✓ ${corto(a.titulo)}`, callback_data: `h:${a.id}` }, { text: "Mañana", callback_data: `m:${a.id}` }]);
 
 const enviar = (env, chat, texto, botones) =>
   llamar(env, "sendMessage", { chat_id: chat, text: String(texto).slice(0, 4000), link_preview_options: { is_disabled: true }, ...(botones ? { reply_markup: { inline_keyboard: botones } } : {}) });
@@ -95,11 +101,14 @@ export function queToca({ estado, ahora, hoy }) {
       ...(reuniones.length ? [["Reuniones y citas de hoy:", ...reuniones.map((e) => `• ${e.horaPorDefinir ? "(hora por definir)" : e.inicio === "00:00" && e.fin === "23:59" ? "(todo el día)" : textoHora(e.inicio)} ${e.titulo}`)].join("\n")] : []),
       ...(extra.length ? [["Para tener presente:", ...extra].join("\n")] : []),
     ].join("\n\n");
-    out.push({ clave: `resumen:${hoy}`, texto });
+    // Tus 3 de hoy con su botón: se marcan desde Telegram sin abrir la app.
+    const tres = enfoque.tres.filter((a) => a.estado === "abierta");
+    out.push({ clave: `resumen:${hoy}`, texto, botones: tres.length ? botonesDeVarias(tres) : undefined });
   }
 
   // Los avisos sueltos de la escalera.
-  if (seg.avisos) {
+  const enfocado = enEnfoque(aj, hoy, ahora);
+  if (seg.avisos && !enfocado) {
     for (const m of mensajes) {
       if (!enVentana(ahora, m.hora, VENTANA.aviso)) continue;
       const lineas = m.avisos.map((a) => ({ a, acc: acciones.find((x) => x.id === a.accionId) })).filter((x) => x.acc);
@@ -124,7 +133,7 @@ export function queToca({ estado, ahora, hoy }) {
     const sombreros = sombrerosDe(aj);
     const ctx = { hoy, proyectos: estado.proyectos ?? [], sombreros };
     for (const b of bloques) {
-      if (!avisa(b) || enSilencio(b.inicio, aj) || !enVentana(ahora, b.inicio, VENTANA.bloque)) continue;
+      if (!avisa(b) || enfocado || enSilencio(b.inicio, aj) || !enVentana(ahora, b.inicio, VENTANA.bloque)) continue;
       const tareas = ordenarPor(tareasDelBloque(acciones, b, hoy, { todos: bloques }), "prioridad", ctx);
       const nombreS = sombreros.find((x) => x.id === b.sombrero)?.nombre;
       const empresas = b.sombrero && sombreros.find((x) => x.id === b.sombrero)?.fuente === "juancito-ads" ? (estado.empresasDeHoy ?? []) : [];
@@ -135,7 +144,7 @@ export function queToca({ estado, ahora, hoy }) {
           ? ["Tienes:", ...tareas.slice(0, MAX_TAREAS_BLOQUE).map((a) => `• ${a.titulo}`), ...(tareas.length > MAX_TAREAS_BLOQUE ? [`… y ${tareas.length - MAX_TAREAS_BLOQUE} más.`] : [])].join("\n")
           : `No tienes tareas en este bloque. ¿Qué es lo más importante de ${nombreS ?? b.titulo} hoy?`,
       ].join("\n\n");
-      out.push({ clave: `bloque:${b.id}:${hoy}`, texto, botones: tareas.length === 1 ? botonesDe(tareas[0].id) : undefined });
+      out.push({ clave: `bloque:${b.id}:${hoy}`, texto, botones: tareas.length ? botonesDeVarias(tareas.slice(0, MAX_TAREAS_BLOQUE)) : undefined });
     }
     for (const r of recordatorios) {
       if (!avisa(r)) continue;

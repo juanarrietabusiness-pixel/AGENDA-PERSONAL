@@ -31,6 +31,7 @@ import { aplicarAjuste, CLAVES_AJUSTE } from "./ajustes.js";
 import { aplicarRitmo } from "./ritmo.js";
 import { limpiarAprendizajes } from "./cerebro.js";
 import { porAgendar, esTodoElDia } from "./agenda.js";
+import { hastaElEvento } from "./proyectos.js";
 
 export const TIPOS = Object.freeze(["accion", "evento", "recordatorio", "idea", "fecha-especial", "referencia", "ajuste", "ritmo", "sombrero"]);
 export const OPERACIONES = Object.freeze(["completar", "reabrir", "posponer", "editar", "borrar", "soltar", "delegar"]);
@@ -198,7 +199,9 @@ export function leerOrden(respuesta, ctx = {}) {
       r.proyectos.push(proyecto);
       todosLosProyectos.push(proyecto);
     } else if (!proyecto && e.proyecto && s) {
-      proyecto = { id: nuevoId("p"), nombre: limpiarTitulo(e.proyecto), sombrero: s, tipo: limite ? "proyecto" : "responsabilidad", limite, estado: "activo", prioridad: "media" };
+      // El evento mismo (con su día, sin repetirse) le da la fecha al proyecto: es para cuando hay que estar listos.
+      const fechaP = limite ?? (e.tipo === "evento" && !repiteValida ? cuando : null);
+      proyecto = { id: nuevoId("p"), nombre: limpiarTitulo(e.proyecto), sombrero: s, tipo: fechaP ? "proyecto" : "responsabilidad", limite: fechaP, estado: "activo", prioridad: valor === "alto" ? "alta" : "media" };
       r.proyectos.push(proyecto);
       todosLosProyectos.push(proyecto);
     }
@@ -210,7 +213,7 @@ export function leerOrden(respuesta, ctx = {}) {
       const tituloEv = reunionDisfrazada ? tituloDeReunion(titulo) : titulo;
       const clase = reunionDisfrazada ? "reunion" : CLASES_EVENTO.includes(e.clase) ? e.clase : /reuni[oó]n|cita|llamada|junta|mentor/i.test(titulo) ? "reunion" : "evento";
       const personasEv = Array.isArray(e.personas) ? e.personas.slice(0, 8).map((p) => texto(p, 60)) : [];
-      const comun = { id: nuevoId("e"), titulo: tituloEv, sombrero: sombreroDeEvento(s, clase, tituloEv, personasEv, sombreros), clase, protegido: false, fuente: "asistente", notas, personas: personasEv };
+      const comun = { id: nuevoId("e"), titulo: tituloEv, sombrero: sombreroDeEvento(s, clase, tituloEv, personasEv, sombreros), clase, protegido: false, fuente: "asistente", notas, personas: personasEv, proyectoId: proyecto?.id ?? null };
       if ((cuando || repiteValida) && hora) {
         const dura = minutosPedidos ?? 60;
         r.eventos.push({ ...comun, fecha: repiteValida ? null : cuando, repite: repiteValida, inicio: hora, fin: aHora(Math.min(minutos(hora) + dura, 23 * 60 + 59)) });
@@ -263,6 +266,17 @@ export function leerOrden(respuesta, ctx = {}) {
     for (const st of subtareas) {
       r.acciones.push(nuevaAccion({ titulo: st.titulo, sombrero: s, proyectoId: proyecto?.id ?? null, lista: "siguientes", cuando: st.cuando, cliente, origen: "asistente" }, hoy));
     }
+  }
+
+  // ── Proyectos con fecha: el proyecto toma el día de su evento y los ensayos terminan el día antes ──
+  for (const p of r.proyectos) {
+    if (p.limite) continue;
+    const delEvento = r.eventos.filter((e) => e.proyectoId === p.id && e.fecha && !e.repite).map((e) => e.fecha).sort().pop();
+    if (delEvento) Object.assign(p, { limite: delEvento, tipo: "proyecto" });
+  }
+  for (const e of r.eventos) {
+    const p = e.proyectoId && e.repite?.regla ? todosLosProyectos.find((x) => x.id === e.proyectoId) : null;
+    if (p?.limite) e.repite = { ...e.repite, regla: hastaElEvento(e.repite.regla, p.limite) };
   }
 
   // ── Lo que cambia sobre lo que ya existe ──

@@ -1,0 +1,20 @@
+{
+  "name": "Kairos",
+  "short_name": "Kairos",
+  "description": "Tu agenda: tareas, reuniones y recordatorios de tus sombreros.",
+  "lang": "es",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0b0f17",
+  "theme_color": "#0b0f17",
+  "icons": [
+    { "src": "/icono-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icono-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icono-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Hablar con el asistente", "short_name": "Hablar", "url": "/?hablar=1", "icons": [{ "src": "/atajo-hablar.png", "sizes": "96x96", "type": "image/png" }] },
+    { "name": "Añadir una tarea", "short_name": "Añadir", "url": "/?anadir=1", "icons": [{ "src": "/atajo-anadir.png", "sizes": "96x96", "type": "image/png" }] }
+  ]
+}

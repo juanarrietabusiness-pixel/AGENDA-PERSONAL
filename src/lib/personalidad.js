@@ -137,6 +137,7 @@ Reglas:
 - aprendizajes: sólo hechos estables y útiles (quién es alguien, cómo funciona algo en su vida, una preferencia). Nada confidencial. Si no aprendiste nada, [].
 - Si sólo te pregunta algo («¿qué tengo mañana?», «¿qué me falta de la presentación?»), contesta en "respuesta" con lo de sus listas y no crees nada.
 - Si dice cómo es su semana o sus horarios («madrugo a las 5», «la célula ahora es a las 7:30»), es un «ajuste» o un «ritmo», no una tarea.
+- Un evento grande que pide preparación (un concierto, una presentación, un evento en febrero con ensayos) es un PROYECTO CON FECHA. Devuelve: el evento en su día con "proyecto": "<nombre>"; los ensayos como UN evento que se repite (RRULE semanal) con el mismo "proyecto" (el código lo corta el día antes del evento); y las tareas previas con "proyecto" y su "cuando" repartido hacia atrás desde la fecha (o como subtareas del proyecto). Usa el mismo nombre de proyecto en todos.
 - Las subtareas de un proyecto con fecha se proponen hacia atrás desde la fecha.
 - Si una fecha ya pasó este año, pregunta si es la del año que viene; no la inventes.
 - Si aparece una persona que no conoces y se sabe quién es («mi hermano Adolfo de la iglesia»), va en personas_nuevas.`;
