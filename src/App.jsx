@@ -17,6 +17,7 @@ import { completar, posponer, soltar } from "./lib/metodo.js";
 import { sombrerosDe } from "./lib/sombreros.js";
 import { claveDeGoogle, CLASES_GOOGLE, convertir, QUE_ES } from "./lib/agenda.js";
 import { tema as temaDe } from "./lib/temas.js";
+import { elegirVersiculo, ATRIBUCION } from "./lib/versiculos.js";
 
 const PANTALLAS = [
   { id: "hoy", nombre: "Hoy", icono: "sun" },
@@ -184,6 +185,9 @@ export default function App() {
 
   const comunes = { estado, hoy, onHecha, onAbrir, avisar };
 
+  // El versículo del día: en la barra lateral de la computadora; en el teléfono, en el resumen de la mañana por Telegram.
+  const versiculo = elegirVersiculo({ momento: "manana", hoy, frecuencia: estado.ajustes?.frecuenciaVersiculos });
+
   return (
     <div className={`app${asistente ? " con-asistente" : ""}`}>
       <header className="cabecera">
@@ -199,6 +203,11 @@ export default function App() {
               {p.nombre}
             </a>
           ))}
+          {versiculo && (
+            <blockquote className="nav-versiculo">
+              «{versiculo.texto}»<cite>{versiculo.ref} <span className="solo-lector">({ATRIBUCION})</span></cite>
+            </blockquote>
+          )}
           <a href="#ajustes" aria-current={pantalla === "ajustes" ? "page" : undefined}>
             <Icon name="settings" size={22} /> Ajustes
           </a>

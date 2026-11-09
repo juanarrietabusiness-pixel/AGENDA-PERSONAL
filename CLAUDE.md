@@ -88,6 +88,17 @@ DENTRO, lo demás aparte, con una leyenda; en el teléfono, un día a la vez. La
 «Por revisar» (`porRevisar`: sin sombrero, los que se cruzan, lo de ejemplo) se arregla en un toque. Lo que no hace
 falta ver siempre, plegado.
 
+**Hoy: el teléfono primero, el tablero en la computadora** (decisión de Juan: «lo primero es ver mis tareas y poder
+agregar»; «en la computadora no quiero deslizar»). Un solo marcado con `grid-template-areas`, decidido por el ancho del
+CONTENIDO (`@container contenido`, no la ventana: con el asistente abierto al lado se estrecha). Teléfono: saludo corto,
+añadir, Ahora + Tus 3, y las listas por pestañas. Desde 760 px de contenido, dos columnas; desde 940, tres (foco, tareas,
+agenda) y, en pantallas de 900 px o más, a la altura de la ventana: cada columna se desplaza por dentro y la página no. El
+versículo ya no está en Hoy: va en el resumen de la mañana por Telegram y en la barra lateral de la computadora. **La
+burbuja es un micrófono** (si el navegador dicta): tocarla escucha al momento, se ve lo dicho y se envía con otro toque;
+«Escribir» abre el chat. **Reuniones y eventos nunca se vuelven tarea**: sin hora, «hora por definir» (de todo el día,
+`horaPorDefinir`); sin día, «por agendar» (`porAgendar`, sin fecha ni repetición, no va a Google hasta tener día);
+`normalizarEvento` lo deja bien al editar o convertir. Reino no lleva reuniones con gente (`sombreroDeEvento`).
+
 **Reflejar** (`worker/lib/reflejar.js`): UN sitio para que un cambio (pantalla, asistente, Telegram, Claude) vaya a
 Juancito Ads y a Google. Lo que falla fuera NO deshace lo de aquí: la agenda es la verdad y la vuelta reintenta.
 

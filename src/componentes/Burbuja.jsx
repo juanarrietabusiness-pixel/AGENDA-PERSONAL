@@ -27,6 +27,8 @@ export default function Burbuja({ estado, servidor, recargar, avisar, abierta, s
   const [pendientes, setPendientes] = useState([]);
   const [nuevas, setNuevas] = useState(0);
   const [segundos, setSegundos] = useState(0);
+  // El micrófono de la burbuja: tocarla ya escucha (sin abrir el chat); lo dicho se ve y se envía con un toque.
+  const [rapido, setRapido] = useState(false);
   const dict = useRef(null);
   const lista = useRef(null);
   const entrada = useRef(null);
@@ -115,6 +117,28 @@ export default function Burbuja({ estado, servidor, recargar, avisar, abierta, s
     }
   };
 
+  const escucharYa = () => {
+    setError("");
+    setRapido(true);
+    if (!dict.current?.escuchando) dictar();
+  };
+  const enviarRapido = () => {
+    setRapido(false);
+    enviar();
+  };
+  const cancelarRapido = () => {
+    dict.current?.cortar();
+    setTexto("");
+    setProvisional("");
+    setDictado(false);
+    setRapido(false);
+  };
+  const escribirEnVez = () => {
+    dict.current?.parar();
+    setRapido(false);
+    abrir();
+  };
+
   const deshacer = async (cid) => {
     const r = await api.deshacer(cid);
     if (!r.ok) setError(r.error ?? "No se pudo deshacer.");
@@ -133,12 +157,55 @@ export default function Burbuja({ estado, servidor, recargar, avisar, abierta, s
 
   return (
     <>
-      {!abierta && (
+      {!abierta && !SR && (
         <button type="button" className="burbuja-boton" onClick={abrir} aria-label={`Abrir el asistente${nuevas ? `: ${nuevas} respuesta${nuevas === 1 ? "" : "s"} nueva${nuevas === 1 ? "" : "s"}` : ""}`}>
           <Icon name="messageCircle" size={24} />
           <span className="burbuja-etiqueta">Asistente</span>
           {(nuevas > 0 || pendientes.length > 0) && <span className="burbuja-insignia" aria-hidden="true">{pendientes.length ? "…" : nuevas}</span>}
         </button>
+      )}
+      {!abierta && SR && (
+        <>
+          <button
+            type="button"
+            className={`burbuja-boton mic${rapido && escuchando ? " escuchando" : ""}`}
+            onClick={rapido ? enviarRapido : escucharYa}
+            aria-label={rapido ? "Enviar lo que dije al asistente" : `Hablarle al asistente${nuevas ? ` (${nuevas} respuesta${nuevas === 1 ? "" : "s"} nueva${nuevas === 1 ? "" : "s"})` : ""}`}
+          >
+            <Icon name={rapido ? "send" : "mic"} size={26} />
+            {(nuevas > 0 || pendientes.length > 0) && <span className="burbuja-insignia" aria-hidden="true">{pendientes.length ? "…" : nuevas}</span>}
+          </button>
+          {!rapido && (
+            <button type="button" className="boton burbuja-escribir" onClick={abrir}>
+              <Icon name="messageCircle" size={16} /> Escribir{nuevas ? ` (${nuevas})` : ""}
+            </button>
+          )}
+        </>
+      )}
+      {rapido && !abierta && (
+        <div className="escucha" role="dialog" aria-modal="false" aria-labelledby={`${id}-esc`} onKeyDown={(e) => e.key === "Escape" && cancelarRapido()}>
+          <p className="escucha-titulo" id={`${id}-esc`}>
+            <Icon name="mic" size={16} /> {escuchando ? "Te escucho…" : texto.trim() ? "Listo para enviar" : "El micrófono está parado"}
+          </p>
+          <p className="escucha-texto" aria-live="polite">
+            {texto || provisional ? (
+              <>
+                {texto}
+                {provisional && <span className="provisional"> {provisional}</span>}
+              </>
+            ) : (
+              <span className="ayuda">Dímelo como te salga: «reunión con Dayano el martes a las 3», «recuérdame pagar la luz el viernes».</span>
+            )}
+          </p>
+          {error && <p role="alert" className="aviso rojo" style={{ margin: "0 0 var(--sp-3)" }}>{error}</p>}
+          <div className="botones">
+            <button type="button" className="boton fantasma" onClick={cancelarRapido}>Cancelar</button>
+            <button type="button" className="boton fantasma" onClick={escribirEnVez}>Escribir</button>
+            <button type="button" className="boton primario" onClick={enviarRapido} disabled={!texto.trim() && !provisional.trim()}>
+              <Icon name="send" size={16} /> Enviar
+            </button>
+          </div>
+        </div>
       )}
       {abierta && (
         <div className={grande ? "panel-asistente acoplado" : "capa capa-asistente"} onClick={(e) => !grande && e.target === e.currentTarget && setAbierta(false)}>
