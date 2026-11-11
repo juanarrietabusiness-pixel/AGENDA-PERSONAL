@@ -124,7 +124,7 @@ que ocupa cada cosa y los espacios libres, todo en la pantalla de la laptop»). 
 semana: cada pieza del alto de lo que dura (bloques con sus tareas dentro, compromisos y reuniones, tareas con hora), lo
 que se cruza lado a lado (`carriles`), «Del día» arriba (lo de todo el día y las tareas sin hora) y los HUECOS LIBRES
 (`huecos`, entre el despertar y el dormir de Ajustes; los recordatorios no ocupan) que se tocan para poner ahí algo nuevo,
-una reunión por agendar o una tarea sin fecha (`AsignarHueco`: toma ese día y esa hora). Lo que no es un bloque (reuniones, rutinas, compromisos de Google) va en GRIS y pequeño, con su rango (decisión de Juan); si cae encima de un bloque, va a su derecha sin partir el bloque. Los huecos de menos de una hora sólo se rotulan al pasar por encima. A la derecha, un panel fino: añadir
+una reunión por agendar o una tarea sin fecha (`AsignarHueco`: toma ese día y esa hora). Lo que no es un bloque (reuniones, rutinas, compromisos de Google) va SIN caja, como texto gris y pequeño con su rango y una línea fina que dice cuánto dura (decisión de Juan: con fondo parecía un bloque); si cae encima de un bloque, va a su derecha sin partir el bloque. Los huecos de menos de una hora sólo se rotulan al pasar por encima. A la derecha, un panel fino: añadir
 (sin fecha), tus sombreros (una línea cada uno con prioridad, horas a la semana, abiertas y la siguiente; se abre para
 añadir y ver sus tareas; las horas por sombrero van ahí), tus proyectos con fecha y la semana tipo. Desde 940 px de contenido, a la
 altura de la ventana (cada lado se desplaza por dentro). En el teléfono, un día a la vez como lista, con los rangos de

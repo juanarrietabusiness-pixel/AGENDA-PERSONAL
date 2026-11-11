@@ -78,7 +78,7 @@ export default function Plan({ estado, hoy, hora, cambiar, onHecha, onAbrir, avi
         </div>
         <ul className="leyenda-semana" aria-label="Qué es cada cosa">
           <li><span className="ley-bloque" aria-hidden="true" /> Bloque</li>
-          <li><span className="ley-compromiso" aria-hidden="true" /> Compromiso</li>
+          <li><Icon name="calendar" size={13} /> Compromiso</li>
           <li><Icon name="bell" size={13} /> Recordatorio</li>
           <li><span className="ley-tarea" aria-hidden="true" /> Tarea</li>
           <li><span className="ley-libre" aria-hidden="true" /> Libre: tócalo y pon algo</li>

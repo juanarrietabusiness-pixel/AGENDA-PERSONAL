@@ -771,7 +771,7 @@ button.dia-item { width: 100%; background: none; border: 0; text-align: left; fo
 .plan-lado .seccion:first-of-type, .plan-lado > .seccion { margin-top: var(--sp-4); }
 .plan-anadir .anadir { margin: 0; }
 .plan-lado .sombreros, .plan-lado .proyectos-fecha { grid-template-columns: minmax(0, 1fr); }
-.ley-compromiso { display: inline-block; flex-shrink: 0; width: 14px; height: 10px; border-radius: 3px; background: color-mix(in srgb, var(--texto-3) 22%, transparent); border-left: 2px solid var(--texto-3); }
+.ley-compromiso { display: inline-block; flex-shrink: 0; width: 14px; height: 10px; border-left: 1px solid var(--texto-3); }
 .ley-libre { display: inline-block; flex-shrink: 0; width: 14px; height: 10px; border-radius: 3px; border: 1px dashed var(--texto-3); }
 .pl-hueco button { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; width: 100%; padding: 6px 8px; border: 1px dashed var(--borde); border-radius: var(--radius-sm); background: none; color: var(--texto-3); font: inherit; font-size: var(--fs-2xs); text-align: left; cursor: pointer; }
 .pl-hueco button:hover { border-color: var(--acento); color: var(--texto-2); }
@@ -824,12 +824,17 @@ button.dia-item { width: 100%; background: none; border: 0; text-align: left; fo
 .rejilla-pieza.corta strong { flex: 1 1 auto; min-width: 3em; overflow: hidden; text-overflow: ellipsis; font-size: var(--fs-3xs); }
 .rejilla-pieza.corta time { flex: 0 1000 auto; min-width: 0; overflow: hidden; text-overflow: clip; }
 .rejilla-pieza.bloque { background: color-mix(in srgb, var(--s, var(--texto-3)) 18%, var(--surface)); border-left: 3px solid var(--s, var(--texto-3)); }
-/* Lo que no es un bloque (reuniones, rutinas, compromisos de Google): en gris y pequeño, con su rango de horas. */
-.rejilla-pieza.evento { cursor: pointer; padding: 1px 4px; background: color-mix(in srgb, var(--texto-3) 12%, var(--surface)); border: 0; border-left: 2px solid color-mix(in srgb, var(--texto-3) 55%, transparent); border-radius: 4px; color: var(--texto-2); }
-.rejilla-pieza.evento strong { font-size: var(--fs-3xs); font-weight: 500; }
-.rejilla-pieza.evento time { font-size: 10px; color: var(--texto-3); }
-.rejilla-pieza.evento svg { color: var(--texto-3); }
-.rejilla-chip.evento { background: color-mix(in srgb, var(--texto-3) 12%, transparent); color: var(--texto-2); }
+/* Lo que no es un bloque (reuniones, rutinas, compromisos de Google): SIN caja, como texto gris y pequeño (como en la
+   lista), con su rango; una línea fina a la izquierda dice cuánto dura. Nada de fondo: si no, parece un bloque. */
+.rejilla-compromiso { position: absolute; z-index: 2; display: block; overflow: hidden; padding: 0 4px 0 6px; border: 0; border-left: 1px solid color-mix(in srgb, var(--texto-3) 45%, transparent); border-radius: 0; background: none; color: var(--texto-3); font: inherit; font-size: var(--fs-3xs); line-height: 1.25; text-align: left; cursor: pointer; }
+.rejilla-compromiso time { display: flex; align-items: center; gap: 3px; font-size: 10px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rejilla-compromiso time svg { flex-shrink: 0; }
+.rejilla-compromiso span { display: block; color: var(--texto-2); overflow-wrap: anywhere; }
+.rejilla-compromiso.corta { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+.rejilla-compromiso.corta span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.rejilla-compromiso:hover, .rejilla-compromiso:focus-visible { background: color-mix(in srgb, var(--texto-3) 10%, transparent); }
+.rejilla-compromiso.sobre-bloque { background: var(--surface); border-radius: 0 4px 4px 0; }
+.rejilla-chip.evento { background: none; color: var(--texto-3); padding-left: 0; }
 .rejilla-chip.evento svg { color: var(--texto-3); }
 .rejilla-pieza.tarea { cursor: pointer; background: color-mix(in srgb, var(--s, var(--texto-3)) 10%, var(--surface)); border: 1px dashed var(--s, var(--texto-3)); }
 .rejilla-pieza.evento strong svg, .rejilla-pieza.tarea .ley-tarea { display: inline-block; margin-right: 3px; vertical-align: -1px; }

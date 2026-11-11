@@ -58,7 +58,7 @@ export default function SemanaRejilla({ dias, hoy, hora, ajustes, sombreros, onB
             {delDia.slice(0, 3).map((p) => (
               <li key={p.clave} style={p.obj?.fuente === "google" && p.color ? { "--s": p.color } : estiloDe(p.sombrero, sombreros)}>
                 <button type="button" className={`rejilla-chip ${p.tipo}`} onClick={() => abrirPieza(p, dia)} title={p.titulo}>
-                  {p.tipo === "tarea" ? <span className="ley-tarea" aria-hidden="true" /> : <Icon name={p.tipo === "recordatorio" ? "bell" : "star"} size={11} />}
+                  {p.tipo === "tarea" ? <span className="ley-tarea" aria-hidden="true" /> : <Icon name={p.tipo === "recordatorio" ? "bell" : "calendar"} size={11} />}
                   <span>{p.obj?.horaPorDefinir ? `${p.titulo} (hora por definir)` : p.titulo}</span>
                 </button>
               </li>
@@ -127,9 +127,20 @@ export default function SemanaRejilla({ dias, hoy, hora, ajustes, sombreros, onB
                       </div>
                     );
                   }
+                  if (p.tipo === "evento") {
+                    // Un compromiso no es un bloque: sin caja, en gris y pequeño, como texto; una línea fina a la izquierda
+                    // dice cuánto dura.
+                    const icono = p.obj?.clase === "reunion" ? "users" : "calendar";
+                    return (
+                      <button key={p.clave} type="button" className={`rejilla-compromiso${corta ? " corta" : ""}${encima ? " sobre-bloque" : ""}`} style={estilo} onClick={() => abrirPieza(p, dia)} title={`${rangoCorto(p.inicio, p.fin)} ${p.titulo}`}>
+                        <time><Icon name={icono} size={10} /> {rangoCorto(p.inicio, p.fin)}</time>
+                        <span>{p.titulo}</span>
+                      </button>
+                    );
+                  }
                   return (
                     <button key={p.clave} type="button" className={`rejilla-pieza ${p.tipo}${corta ? " corta" : ""}${encima ? " sobre-bloque" : ""}`} style={estilo} onClick={() => abrirPieza(p, dia)} title={`${rangoCorto(p.inicio, p.fin)} ${p.titulo}`}>
-                      <strong>{p.tipo === "tarea" && <span className="ley-tarea" aria-hidden="true" />}{p.obj?.clase === "reunion" && <Icon name="users" size={10} />} {p.titulo}</strong>
+                      <strong>{p.tipo === "tarea" && <span className="ley-tarea" aria-hidden="true" />} {p.titulo}</strong>
                       <time>{rangoCorto(p.inicio, p.fin)}</time>
                     </button>
                   );
