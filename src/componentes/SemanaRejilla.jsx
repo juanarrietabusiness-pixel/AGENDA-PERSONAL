@@ -20,7 +20,7 @@ const movible = (p) => p.tipo === "bloque" || p.tipo === "compromiso" || p.tipo 
  *   · suelta ahí una tarea que arrastras desde el panel: `onSoltar(d, { dia, hora, bloque })`.
  * Cada cosa del alto de lo que dura; lo que no es un bloque, en gris y sin caja. Con `tipo`, es la semana tipo.
  */
-export default function SemanaRejilla({ dias, hoy, hora, ajustes, sombreros, tipo = false, onBloque, onAbrir, onCrear, onMover, onSoltar }) {
+export default function SemanaRejilla({ dias, hoy, hora, ajustes, sombreros, tipo = false, elegido = null, onBloque, onAbrir, onCrear, onMover, onSoltar }) {
   const cuerpo = useRef(null);
   const lienzo = useRef(null);
   const gesto = useRef(null);
@@ -119,7 +119,7 @@ export default function SemanaRejilla({ dias, hoy, hora, ajustes, sombreros, tip
           const v = ventanaDelDia(dia, ajustes);
           const libre = huecos(conHora, { desde: v.despierta, hasta: v.duerme }).reduce((t, h) => t + h.minutos, 0);
           return (
-            <div key={dia} className={`rejilla-dia${dia === hoy && !tipo ? " es-hoy" : ""}`}>
+            <div key={dia} className={`rejilla-dia${dia === hoy && !tipo ? " es-hoy" : ""}${dia === elegido && !tipo ? " elegido" : ""}`}>
               <strong>{tipo ? DIAS[diaSemana(dia)] : `${DIAS_CORTOS[diaSemana(dia)]} ${partes(dia).dia}`}</strong>
               <small>{libre ? `libre ${textoHoras(libre)}` : "sin huecos"}</small>
             </div>

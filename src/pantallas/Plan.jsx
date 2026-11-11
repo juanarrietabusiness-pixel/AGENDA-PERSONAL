@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import Icon from "../componentes/Icon.jsx";
 import Fila from "../componentes/Fila.jsx";
 import { lunesDe, sumarDias, sumarMeses, DIAS, DIAS_CORTOS, MESES, partes, diaSemana, horaCorta, rangoCorto, textoCorto, textoLargo, minutos, aHora } from "../lib/fechas.js";
@@ -40,7 +40,15 @@ const leerVista = () => {
  * «Semana tipo» edita lo que se repite en el mismo calendario. A la derecha: añadir, lo por agendar, tus sombreros y tus
  * proyectos con fecha.
  */
-export default function Plan({ estado, hoy, hora, cambiar, onHecha, onAbrir, avisar, servidor = false, recargar }) {
+const leerLado = () => {
+  try {
+    return { abierto: true, fijo: true, ...JSON.parse(localStorage.getItem("plan-lado") ?? "{}") };
+  } catch {
+    return { abierto: true, fijo: true };
+  }
+};
+
+export default function Plan({ estado, hoy, hora, cambiar, onHecha, onAbrir, avisar, servidor = false, recargar, irA = null }) {
   const id = useId();
   const { acciones, eventos, ajustes } = estado;
   const sombreros = sombrerosDe(ajustes);
@@ -56,6 +64,35 @@ export default function Plan({ estado, hoy, hora, cambiar, onHecha, onAbrir, avi
   const [crear, setCrear] = useState(null);
   const [alcance, setAlcance] = useState(null);
   const [editRitmo, setEditRitmo] = useState(null);
+  // El panel de la derecha (sombreros, por agendar, proyectos): abierto o cerrado, y fijo al lado o flotando encima.
+  const [lado, setLadoE] = useState(leerLado);
+  const setLado = (cambio) =>
+    setLadoE((l) => {
+      const n = { ...l, ...cambio };
+      try {
+        localStorage.setItem("plan-lado", JSON.stringify(n));
+      } catch {
+        /* sólo esta visita */
+      }
+      return n;
+    });
+  const flotante = lado.abierto && !lado.fijo;
+  useEffect(() => {
+    if (!flotante) return undefined;
+    const alTeclear = (e) => e.key === "Escape" && setLado({ abierto: false });
+    window.addEventListener("keydown", alTeclear);
+    return () => window.removeEventListener("keydown", alTeclear);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [flotante]);
+
+  // Desde el mes chico del menú: ir a ese día (su semana, o su mes en la vista Mes).
+  useEffect(() => {
+    if (!irA?.dia) return;
+    setLunes(lunesDe(irA.dia));
+    setMes(`${irA.dia.slice(0, 8)}01`);
+    setVisto(irA.dia);
+    setTipo(false);
+  }, [irA]);
 
   const setVista = (v) => {
     setVistaE(v);
@@ -220,21 +257,22 @@ export default function Plan({ estado, hoy, hora, cambiar, onHecha, onAbrir, avi
       : `${partes(dias[0]).dia} de ${MESES[partes(dias[0]).mes - 1]} al ${partes(dias[6]).dia} de ${MESES[partes(dias[6]).mes - 1]}`;
 
   return (
-    <div className={`plan${tipo ? " editando-tipo" : ""}`}>
+    <div className={`plan${tipo ? " editando-tipo" : ""}${lado.abierto ? (lado.fijo ? "" : " lado-flotante") : " lado-cerrado"}`}>
       <div className="plan-cabeza">
-        <div className="plan-titulo">
-          <h1 className="titulo-pantalla">{tipo ? "Tu semana tipo" : "Tu plan"}</h1>
-          {tipo ? (
-            <p className="subtitulo">Lo que se repite cada semana. Arrastra para moverlo o estirarlo; toca un espacio vacío para crear.</p>
-          ) : (
-            <div className="plan-nav">
-              <button type="button" className="boton fantasma icono" onClick={() => navegar(-1)} aria-label={vista === "mes" ? "Mes anterior" : "Semana anterior"}><Icon name="chevronLeft" size={18} /></button>
-              <strong>{titulo}</strong>
-              <button type="button" className="boton fantasma icono" onClick={() => navegar(1)} aria-label={vista === "mes" ? "Mes siguiente" : "Semana siguiente"}><Icon name="chevronRight" size={18} /></button>
-              {!enHoy && <button type="button" className="boton fantasma" onClick={() => { setLunes(lunesDe(hoy)); setMes(`${hoy.slice(0, 8)}01`); }}>Hoy</button>}
-            </div>
-          )}
-        </div>
+        {tipo ? (
+          <div className="plan-titulo">
+            <h1 className="titulo-plan">Tu semana tipo</h1>
+            <span className="nota">Lo que se repite cada semana: arrastra para moverlo o estirarlo; toca un espacio vacío para crear.</span>
+          </div>
+        ) : (
+          <div className="plan-nav">
+            <h1 className="solo-lector">Tu plan</h1>
+            <button type="button" className="boton fantasma" onClick={() => { setLunes(lunesDe(hoy)); setMes(`${hoy.slice(0, 8)}01`); setVisto(hoy); }} disabled={enHoy}>Hoy</button>
+            <button type="button" className="boton fantasma icono" onClick={() => navegar(-1)} aria-label={vista === "mes" ? "Mes anterior" : "Semana anterior"}><Icon name="chevronLeft" size={18} /></button>
+            <button type="button" className="boton fantasma icono" onClick={() => navegar(1)} aria-label={vista === "mes" ? "Mes siguiente" : "Semana siguiente"}><Icon name="chevronRight" size={18} /></button>
+            <strong className="plan-rango">{titulo}</strong>
+          </div>
+        )}
         <div className="plan-controles">
           {!tipo && (
             <div className="segmentado" role="group" aria-label="Cómo ver tu plan">
@@ -246,14 +284,15 @@ export default function Plan({ estado, hoy, hora, cambiar, onHecha, onAbrir, avi
           <button type="button" className={`boton${tipo ? " primario" : ""}`} aria-pressed={tipo} onClick={() => setTipo(!tipo)}>
             <Icon name={tipo ? "check" : "layers"} size={15} /> {tipo ? "Listo" : "Semana tipo"}
           </button>
+          <button type="button" className="boton fantasma solo-ancho-flex boton-lado" aria-pressed={lado.abierto} aria-controls={`${id}-lado`} onClick={() => setLado({ abierto: !lado.abierto })} aria-label={lado.abierto ? "Cerrar el panel de sombreros" : "Abrir el panel de sombreros"} title={lado.abierto ? "Cerrar el panel" : "Tus sombreros, por agendar y proyectos"}>
+            <Icon name="checkSquare" size={17} /> Sombreros
+          </button>
         </div>
-        {verVista !== "mes" && (
+        {tipo && (
           <ul className="leyenda-semana" aria-label="Qué es cada cosa">
             <li><span className="ley-bloque" aria-hidden="true" /> Bloque</li>
             <li><Icon name="calendar" size={13} /> Compromiso</li>
             <li><Icon name="bell" size={13} /> Recordatorio</li>
-            {!tipo && <li><span className="ley-tarea" aria-hidden="true" /> Tarea</li>}
-            <li><span className="ley-libre" aria-hidden="true" /> Libre: toca o arrastra para crear</li>
           </ul>
         )}
         {!tipo && deGoogle.nuevos.length > 0 && (
@@ -289,17 +328,23 @@ export default function Plan({ estado, hoy, hora, cambiar, onHecha, onAbrir, avi
             </div>
             <div className="semana">
               {porDia.map((p) => (
-                <DiaPlan key={p.dia} {...p} hoy={hoy} hora={hora} ajustes={ajustes} tipo={tipo} visto={visto === p.dia} sombreros={sombreros} onBloque={abrirBloque} onAbrir={abrir} onCrear={setCrear} onSoltar={soltar} />
+                <DiaPlan key={p.dia} {...p} hoy={hoy} hora={hora} ajustes={ajustes} tipo={tipo} elegido={irA?.dia === p.dia} visto={visto === p.dia} sombreros={sombreros} onBloque={abrirBloque} onAbrir={abrir} onCrear={setCrear} onSoltar={soltar} />
               ))}
             </div>
             {verVista === "horas" && (
-              <SemanaRejilla key={tipo ? "tipo" : lunes} dias={porDia} hoy={hoy} hora={hora} ajustes={ajustes} sombreros={sombreros} tipo={tipo} onBloque={abrirBloque} onAbrir={abrir} onCrear={setCrear} onMover={mover} onSoltar={soltar} />
+              <SemanaRejilla key={tipo ? "tipo" : lunes} dias={porDia} hoy={hoy} hora={hora} elegido={irA?.dia ?? null} ajustes={ajustes} sombreros={sombreros} tipo={tipo} onBloque={abrirBloque} onAbrir={abrir} onCrear={setCrear} onMover={mover} onSoltar={soltar} />
             )}
           </>
         )}
       </section>
 
-      <aside className="plan-lado" aria-label={tipo ? "Tu semana tipo" : "Añadir, por agendar, tus sombreros y tus proyectos"}>
+      <aside className="plan-lado" id={`${id}-lado`} aria-label={tipo ? "Tu semana tipo" : "Añadir, por agendar, tus sombreros y tus proyectos"}>
+        <div className="lado-barra">
+          <button type="button" className="boton fantasma icono" aria-pressed={lado.fijo} onClick={() => setLado({ fijo: !lado.fijo })} aria-label={lado.fijo ? "Soltar el panel: que flote encima del calendario" : "Fijar el panel al lado del calendario"} title={lado.fijo ? "Fijado al lado. Pulsa para que flote encima" : "Flotando. Pulsa para fijarlo al lado"}>
+            <Icon name="mapPin" size={16} />
+          </button>
+          <button type="button" className="boton fantasma icono" onClick={() => setLado({ abierto: false })} aria-label="Cerrar el panel"><Icon name="close" size={16} /></button>
+        </div>
         {tipo ? (
           <SemanaTipo estado={estado} sombreros={sombreros} cambiar={cambiar} avisar={avisar} servidor={servidor} recargar={recargar} abierta setAbierta={(v) => !v && setTipo(false)} />
         ) : (
@@ -412,7 +457,7 @@ function PorAgendar({ eventos, sombreros, onAbrir }) {
 }
 
 /** Un día como lista (la primera versión): lo de todo el día, luego por hora los bloques (con lo suyo dentro), los compromisos, las reuniones y los huecos libres; al final, las tareas sin bloque. «+» crea algo ese día; se suelta aquí una tarea. */
-function DiaPlan({ dia, hoy, hora, ajustes, tipo, visto, eventos, bloques, recordatorios, tareas, compromisos = [], conHora: piezas, sombreros, onBloque, onAbrir, onCrear, onSoltar }) {
+function DiaPlan({ dia, hoy, hora, ajustes, tipo, visto, elegido = false, eventos, bloques, recordatorios, tareas, compromisos = [], conHora: piezas, sombreros, onBloque, onAbrir, onCrear, onSoltar }) {
   const [encima, setEncima] = useState(false);
   const todoElDia = eventos.filter((e) => !e.inicio || e.todoElDia || esTodoElDia(e));
   const v = ventanaDelDia(dia, ajustes);
@@ -429,7 +474,7 @@ function DiaPlan({ dia, hoy, hora, ajustes, tipo, visto, eventos, bloques, recor
 
   return (
     <article
-      className={`dia${dia === hoy && !tipo ? " es-hoy" : ""}${visto ? " visto" : ""}${encima ? " soltando" : ""}`}
+      className={`dia${dia === hoy && !tipo ? " es-hoy" : ""}${visto ? " visto" : ""}${elegido && !tipo ? " elegido" : ""}${encima ? " soltando" : ""}`}
       aria-label={tipo ? DIAS[diaSemana(dia)] : `${DIAS[diaSemana(dia)]} ${partes(dia).dia}`}
       {...(tipo ? {} : zonaDeSoltar((d) => onSoltar(d, { dia }), setEncima))}
     >

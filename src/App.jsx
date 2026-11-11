@@ -4,6 +4,7 @@ import Aclarar from "./componentes/Aclarar.jsx";
 import Editar from "./componentes/Editar.jsx";
 import EventoGoogle from "./componentes/EventoGoogle.jsx";
 import Burbuja from "./componentes/Burbuja.jsx";
+import MiniMes from "./componentes/MiniMes.jsx";
 import Hoy from "./pantallas/Hoy.jsx";
 import Plan from "./pantallas/Plan.jsx";
 import Revision from "./pantallas/Revision.jsx";
@@ -56,6 +57,16 @@ export default function App() {
   const [aclarando, setAclarando] = useState(null);
   const [editando, setEditando] = useState(null);
   const [asistente, setAsistente] = useState(false);
+  // El menú de la izquierda, plegado o desplegado (en la computadora); se recuerda en este navegador.
+  const [navPlegada, setNavPlegada] = useState(() => {
+    try {
+      return localStorage.getItem("nav-plegada") === "1";
+    } catch {
+      return false;
+    }
+  });
+  // Ir a un día desde el mes chico del menú: Plan lo abre en esa semana.
+  const [irA, setIrA] = useState(null);
   // Al volver de dar un permiso (Juancito Ads, Google), el servidor dice qué pasó en ?aviso=…
   const [mensaje, setMensaje] = useState(() => {
     const aviso = new URLSearchParams(window.location.search).get("aviso");
@@ -191,33 +202,52 @@ export default function App() {
   // El versículo del día: en la barra lateral de la computadora; en el teléfono, en el resumen de la mañana por Telegram.
   const versiculo = elegirVersiculo({ momento: "manana", hoy, frecuencia: estado.ajustes?.frecuenciaVersiculos });
 
+  const plegarNav = () => {
+    setNavPlegada((v) => {
+      try {
+        localStorage.setItem("nav-plegada", v ? "0" : "1");
+      } catch {
+        /* sin almacenamiento, sólo esta visita */
+      }
+      return !v;
+    });
+  };
+  const irAlDia = (dia) => {
+    setIrA({ dia, n: Date.now() });
+    if (pantalla !== "plan") window.location.hash = "plan";
+  };
+
   return (
-    <div className={`app${asistente ? " con-asistente" : ""}`}>
+    <div className={`app${asistente ? " con-asistente" : ""}${navPlegada ? " nav-plegada" : ""}`}>
       <header className="cabecera">
+        <button type="button" className="boton-menu" onClick={plegarNav} aria-expanded={!navPlegada} aria-controls="nav-principal" aria-label={navPlegada ? "Desplegar el menú" : "Plegar el menú"} title={navPlegada ? "Desplegar el menú" : "Plegar el menú"}>
+          <Icon name="menu" size={20} />
+        </button>
         <div className="marca"><span className="marca-punto" aria-hidden="true" />{tema.nombre}</div>
         {modo === "prototipo" && <span className="chip">Prototipo</span>}
         <span className="cabecera-fecha">{mayuscula(textoLargo(hoy))}</span>
       </header>
       <div className="cuerpo">
-        <nav className="nav" aria-label="Secciones">
+        <nav className="nav" id="nav-principal" aria-label="Secciones">
           {PANTALLAS.map((p) => (
-            <a key={p.id} href={`#${p.id}`} aria-current={pantalla === p.id ? "page" : undefined}>
+            <a key={p.id} href={`#${p.id}`} aria-current={pantalla === p.id ? "page" : undefined} aria-label={p.nombre} title={navPlegada ? p.nombre : undefined}>
               <Icon name={p.icono} size={22} />
-              {p.nombre}
+              <span className="nav-texto">{p.nombre}</span>
             </a>
           ))}
+          <MiniMes estado={estado} hoy={hoy} sombreros={sombreros} onDia={irAlDia} />
           {versiculo && (
             <blockquote className="nav-versiculo">
               «{versiculo.texto}»<cite>{versiculo.ref} <span className="solo-lector">({ATRIBUCION})</span></cite>
             </blockquote>
           )}
-          <a href="#ajustes" aria-current={pantalla === "ajustes" ? "page" : undefined}>
-            <Icon name="settings" size={22} /> Ajustes
+          <a href="#ajustes" aria-current={pantalla === "ajustes" ? "page" : undefined} aria-label="Ajustes" title={navPlegada ? "Ajustes" : undefined}>
+            <Icon name="settings" size={22} /> <span className="nav-texto">Ajustes</span>
           </a>
         </nav>
         <main className="contenido" id="contenido">
           {pantalla === "hoy" && <Hoy {...comunes} cambiar={cambiar} hora={hora} onDecidir={onDecidir} onEnfoque={onEnfoque} onNoHoy={onNoHoy} onAsistente={() => (servidor ? setAsistente(true) : estado.bandeja[0] && setAclarando(estado.bandeja[0]))} />}
-          {pantalla === "plan" && <Plan {...comunes} hora={hora} cambiar={cambiar} servidor={servidor} recargar={almacen.recargar} />}
+          {pantalla === "plan" && <Plan {...comunes} hora={hora} cambiar={cambiar} servidor={servidor} recargar={almacen.recargar} irA={irA} />}
           {pantalla === "tareas" && <Tareas {...comunes} cambiar={cambiar} onEnfoque={onEnfoque} />}
           {pantalla === "revision" && <Revision {...comunes} cambiar={cambiar} onDecidir={onDecidir} recargar={almacen.recargar} servidor={servidor} onAsistente={() => (servidor ? setAsistente(true) : estado.bandeja[0] && setAclarando(estado.bandeja[0]))} />}
           {pantalla === "ajustes" && (

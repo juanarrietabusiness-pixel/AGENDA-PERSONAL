@@ -13,7 +13,7 @@
 // proyecto). Nada se delega ni se suelta solo: se sugiere.
 // ============================================================
 
-import { sumarDias, lunesDe, partes, fecha, diasDelMes, diasEntre, MESES, textoCorto, textoHora, esHora, minutos, aHora } from "./fechas.js";
+import { sumarDias, sumarMeses, lunesDe, partes, fecha, diasDelMes, diasEntre, MESES, textoCorto, textoHora, esHora, minutos, aHora } from "./fechas.js";
 import { nuevaAccion, nuevoId, DURACIONES } from "./metodo.js";
 import { ocurrencias, tocaEl } from "./recurrencia.js";
 import { urgencia } from "./prioridad.js";
@@ -219,6 +219,28 @@ export function reunionesDelPeriodo(eventos, externos, r, ajustes = {}) {
     .filter((x) => claseDeGoogle(x, ajustes) === "reunion" && !yaEsPropio(eventos, x))
     .map((x) => ({ ...x, clase: "reunion", fuente: "google" }));
   return [...propios, ...deGoogle].sort((a, b) => (a.dia + (a.inicio ?? "00:00")).localeCompare(b.dia + (b.inicio ?? "00:00")));
+}
+
+/**
+ * Lo que marca un día en el calendario chico (el del menú de la izquierda): lo especial (cumpleaños, aniversarios, lo de
+ * todo el día) y las reuniones y compromisos que NO se repiten; lo de cada semana no, que marcaría todos los días. Lo que
+ * ya se pasó a Kairos no se cuenta dos veces. Devuelve { [día]: [{ tipo, titulo, sombrero, color }] }.
+ */
+export function marcasDeDias({ acciones = [], eventos = [], externos = [], ajustes = {}, ritmo = [] } = {}, desde, hasta) {
+  const traidas = new Set((ritmo ?? []).map((e) => e.google).filter(Boolean));
+  const ext = (externos ?? []).filter((x) => !traidas.has(x.serie));
+  const marcas = {};
+  const poner = (dia, m) => {
+    if (dia && dia >= desde && dia <= hasta) (marcas[dia] ??= []).push(m);
+  };
+  for (let m = `${desde.slice(0, 8)}01`; m <= hasta; m = sumarMeses(m, 1)) {
+    for (const e of especialesDelMes(acciones, eventos, m, ext, ajustes)) poner(e.dia, { tipo: "especial", titulo: e.titulo, sombrero: e.sombrero ?? null, color: e.color ?? null });
+  }
+  for (const r of reunionesDelPeriodo(eventos, ext, { desde, hasta }, ajustes)) {
+    if (r.repite?.regla || r.serie) continue;
+    poner(r.dia ?? r.fecha, { tipo: r.clase === "reunion" ? "reunion" : "evento", titulo: r.titulo, sombrero: r.sombrero ?? null, color: r.color ?? null });
+  }
+  return marcas;
 }
 
 // ------------------------------------------------------------

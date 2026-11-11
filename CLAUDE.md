@@ -145,6 +145,13 @@ true }`, la semana tipo sin esos cambios); siempre, `moverSiempre`. «Semana tip
 calendario (sin fechas, el editor de siempre al lado). Un evento de Kairos que se repite sólo cambia de hora arrastrando.
 La publicación en «Kairos · Bloques» enseña la semana tipo, no los cambios de un día.
 
+**Plan con más aire, como Google Calendar** (decisión de Juan: «se ve apeñuscado»). La cabecera es una línea (Hoy, ‹ ›,
+el rango, las vistas, «Semana tipo» y «Sombreros»). El panel de la derecha se abre y se cierra con «Sombreros» y se FIJA
+al lado o FLOTA encima del calendario (la chincheta; Escape lo cierra si flota), recordado en `plan-lado`. El menú de la
+izquierda se pliega a sólo iconos con el botón de la cabecera (`nav-plegada`) y lleva debajo el MES CHICO (`MiniMes`):
+un puntito de color el día con algo especial o una reunión que no se repite (`marcasDeDias` en agenda.js: lo de cada
+semana no, que marcaría todos los días); tocar un día abre su semana en Plan (`irA`) con el día subrayado.
+
 **El compromiso fijo** (`clase: "compromiso"` en el ritmo): se repite y ocupa su tiempo (huecos, horas por sombrero) pero
 no es un bloque para meter tareas; se ve en gris, sin caja, y no avisa salvo que se pida. **Pasar a Kairos**
 (`rutinaDeGoogle(…, { todas: true })`, el aviso de Plan y el botón de la semana tipo): toda serie de Google que se repite y

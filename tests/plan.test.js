@@ -204,3 +204,23 @@ describe("Google Tasks: cada lista con su sombrero", () => {
     expect(listaParaSombrero(listas, "iglesia", sombreros, enlaces)).toBe("@default");
   });
 });
+
+describe("el mes chico del menú", () => {
+  it("marca lo especial y las reuniones que no se repiten; lo de cada semana no", async () => {
+    const { marcasDeDias } = await import("../src/lib/agenda.js");
+    const estado = {
+      acciones: [nuevaAccion({ titulo: "Cumpleaños de Abry", clase: "recordatorio", limite: "2026-11-20", repite: { regla: "FREQ=YEARLY", modo: "calendario", inicio: "2026-11-20" } }, MIE)],
+      eventos: [
+        { id: "r1", titulo: "Reunión con Dayano", clase: "reunion", fecha: "2026-11-24", inicio: "18:30", fin: "19:30" },
+        { id: "r2", titulo: "Ensayo", clase: "reunion", fecha: null, repite: { regla: "FREQ=WEEKLY;BYDAY=TU", inicio: "2026-11-03" }, inicio: "19:00", fin: "21:00" },
+      ],
+      externos: [
+        { id: "g1", tipo: "evento", dia: "2026-11-27", titulo: "Viaje", todoElDia: true },
+        { id: "g2_1", serie: "g2", tipo: "evento", dia: "2026-11-25", titulo: "Equipo semanal", inicio: "10:00", fin: "11:00", conGente: true },
+      ],
+    };
+    const m = marcasDeDias(estado, "2026-10-26", "2026-12-06");
+    expect(Object.keys(m).sort()).toEqual(["2026-11-20", "2026-11-24", "2026-11-27"]);
+    expect(m["2026-11-24"][0]).toMatchObject({ tipo: "reunion", titulo: "Reunión con Dayano" });
+  });
+});
