@@ -5,7 +5,7 @@ import { DIAS, DIAS_CORTOS, partes, diaSemana, minutos, horaCorta, rangoCorto } 
 import { carriles, huecos, rangoDeLaRejilla, ventanaDelDia } from "../lib/rejilla.js";
 import { textoHoras } from "../lib/semana.js";
 
-const DENTRO_MAX = 4; // tareas que se ven dentro de un bloque
+const DENTRO_MAX = 3; // tareas que se ven dentro de un bloque
 
 /**
  * La semana como un calendario con horas (en la computadora): cada cosa del alto de lo que dura, lo que se cruza lado a
@@ -78,23 +78,29 @@ export default function SemanaRejilla({ dias, hoy, hora, ajustes, sombreros, onB
           {dias.map(({ dia, conHora }) => {
             const v = ventanaDelDia(dia, ajustes);
             const libres = dia < hoy ? [] : huecos(conHora, { desde: v.despierta, hasta: v.duerme, ahora: dia === hoy ? hora : null });
-            const lados = carriles(conHora.filter((p) => p.tipo !== "recordatorio"));
+            // Los bloques ocupan todo el ancho; lo que cae encima de un bloque (una reunión, una tarea con hora) va a su
+            // derecha, sin partir el bloque en una tira que no se lee.
+            const bloques = conHora.filter((p) => p.tipo === "bloque");
+            const lados = new Map([...carriles(bloques), ...carriles(conHora.filter((p) => p.tipo !== "recordatorio" && p.tipo !== "bloque"))]);
+            const sobreBloque = (p) => p.tipo !== "bloque" && bloques.some((b) => b.inicio < p.fin && p.inicio < b.fin);
             return (
               <div key={dia} className={`rejilla-col${dia === hoy ? " es-hoy" : ""}`} aria-label={`${DIAS[diaSemana(dia)]} ${partes(dia).dia}`} role="group">
                 {libres.map((h) => (
-                  <button key={`l:${h.inicio}`} type="button" className="rejilla-hueco" style={{ top: pos(h.inicio), height: alto(h.inicio, h.fin) }} onClick={() => onHueco({ dia, ...h })} aria-label={`Libre el ${DIAS[diaSemana(dia)]} de ${rangoCorto(h.inicio, h.fin)}: añadir algo aquí`}>
+                  <button key={`l:${h.inicio}`} type="button" className={`rejilla-hueco${h.minutos < 60 ? " corto" : ""}`} style={{ top: pos(h.inicio), height: alto(h.inicio, h.fin) }} onClick={() => onHueco({ dia, ...h })} aria-label={`Libre el ${DIAS[diaSemana(dia)]} de ${rangoCorto(h.inicio, h.fin)}: añadir algo aquí`}>
                     <span>Libre · {textoHoras(h.minutos)}</span>
                   </button>
                 ))}
                 {conHora.map((p) => {
                   const l = lados.get(p.clave) ?? { carril: 0, de: 1 };
                   const corta = minutos(p.fin) - minutos(p.inicio) < 45;
+                  const encima = sobreBloque(p);
+                  const [x0, ancho] = encima ? [45, 55] : [0, 100];
                   const estilo = {
                     ...(p.obj?.fuente === "google" && p.color ? { "--s": p.color } : estiloDe(p.sombrero, sombreros)),
                     top: pos(p.inicio),
                     height: alto(p.inicio, p.fin),
-                    left: `calc(${(l.carril / l.de) * 100}% + 2px)`,
-                    width: `calc(${100 / l.de}% - 4px)`,
+                    left: `calc(${x0 + (l.carril / l.de) * ancho}% + 2px)`,
+                    width: `calc(${ancho / l.de}% - 4px)`,
                   };
                   if (p.tipo === "recordatorio") {
                     return (
@@ -122,7 +128,7 @@ export default function SemanaRejilla({ dias, hoy, hora, ajustes, sombreros, onB
                     );
                   }
                   return (
-                    <button key={p.clave} type="button" className={`rejilla-pieza ${p.tipo}${corta ? " corta" : ""}`} style={estilo} onClick={() => abrirPieza(p, dia)} title={`${rangoCorto(p.inicio, p.fin)} ${p.titulo}`}>
+                    <button key={p.clave} type="button" className={`rejilla-pieza ${p.tipo}${corta ? " corta" : ""}${encima ? " sobre-bloque" : ""}`} style={estilo} onClick={() => abrirPieza(p, dia)} title={`${rangoCorto(p.inicio, p.fin)} ${p.titulo}`}>
                       <strong>{p.tipo === "tarea" && <span className="ley-tarea" aria-hidden="true" />}{p.obj?.clase === "reunion" && <Icon name="users" size={10} />} {p.titulo}</strong>
                       <time>{rangoCorto(p.inicio, p.fin)}</time>
                     </button>

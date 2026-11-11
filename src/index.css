@@ -771,7 +771,7 @@ button.dia-item { width: 100%; background: none; border: 0; text-align: left; fo
 .plan-lado .seccion:first-of-type, .plan-lado > .seccion { margin-top: var(--sp-4); }
 .plan-anadir .anadir { margin: 0; }
 .plan-lado .sombreros, .plan-lado .proyectos-fecha { grid-template-columns: minmax(0, 1fr); }
-.ley-compromiso { display: inline-block; flex-shrink: 0; width: 14px; height: 10px; border-radius: 3px; border: 1px solid var(--texto-3); border-left-width: 3px; }
+.ley-compromiso { display: inline-block; flex-shrink: 0; width: 14px; height: 10px; border-radius: 3px; background: color-mix(in srgb, var(--texto-3) 22%, transparent); border-left: 2px solid var(--texto-3); }
 .ley-libre { display: inline-block; flex-shrink: 0; width: 14px; height: 10px; border-radius: 3px; border: 1px dashed var(--texto-3); }
 .pl-hueco button { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; width: 100%; padding: 6px 8px; border: 1px dashed var(--borde); border-radius: var(--radius-sm); background: none; color: var(--texto-3); font: inherit; font-size: var(--fs-2xs); text-align: left; cursor: pointer; }
 .pl-hueco button:hover { border-color: var(--acento); color: var(--texto-2); }
@@ -783,7 +783,7 @@ button.dia-item { width: 100%; background: none; border: 0; text-align: left; fo
   .rejilla { display: flex; flex-direction: column; border: 1px solid var(--borde); border-radius: var(--radius-lg); background: var(--surface); overflow: hidden; box-shadow: var(--elev-1); }
 }
 @container contenido (min-width: 940px) {
-  .plan { grid-template-columns: minmax(0, 1fr) 290px; grid-template-areas: "cabeza cabeza" "semana lado"; }
+  .plan { grid-template-columns: minmax(0, 1fr) 256px; grid-template-areas: "cabeza cabeza" "semana lado"; }
   .plan-lado > .plan-anadir { margin-top: 0; }
 }
 @media (min-width: 900px) and (min-height: 560px) {
@@ -811,7 +811,7 @@ button.dia-item { width: 100%; background: none; border: 0; text-align: left; fo
 .rejilla-chip .ley-tarea { width: 8px; height: 8px; }
 .rejilla-mas { padding-left: 4px; font-size: var(--fs-3xs); color: var(--texto-3); }
 .rejilla-cuerpo { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
-.rejilla-lienzo { position: relative; display: grid; grid-template-columns: 48px repeat(7, minmax(0, 1fr)); height: max(100%, calc(var(--horas) * 34px)); }
+.rejilla-lienzo { position: relative; display: grid; grid-template-columns: 48px repeat(7, minmax(0, 1fr)); height: max(100%, calc(var(--horas) * 40px)); }
 .rejilla-horas { position: relative; }
 .rejilla-horas span { position: absolute; right: 6px; transform: translateY(-50%); font-size: 10px; color: var(--texto-3); white-space: nowrap; }
 .rejilla-horas span:first-child { transform: none; }
@@ -823,8 +823,14 @@ button.dia-item { width: 100%; background: none; border: 0; text-align: left; fo
 .rejilla-pieza.corta { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
 .rejilla-pieza.corta strong { flex: 1 1 auto; min-width: 3em; overflow: hidden; text-overflow: ellipsis; font-size: var(--fs-3xs); }
 .rejilla-pieza.corta time { flex: 0 1000 auto; min-width: 0; overflow: hidden; text-overflow: clip; }
-.rejilla-pieza.bloque { background: color-mix(in srgb, var(--s, var(--texto-3)) 24%, var(--surface)); border-left: 3px solid var(--s, var(--texto-3)); }
-.rejilla-pieza.evento { cursor: pointer; background: var(--surface-2); border: 1px solid color-mix(in srgb, var(--s, var(--texto-3)) 55%, transparent); border-left: 3px solid var(--s, var(--texto-3)); }
+.rejilla-pieza.bloque { background: color-mix(in srgb, var(--s, var(--texto-3)) 18%, var(--surface)); border-left: 3px solid var(--s, var(--texto-3)); }
+/* Lo que no es un bloque (reuniones, rutinas, compromisos de Google): en gris y pequeño, con su rango de horas. */
+.rejilla-pieza.evento { cursor: pointer; padding: 1px 4px; background: color-mix(in srgb, var(--texto-3) 12%, var(--surface)); border: 0; border-left: 2px solid color-mix(in srgb, var(--texto-3) 55%, transparent); border-radius: 4px; color: var(--texto-2); }
+.rejilla-pieza.evento strong { font-size: var(--fs-3xs); font-weight: 500; }
+.rejilla-pieza.evento time { font-size: 10px; color: var(--texto-3); }
+.rejilla-pieza.evento svg { color: var(--texto-3); }
+.rejilla-chip.evento { background: color-mix(in srgb, var(--texto-3) 12%, transparent); color: var(--texto-2); }
+.rejilla-chip.evento svg { color: var(--texto-3); }
 .rejilla-pieza.tarea { cursor: pointer; background: color-mix(in srgb, var(--s, var(--texto-3)) 10%, var(--surface)); border: 1px dashed var(--s, var(--texto-3)); }
 .rejilla-pieza.evento strong svg, .rejilla-pieza.tarea .ley-tarea { display: inline-block; margin-right: 3px; vertical-align: -1px; }
 .rejilla-pieza-cabeza { display: block; width: 100%; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
@@ -833,11 +839,51 @@ button.dia-item { width: 100%; background: none; border: 0; text-align: left; fo
 .rejilla-pieza li button { display: flex; align-items: flex-start; gap: 4px; width: 100%; padding: 1px 0; border: 0; background: none; color: var(--texto); font: inherit; font-size: var(--fs-3xs); text-align: left; cursor: pointer; }
 .rejilla-pieza li .ley-tarea { width: 8px; height: 8px; margin-top: 2px; }
 .rejilla-pieza .dentro-rec { color: var(--texto-2); }
-.rejilla-rec { position: absolute; z-index: 3; display: flex; align-items: center; gap: 3px; padding: 0 6px; border-radius: var(--radius-pill); background: color-mix(in srgb, var(--s, var(--acento)) 30%, var(--surface)); font-size: 10px; line-height: 16px; white-space: nowrap; overflow: hidden; pointer-events: none; }
+.rejilla-rec { position: absolute; z-index: 3; display: flex; align-items: center; gap: 3px; padding: 0 6px; border-radius: var(--radius-pill); background: color-mix(in srgb, var(--s, var(--acento)) 20%, var(--surface)); font-size: 10px; line-height: 16px; white-space: nowrap; overflow: hidden; pointer-events: none; }
 .rejilla-hueco { position: absolute; z-index: 1; left: 2px; right: 2px; display: flex; justify-content: center; padding-top: 2px; border: 1px dashed transparent; border-radius: 6px; background: none; color: var(--texto-3); font: inherit; font-size: 10px; cursor: pointer; overflow: hidden; }
-.rejilla-hueco span { opacity: 0.6; }
+.rejilla-hueco span { opacity: 0.55; }
+.rejilla-hueco.corto span { opacity: 0; }
+.rejilla-hueco.corto:hover span, .rejilla-hueco.corto:focus-visible span { opacity: 1; }
 .rejilla-hueco:hover, .rejilla-hueco:focus-visible { border-color: var(--acento); background: color-mix(in srgb, var(--acento) 8%, transparent); }
 .rejilla-hueco:hover span { opacity: 1; color: var(--texto-2); }
 .rejilla-ahora { position: absolute; z-index: 4; left: 0; right: 0; height: 2px; background: var(--rojo); pointer-events: none; }
 .rejilla-pieza.corta .rejilla-pieza-cabeza strong { flex: 1 1 auto; min-width: 3em; overflow: hidden; text-overflow: ellipsis; }
 .rejilla-pieza.corta .rejilla-pieza-cabeza time { flex: 0 1000 auto; min-width: 0; overflow: hidden; }
+
+/* Tus sombreros en Plan: una línea cada uno, se abre para ver y añadir */
+.balance-fino { height: 6px; margin-bottom: var(--sp-2); }
+.somb-lista { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; }
+.somb { border-radius: var(--radius-sm); }
+.somb.abierto { background: var(--surface); box-shadow: inset 3px 0 0 var(--s); padding-bottom: var(--sp-2); margin: var(--sp-1) 0; }
+.somb-fila { display: grid; grid-template-columns: 18px minmax(0, 1fr) auto auto 14px; align-items: center; gap: 0 8px; width: 100%; min-height: 36px; padding: 4px 6px; border: 0; border-radius: var(--radius-sm); background: none; color: var(--texto); font: inherit; text-align: left; cursor: pointer; }
+.somb-fila:hover { background: var(--surface-2); }
+.somb-fila svg { color: var(--texto-3); }
+.somb-fila-fija { cursor: default; grid-template-columns: 18px minmax(0, 1fr) auto; }
+.somb-fila-fija:hover { background: none; }
+.somb-num { display: grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; background: color-mix(in srgb, var(--s, var(--texto-3)) 25%, transparent); color: var(--s, var(--texto-3)); font-size: 10px; font-weight: 800; }
+.somb-nombre { font-size: var(--fs-sm); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.somb-horas { font-size: var(--fs-3xs); color: var(--texto-3); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.somb-cuenta { min-width: 20px; padding: 0 6px; border-radius: var(--radius-pill); background: var(--surface-3); color: var(--texto-2); font-size: var(--fs-3xs); font-weight: 700; line-height: 18px; text-align: center; }
+.somb-sig { grid-column: 2 / -1; font-size: var(--fs-3xs); color: var(--texto-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.somb-sin .somb-nombre { font-weight: 400; color: var(--texto-3); }
+.somb-cuerpo { padding: 0 var(--sp-2) 0 var(--sp-3); }
+.somb-cuerpo .anadir-rapido { margin-top: var(--sp-1); }
+.somb-cuerpo .proyecto { margin-top: var(--sp-2); }
+.somb-vacio { margin: var(--sp-2) 0 0; font-size: var(--fs-xs); color: var(--texto-3); }
+.somb-pie { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); margin-top: var(--sp-2); font-size: var(--fs-2xs); }
+.somb-pie .nota { font-size: var(--fs-3xs); color: var(--texto-3); }
+.somb-pie .enlace { display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; color: var(--texto-3); }
+.somb-pie .enlace:hover { color: var(--texto); }
+.somb-nota { margin: var(--sp-2) 0 0; font-size: var(--fs-2xs); color: var(--texto-3); }
+.somb-nuevo { display: inline-flex; align-items: center; gap: 4px; margin-top: var(--sp-2); padding: 4px 6px; font-size: var(--fs-2xs); color: var(--texto-3); }
+.somb-nuevo:hover { color: var(--texto); }
+.plan-lado .proyecto-fecha { padding: var(--sp-3); }
+.plan-lado .proyecto-fecha h3 { font-size: var(--fs-sm); }
+.somb-cuerpo .lista { gap: 0; }
+.somb-cuerpo .accion.compacta { padding: 4px 0; gap: var(--sp-2); }
+.somb-cuerpo .accion.compacta .marcar { width: 18px; height: 18px; }
+.somb-cuerpo .accion-titulo { font-size: var(--fs-xs); line-height: 1.3; }
+.somb-cuerpo .accion-meta .chip { font-size: 10px; padding: 0 6px; }
+.somb-cuerpo .proyecto-nombre { font-size: var(--fs-2xs); }
+.somb-cuerpo .proyecto-nombre select { min-height: 28px; font-size: var(--fs-2xs); }
+.rejilla-pieza.sobre-bloque { box-shadow: -2px 0 0 var(--surface); }

@@ -108,37 +108,18 @@ export default function Plan({ estado, hoy, hora, cambiar, onHecha, onAbrir, avi
           <AnadirRapido sombreros={sombreros} paraCuando="(sin fecha)" onAnadir={anadirSinFecha} />
         </div>
 
-        <Sombreros estado={estado} hoy={hoy} sombreros={sombreros} cambiar={cambiar} onHecha={onHecha} onAbrir={onAbrir} avisar={avisar} />
+        <Sombreros
+          estado={estado}
+          hoy={hoy}
+          sombreros={sombreros}
+          cambiar={cambiar}
+          onHecha={onHecha}
+          onAbrir={onAbrir}
+          avisar={avisar}
+          resumen={{ filas, hayBloques, sinSombrero, totalMin, flojos, bloquesSinSombrero, abrirSemanaTipo }}
+        />
 
         <ProyectosConFecha estado={estado} hoy={hoy} sombreros={sombreros} cambiar={cambiar} onHecha={onHecha} onAbrir={onAbrir} avisar={avisar} />
-
-        <section className="tarjeta seccion balance-tarjeta" aria-labelledby={`${id}-balance`}>
-          <div className="seccion-cabeza">
-            <h2 id={`${id}-balance`}>Horas por sombrero</h2>
-            <span className="nota">{hayBloques ? "a la semana, según tus bloques" : "esta semana"}</span>
-          </div>
-          <div className="balance" role="img" aria-label={filas.map((f) => `${nombreDe(f.id, sombreros)} ${hayBloques ? textoHoras(f.minutos) : `${f.porcentaje} %`}`).join(", ")}>
-            {filas.map((f) => <span key={f.id} style={{ ...estiloDe(f.id, sombreros), width: `${hayBloques ? (totalMin ? (f.minutos / totalMin) * 100 : 0) : f.porcentaje}%` }} />)}
-            {sinSombrero > 0 && <span className="sin-sombrero" style={{ width: `${(sinSombrero / totalMin) * 100}%` }} />}
-          </div>
-          <div className="balance-leyenda">
-            {filas.map((f) => (
-              <span key={f.id} style={estiloDe(f.id, sombreros)}><span className="punto" />{nombreDe(f.id, sombreros)} {hayBloques ? (f.minutos ? textoHoras(f.minutos) : "0 h") : `${f.porcentaje} %`}</span>
-            ))}
-            {sinSombrero > 0 && <span><span className="punto" style={{ background: "var(--texto-3)", opacity: 0.5 }} />Sin sombrero {textoHoras(sinSombrero)}</span>}
-          </div>
-          {bloquesSinSombrero > 0 ? (
-            <p className="nota" style={{ margin: "var(--sp-3) 0 0" }}>
-              {bloquesSinSombrero} bloque{bloquesSinSombrero === 1 ? " no tiene" : "s no tienen"} sombrero y no cuenta{bloquesSinSombrero === 1 ? "" : "n"}. <button type="button" className="enlace" onClick={abrirSemanaTipo}>Asignarles uno</button>
-            </p>
-          ) : (
-            flojos.length > 0 && (
-              <p className="nota" style={{ margin: "var(--sp-3) 0 0" }}>
-                {flojos.map((x) => nombreDe(x, sombreros)).join(" y ")} casi no tiene{flojos.length > 1 ? "n" : ""} tiempo esta semana.
-              </p>
-            )
-          )}
-        </section>
 
         <SemanaTipo estado={estado} sombreros={sombreros} cambiar={cambiar} avisar={avisar} servidor={servidor} recargar={recargar} abierta={semanaAbierta} setAbierta={setSemanaAbierta} />
       </aside>
@@ -272,10 +253,15 @@ function Evento({ e, sombreros, onAbrir }) {
   );
 }
 
-/** Tus sombreros, plegados: cada uno con cuántas tiene abiertas y lo más importante; se abre para ver y añadir tareas. */
-function Sombreros({ estado, hoy, sombreros, cambiar, onHecha, onAbrir, avisar }) {
+/**
+ * Tus sombreros en una lista fina: cada uno en una línea (prioridad, nombre, horas a la semana y cuántas tiene abiertas)
+ * con su siguiente tarea debajo. Al tocarlo se abre: añadir arriba, sus proyectos y sus tareas. Las horas por sombrero
+ * van en la barra de arriba y en cada fila.
+ */
+function Sombreros({ estado, hoy, sombreros, cambiar, onHecha, onAbrir, avisar, resumen }) {
   const id = useId();
   const { acciones, proyectos, ajustes } = estado;
+  const { filas, hayBloques, sinSombrero, totalMin, flojos, bloquesSinSombrero, abrirSemanaTipo } = resumen;
   const abiertas = acciones.filter((a) => a.estado === "abierta" && a.lista === "siguientes");
   const ctx = { hoy, proyectos, sombreros };
   const [nuevas, setNuevas] = useState({});
@@ -283,6 +269,11 @@ function Sombreros({ estado, hoy, sombreros, cambiar, onHecha, onAbrir, avisar }
   const [editando, setEditando] = useState(null);
   const [creando, setCreando] = useState(false);
   const [nuevoSombrero, setNuevoSombrero] = useState("");
+  const tiempoDe = (sid) => {
+    const f = filas.find((x) => x.id === sid);
+    if (!f) return "";
+    return hayBloques ? (f.minutos ? textoHoras(f.minutos) : "0 h") : `${f.porcentaje} %`;
+  };
 
   const cambiarSombreros = (cambio) => {
     try {
@@ -308,58 +299,52 @@ function Sombreros({ estado, hoy, sombreros, cambiar, onHecha, onAbrir, avisar }
     if (!titulo) return;
     cambiar((e) => ({ ...e, acciones: [...e.acciones, nuevaAccion({ titulo, sombrero: s.id, lista: "siguientes", origen: "app" }, hoy)] }));
     setNuevas((n) => ({ ...n, [s.id]: "" }));
+    avisar(`Añadida a ${s.nombre}: «${titulo}».`);
   };
 
   const prioridadProyecto = (p, prioridad) => cambiar((e) => ({ ...e, proyectos: e.proyectos.map((x) => (x.id === p.id ? { ...x, prioridad } : x)) }));
 
   return (
-    <section className="seccion" aria-labelledby={`${id}-somb`}>
+    <section className="seccion somb-seccion" aria-labelledby={`${id}-somb`}>
       <div className="seccion-cabeza">
         <h2 id={`${id}-somb`}>Tus sombreros</h2>
-        <span className="nota">En orden de prioridad</span>
+        <span className="nota">{hayBloques ? "horas a la semana" : "esta semana"}</span>
       </div>
-      <div className="sombreros">
+      <div className="balance balance-fino" role="img" aria-label={filas.map((f) => `${nombreDe(f.id, sombreros)} ${tiempoDe(f.id)}`).join(", ")}>
+        {filas.map((f) => <span key={f.id} style={{ ...estiloDe(f.id, sombreros), width: `${hayBloques ? (totalMin ? (f.minutos / totalMin) * 100 : 0) : f.porcentaje}%` }} />)}
+        {sinSombrero > 0 && <span className="sin-sombrero" style={{ width: `${(sinSombrero / totalMin) * 100}%` }} />}
+      </div>
+
+      <ul className="somb-lista">
         {sombreros.map((s, i) => {
           const suyas = abiertas.filter((a) => a.sombrero === s.id);
-          const piedras = ordenarPor(suyas.filter((a) => a.importante && cuadrante(a, hoy) <= 2), "prioridad", ctx).slice(0, 2);
+          const orden = ordenarPor(suyas, "prioridad", ctx);
+          const piedra = orden.find((a) => a.importante && cuadrante(a, hoy) <= 2) ?? orden[0];
           const proys = proyectos.filter((p) => p.sombrero === s.id && p.estado !== "terminado");
-          const sueltas = ordenarPor(suyas.filter((a) => !a.proyectoId || !proys.some((p) => p.id === a.proyectoId)), "prioridad", ctx);
+          const sueltas = orden.filter((a) => !a.proyectoId || !proys.some((p) => p.id === a.proyectoId));
           const abiertoEste = abierto === s.id;
           const enEdicion = editando === s.id;
+          const tiempo = tiempoDe(s.id);
           return (
-            <article key={s.id} className="tarjeta sombrero-tarjeta" style={estiloDe(s.id, sombreros)} aria-labelledby={`${id}-s-${s.id}`}>
-              <div className="sombrero-cabeza">
-                <span className="sombrero-icono"><Icon name={s.icono} size={18} /></span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <h2 id={`${id}-s-${s.id}`}><span className="prioridad-num">{i + 1}</span> {s.nombre}</h2>
-                  <p>
-                    {suyas.length ? `${suyas.length} abierta${suyas.length === 1 ? "" : "s"}` : "Nada abierto"}
-                    {piedras.length > 0 && ` · lo más importante: ${piedras[0].titulo}`}
-                  </p>
-                </div>
-                <button type="button" className="boton fantasma" aria-expanded={abiertoEste} aria-controls={`${id}-c-${s.id}`} aria-label={`${abiertoEste ? "Plegar" : "Ver las tareas de"} ${s.nombre}`} onClick={() => setAbierto(abiertoEste ? null : s.id)}>
-                  <Icon name={abiertoEste ? "chevronUp" : "chevronDown"} size={18} />
-                </button>
-                <button type="button" className="boton fantasma" aria-label={`Editar ${s.nombre}`} aria-expanded={enEdicion} onClick={() => setEditando(enEdicion ? null : s.id)}><Icon name="pencil" size={16} /></button>
-              </div>
-
-              {enEdicion && (
-                <EditarSombrero
-                  s={s}
-                  primero={i === 0}
-                  ultimo={i === sombreros.length - 1}
-                  onMover={(a) => cambiarSombreros({ accion: "mover", id: s.id, a })}
-                  posicion={i}
-                  onGuardar={(c) => cambiarSombreros({ accion: "editar", id: s.id, ...c }) && setEditando(null)}
-                  onQuitar={() => quitarSombrero(s)}
-                />
-              )}
+            <li key={s.id} className={`somb${abiertoEste ? " abierto" : ""}`} style={estiloDe(s.id, sombreros)}>
+              <button type="button" className="somb-fila" aria-expanded={abiertoEste} aria-controls={`${id}-c-${s.id}`} onClick={() => setAbierto(abiertoEste ? null : s.id)}>
+                <span className="somb-num" aria-hidden="true">{i + 1}</span>
+                <span className="somb-nombre">{s.nombre}</span>
+                {tiempo && <span className="somb-horas">{tiempo}</span>}
+                <span className="somb-cuenta">{suyas.length}<span className="solo-lector"> abierta{suyas.length === 1 ? "" : "s"}</span></span>
+                <Icon name={abiertoEste ? "chevronUp" : "chevronDown"} size={14} />
+                {!abiertoEste && piedra && <span className="somb-sig">{piedra.titulo}</span>}
+              </button>
 
               {abiertoEste && (
-                <div id={`${id}-c-${s.id}`}>
-                  {s.detalle && <p className="nota" style={{ margin: "var(--sp-2) 0 0" }}>{s.detalle}{s.fuente === "juancito-ads" ? " · se guarda en Juancito Ads" : ""}</p>}
+                <div id={`${id}-c-${s.id}`} className="somb-cuerpo">
+                  <form className="anadir-rapido" onSubmit={(e) => { e.preventDefault(); anadir(s); }}>
+                    <label className="solo-lector" htmlFor={`${id}-n-${s.id}`}>Añadir una tarea a {s.nombre}</label>
+                    <input id={`${id}-n-${s.id}`} className="campo" autoFocus placeholder={`Añadir a ${s.nombre}…`} value={nuevas[s.id] ?? ""} onChange={(e) => setNuevas((n) => ({ ...n, [s.id]: e.target.value }))} />
+                    <button type="submit" className="boton" aria-label={`Añadir a ${s.nombre}`}><Icon name="plus" size={16} /></button>
+                  </form>
                   {proys.map((p) => {
-                    const delProyecto = ordenarPor(suyas.filter((a) => a.proyectoId === p.id), "prioridad", ctx);
+                    const delProyecto = orden.filter((a) => a.proyectoId === p.id);
                     return (
                       <div key={p.id} className="proyecto">
                         <div className="proyecto-nombre">
@@ -372,7 +357,7 @@ function Sombreros({ estado, hoy, sombreros, cambiar, onHecha, onAbrir, avisar }
                           </label>
                         </div>
                         {delProyecto.length ? (
-                          <ul className="lista" style={{ marginTop: "var(--sp-2)" }}>
+                          <ul className="lista" style={{ marginTop: "var(--sp-1)" }}>
                             {delProyecto.map((a) => <Fila key={a.id} accion={a} hoy={hoy} sombreros={sombreros} proyectos={[]} onHecha={onHecha} onAbrir={(x) => onAbrir("accion", x)} compacta />)}
                           </ul>
                         ) : (
@@ -381,31 +366,60 @@ function Sombreros({ estado, hoy, sombreros, cambiar, onHecha, onAbrir, avisar }
                       </div>
                     );
                   })}
-                  {sueltas.length > 0 && (
-                    <ul className="lista" style={{ marginTop: "var(--sp-3)" }}>
+                  {sueltas.length > 0 ? (
+                    <ul className="lista" style={{ marginTop: "var(--sp-2)" }}>
                       {sueltas.map((a) => <Fila key={a.id} accion={a} hoy={hoy} sombreros={sombreros} proyectos={proyectos} onHecha={onHecha} onAbrir={(x) => onAbrir("accion", x)} compacta />)}
                     </ul>
+                  ) : (
+                    !proys.length && <p className="nota somb-vacio">Nada abierto aquí.</p>
                   )}
-                  <form className="anadir-rapido" onSubmit={(e) => { e.preventDefault(); anadir(s); }}>
-                    <label className="solo-lector" htmlFor={`${id}-n-${s.id}`}>Añadir una tarea a {s.nombre}</label>
-                    <input id={`${id}-n-${s.id}`} className="campo" placeholder={`Añadir a ${s.nombre}…`} value={nuevas[s.id] ?? ""} onChange={(e) => setNuevas((n) => ({ ...n, [s.id]: e.target.value }))} />
-                    <button type="submit" className="boton" aria-label={`Añadir a ${s.nombre}`}><Icon name="plus" size={16} /></button>
-                  </form>
+                  <div className="somb-pie">
+                    {s.detalle ? <span className="nota">{s.detalle}{s.fuente === "juancito-ads" ? " · se guarda en Juancito Ads" : ""}</span> : <span />}
+                    <button type="button" className="enlace" aria-expanded={enEdicion} onClick={() => setEditando(enEdicion ? null : s.id)}><Icon name="pencil" size={13} /> Editar</button>
+                  </div>
+                  {enEdicion && (
+                    <EditarSombrero
+                      s={s}
+                      primero={i === 0}
+                      ultimo={i === sombreros.length - 1}
+                      onMover={(a) => cambiarSombreros({ accion: "mover", id: s.id, a })}
+                      posicion={i}
+                      onGuardar={(c) => cambiarSombreros({ accion: "editar", id: s.id, ...c }) && setEditando(null)}
+                      onQuitar={() => quitarSombrero(s)}
+                    />
+                  )}
                 </div>
               )}
-            </article>
+            </li>
           );
         })}
-      </div>
+        {sinSombrero > 0 && (
+          <li className="somb somb-sin">
+            <span className="somb-fila somb-fila-fija">
+              <span className="somb-num" aria-hidden="true">·</span>
+              <span className="somb-nombre">Sin sombrero</span>
+              <span className="somb-horas">{textoHoras(sinSombrero)}</span>
+            </span>
+          </li>
+        )}
+      </ul>
+
+      {bloquesSinSombrero > 0 ? (
+        <p className="nota somb-nota">
+          {bloquesSinSombrero} bloque{bloquesSinSombrero === 1 ? " no tiene" : "s no tienen"} sombrero y no cuenta{bloquesSinSombrero === 1 ? "" : "n"}. <button type="button" className="enlace" onClick={abrirSemanaTipo}>Asignarles uno</button>
+        </p>
+      ) : (
+        flojos.length > 0 && <p className="nota somb-nota">{flojos.map((x) => nombreDe(x, sombreros)).join(" y ")} casi no tiene{flojos.length > 1 ? "n" : ""} tiempo esta semana.</p>
+      )}
 
       {creando ? (
-        <form className="tarjeta anadir-rapido" style={{ marginTop: "var(--sp-3)" }} onSubmit={(e) => { e.preventDefault(); if (cambiarSombreros({ accion: "crear", nombre: nuevoSombrero })) { avisar(`Sombrero nuevo: «${nuevoSombrero.trim()}».`); setNuevoSombrero(""); setCreando(false); } }}>
+        <form className="anadir-rapido" onSubmit={(e) => { e.preventDefault(); if (cambiarSombreros({ accion: "crear", nombre: nuevoSombrero })) { avisar(`Sombrero nuevo: «${nuevoSombrero.trim()}».`); setNuevoSombrero(""); setCreando(false); } }}>
           <label className="solo-lector" htmlFor={`${id}-nuevo`}>Nombre del sombrero nuevo</label>
-          <input id={`${id}-nuevo`} className="campo" autoFocus placeholder="Estudios, Familia, Ministerio de jóvenes…" value={nuevoSombrero} onChange={(e) => setNuevoSombrero(e.target.value)} />
+          <input id={`${id}-nuevo`} className="campo" autoFocus placeholder="Estudios, Familia…" value={nuevoSombrero} onChange={(e) => setNuevoSombrero(e.target.value)} />
           <button type="submit" className="boton primario" disabled={!nuevoSombrero.trim()}>Crear</button>
         </form>
       ) : (
-        <button type="button" className="boton fantasma" style={{ marginTop: "var(--sp-2)" }} onClick={() => setCreando(true)}><Icon name="plus" size={16} /> Sombrero nuevo</button>
+        <button type="button" className="enlace somb-nuevo" onClick={() => setCreando(true)}><Icon name="plus" size={14} /> Sombrero nuevo</button>
       )}
     </section>
   );
