@@ -419,9 +419,15 @@ async function api(req, env, ctx) {
               Object.entries({ ...(ajustes.guardarEn ?? {}), ...q.guardarEn }).filter(([s, cal]) => ids.includes(s) && cals.some((k) => k.id === cal && k.escribir)),
             );
           }
+          // Qué sombrero es cada lista de Google Tasks (o «no»: no traerla); vacío vuelve a «por el nombre».
+          if (q.listas && typeof q.listas === "object" && !Array.isArray(q.listas)) {
+            const listas = c.datos.listasTareas ?? [];
+            const todo = { ...(ajustes.listas ?? {}), ...q.listas };
+            ajustes.listas = Object.fromEntries(Object.entries(todo).filter(([l, v]) => listas.some((x) => x.id === l) && (v === "no" || ids.includes(v))));
+          }
           await almacen.guardarConexion(servicio, { ...c.datos, ajustes }, { error: c.error ?? null });
           // Lo que se ve cambió: se vuelve a leer en la siguiente lectura.
-          if (q.leer !== undefined) await google.sincronizar(env, almacen, { hoy: hoyDe(p.ajustes), forzar: true }).catch(() => null);
+          if (q.leer !== undefined || q.listas) await google.sincronizar(env, almacen, { hoy: hoyDe(p.ajustes), forzar: true }).catch(() => null);
           return json({ ok: true });
         }
       }

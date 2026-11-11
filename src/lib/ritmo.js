@@ -167,7 +167,9 @@ function comprobado(cambio, base = {}) {
   // Un BLOQUE es un tramo de tu semana con su sombrero (Trabajo 8–12); un RECORDATORIO es un momento dentro de él
   // (la lectura de Proverbios a las 11:45). El bloque avisa al empezar (con sus tareas); el recordatorio, `antes`
   // minutos antes de su hora.
-  if (cambio.clase !== undefined) e.clase = cambio.clase === "recordatorio" ? "recordatorio" : "bloque";
+  // Un COMPROMISO FIJO se repite y ocupa su tiempo, pero no es un bloque para meter tareas (la lectura bíblica, el
+  // ejercicio, la célula): se ve en gris y no avisa si no se pide.
+  if (cambio.clase !== undefined) e.clase = ["recordatorio", "compromiso"].includes(cambio.clase) ? cambio.clase : "bloque";
   if (cambio.avisar !== undefined) e.avisar = Boolean(cambio.avisar);
   if (cambio.antes !== undefined) {
     const n = Number(cambio.antes);
@@ -189,12 +191,56 @@ function comprobado(cambio, base = {}) {
 /** Qué «por confirmar» se resuelve al tocar ese bloque. */
 const clavesDe = (id) => [`ritmo:${id}`, ...(/^(servicio|celula)/.test(id) ? ["ritmo:servicios"] : [])];
 
+const esDia = (d) => /^\d{4}-\d{2}-\d{2}$/.test(String(d ?? ""));
+
 /**
- * El ritmo con un cambio aplicado: { accion: "agregar" | "cambiar" | "quitar", id, …campos }.
+ * Un cambio de UN día (moverlo o quitarlo sólo esa vez), en `cambios` del bloque: { [día]: { inicio, fin } | { quitado } |
+ * { extra, inicio, fin } }. Mover a otro día deja el original quitado y una vez «extra» en el nuevo. Lo de hace más de un
+ * mes se olvida.
+ */
+function cambioDeUnDia(actual, { dia, nuevoDia, inicio, fin, quitar = false, hoy = null }) {
+  if (!esDia(dia) || (nuevoDia !== undefined && nuevoDia !== null && !esDia(nuevoDia))) throw new ErrorRitmo("Ese día no es una fecha.");
+  const cambios = { ...(actual.cambios ?? {}) };
+  const deAntes = cambios[dia];
+  const sacar = () => {
+    if (deAntes?.extra) delete cambios[dia];
+    else cambios[dia] = { quitado: true };
+  };
+  if (quitar) sacar();
+  else {
+    const ini = inicio ?? deAntes?.inicio ?? actual.inicio;
+    const f = fin ?? deAntes?.fin ?? actual.fin;
+    if (!esHora(ini) || !esHora(f)) throw new ErrorRitmo("Las horas van como HH:MM.");
+    if (f <= ini) throw new ErrorRitmo("El final tiene que ser después del inicio.");
+    const destino = nuevoDia && nuevoDia !== dia ? nuevoDia : dia;
+    if (destino !== dia) sacar();
+    const igual = ini === actual.inicio && f === actual.fin && !cambios[destino]?.extra && destino === dia;
+    if (igual) delete cambios[destino];
+    else cambios[destino] = { ...(destino !== dia || deAntes?.extra ? { extra: true } : {}), inicio: ini, fin: f };
+  }
+  if (hoy) for (const d of Object.keys(cambios)) if (d < restarDias(hoy, 31)) delete cambios[d];
+  return { ...actual, cambios };
+}
+
+const restarDias = (dia, n) => {
+  const [a, m, d] = dia.split("-").map(Number);
+  const f = new Date(Date.UTC(a, m - 1, d - n));
+  return `${f.getUTCFullYear()}-${String(f.getUTCMonth() + 1).padStart(2, "0")}-${String(f.getUTCDate()).padStart(2, "0")}`;
+};
+
+/**
+ * El ritmo con un cambio aplicado: { accion: "agregar" | "cambiar" | "quitar" | "unDia", id, …campos }.
+ * «unDia» cambia sólo una fecha: { dia, nuevoDia?, inicio?, fin?, quitar? }.
  * Devuelve { ritmo, bloque, claves } (las claves de «por confirmar» que ya quedaron resueltas). Puro.
  */
 export function aplicarRitmo(ritmo, cambio = {}) {
   const { accion, id } = cambio;
+  if (accion === "unDia") {
+    const actual = ritmo.find((e) => e.id === id);
+    if (!actual) throw new ErrorRitmo(`No encuentro el bloque «${id}».`);
+    const bloque = cambioDeUnDia(actual, cambio);
+    return { ritmo: ritmo.map((e) => (e.id === id ? bloque : e)), bloque, claves: [] };
+  }
   if (accion === "quitar" || accion === "cambiar") {
     const actual = ritmo.find((e) => e.id === id);
     if (!actual) throw new ErrorRitmo(`No encuentro el bloque «${id}».`);

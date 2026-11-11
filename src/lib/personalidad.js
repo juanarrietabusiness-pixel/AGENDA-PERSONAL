@@ -106,7 +106,7 @@ export const FORMA_DE_ORDENAR = `Responde SOLO con JSON, sin texto antes ni desp
     { "tipo": "ajuste", "clave": "una de las claves de AJUSTES", "valor": "HH:MM, una lista de días o un texto", "dias": [0-6] | null },
     { "tipo": "ritmo", "accion": "agregar" | "cambiar" | "quitar", "id": "id del bloque (para cambiar o quitar)",
       "titulo": "...", "sombrero": "..." | null, "devocional": true | false, "inicio": "HH:MM", "fin": "HH:MM",
-      "dias": [0-6], "protegido": true | false, "clase": "bloque" | "recordatorio", "avisar": true | false, "antes": minutos (sólo recordatorios) },
+      "dias": [0-6], "protegido": true | false, "clase": "bloque" | "compromiso" | "recordatorio", "avisar": true | false, "antes": minutos (sólo recordatorios) },
     { "tipo": "sombrero", "accion": "crear" | "editar" | "mover" | "quitar", "id": "id (para editar, mover o quitar)", "nombre": "...", "detalle": "...", "a": 1 }
   ],
   "operaciones": [
@@ -130,7 +130,7 @@ Reglas:
 - Lo que tiene que PREPARAR antes de un evento (ensayar, preparar dos canciones, comprar algo) es una "accion" aparte, antes del evento y con el sombrero de lo que se hace (cantar o tocar es Artístico; predicar o dirigir la célula, Iglesia).
 - Si te da el día o la hora de una reunión o un evento que ya está en sus listas (también los «por agendar» o con «hora por definir»), usa "operaciones" → "editar" con su id y "fecha"/"inicio"; no crees otro.
 - Lo del sombrero de Juancito Ads va con ese sombrero y, si es de un cliente, con "cliente" (nombre exacto de la lista).
-- Su semana tiene BLOQUES por sombrero (Trabajo 8–12) y RECORDATORIOS fijos (Proverbios 11:45). Si dice en qué bloque va una tarea, pon "bloque" con su id y "cuando" ese día. Un recordatorio fijo de cada semana («recuérdame la lectura de Proverbios a las 11:45 de lunes a viernes, 15 min antes») es "ritmo" con clase "recordatorio"; uno de una sola vez es un "recordatorio" normal.
+- Su semana tiene BLOQUES por sombrero (Trabajo 8–12) y RECORDATORIOS fijos (Proverbios 11:45). Si dice en qué bloque va una tarea, pon "bloque" con su id y "cuando" ese día. Un recordatorio fijo de cada semana («recuérdame la lectura de Proverbios a las 11:45 de lunes a viernes, 15 min antes») es "ritmo" con clase "recordatorio"; uno de una sola vez es un "recordatorio" normal. Algo fijo de cada semana que ocupa su tiempo pero NO es para meter tareas (la lectura bíblica de 7 a 8, el ejercicio, la célula) es "ritmo" con clase "compromiso".
 - Reino es SÓLO su intimidad con Dios a solas (orar, leer la Palabra, ayunar, adorar en privado). Todo lo que es CON otras personas de la iglesia (reuniones con un hermano, servicios, la célula, noches de alabanza, retiros, discipulados, liderazgo) es Iglesia.
 - valor «alto» si lo acerca a lo que más le importa (sus sombreros de más prioridad, proyectos de prioridad alta, lo que dice su ficha); «bajo» si no mueve nada o cualquiera podría hacerlo.
 - delegable sólo si una persona concreta (de las que conoces o de su equipo) podría hacerla de verdad.

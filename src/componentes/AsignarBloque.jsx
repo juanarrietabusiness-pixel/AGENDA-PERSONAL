@@ -11,7 +11,7 @@ import { textoLargo, textoHora } from "../lib/fechas.js";
  * Un bloque de un día (Trabajo, martes de 8 a 12): qué tareas van ahí, cuánto ocupan frente a lo que dura, y añadir
  * más. Asignar es poner la tarea ese día y en ese bloque; las del mismo sombrero planeadas ese día ya caen aquí solas.
  */
-export default function AsignarBloque({ bloque, dia, hoy, acciones, proyectos = [], sombreros, todos = [], cambiar, avisar, onCerrar }) {
+export default function AsignarBloque({ bloque, dia, hoy, acciones, proyectos = [], sombreros, todos = [], cambiar, avisar, onCerrar, onEditar = null }) {
   const ref = useDialogo(onCerrar);
   const id = useId();
   const [nueva, setNueva] = useState("");
@@ -97,7 +97,8 @@ export default function AsignarBloque({ bloque, dia, hoy, acciones, proyectos = 
           </>
         )}
 
-        <div className="botones" style={{ marginTop: "var(--sp-5)", justifyContent: "flex-end" }}>
+        <div className="botones" style={{ marginTop: "var(--sp-5)", justifyContent: onEditar ? "space-between" : "flex-end" }}>
+          {onEditar && <button type="button" className="boton fantasma" onClick={onEditar}><Icon name="pencil" size={15} /> Editar el bloque</button>}
           <button type="button" className="boton primario" onClick={onCerrar}>Listo</button>
         </div>
       </div>

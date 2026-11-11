@@ -22,11 +22,12 @@ const CODIGOS = ["SU", "MO", "TU", "WE", "TH", "FR", "SA"];
 const INICIALES = ["D", "L", "M", "X", "J", "V", "S"];
 const plano = (t) => String(t ?? "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
 
-/** ¿Bloque o recordatorio? Lo de antes, sin `clase`, es un bloque. */
-export const claseDeRitmo = (e) => (e?.clase === "recordatorio" ? "recordatorio" : "bloque");
+/** ¿Bloque, compromiso fijo o recordatorio? Lo de antes, sin `clase`, es un bloque. */
+export const claseDeRitmo = (e) => (e?.clase === "recordatorio" || e?.clase === "compromiso" ? e.clase : "bloque");
 
-/** ¿Avisa? Un bloque, al empezar (menos los de Reino, que no se interrumpen); un recordatorio, sí. */
-export const avisa = (e) => (e.avisar !== undefined ? Boolean(e.avisar) : claseDeRitmo(e) === "recordatorio" || (e.sombrero !== "reino" && !e.devocional));
+/** ¿Avisa? Un bloque, al empezar (menos los de Reino, que no se interrumpen); un recordatorio, sí; un compromiso, no. */
+export const avisa = (e) =>
+  e.avisar !== undefined ? Boolean(e.avisar) : claseDeRitmo(e) === "recordatorio" || (claseDeRitmo(e) === "bloque" && e.sombrero !== "reino" && !e.devocional);
 
 /** Los días de un bloque como números (0 = domingo). */
 export const diasDe = (e) => (/BYDAY=([A-Z,]+)/.exec(e?.repite?.regla ?? "")?.[1]?.split(",") ?? []).map((c) => CODIGOS.indexOf(c)).filter((n) => n >= 0);
@@ -50,10 +51,35 @@ export function textoHoras(min) {
   return h ? `${h} h${m ? ` ${m}` : ""}` : `${m} min`;
 }
 
-/** Lo de la semana que toca ese día, en orden: { bloques, recordatorios }. */
-export function semanaDelDia(ritmo, dia) {
-  const del = (ritmo ?? []).filter((e) => e.repite?.regla && tocaEl(e.repite.regla, e.repite.inicio, dia)).sort((a, b) => a.inicio.localeCompare(b.inicio));
-  return { bloques: del.filter((e) => claseDeRitmo(e) === "bloque"), recordatorios: del.filter((e) => claseDeRitmo(e) === "recordatorio") };
+/**
+ * Lo de la semana que toca ese día, en orden: { bloques, recordatorios, compromisos }. Con lo cambiado SÓLO ese día
+ * (`cambios`): movido de hora, quitado o puesto ahí una vez. `{ tipo: true }` da la semana tipo, sin esos cambios.
+ */
+export function semanaDelDia(ritmo, dia, { tipo = false } = {}) {
+  const del = [];
+  for (const e of ritmo ?? []) {
+    const c = tipo ? null : e.cambios?.[dia];
+    const toca = e.repite?.regla && tocaEl(e.repite.regla, e.repite.inicio, dia);
+    if (c?.extra || (toca && !c?.quitado)) del.push(c?.inicio ? { ...e, inicio: c.inicio, fin: c.fin ?? e.fin, unDia: true } : e);
+  }
+  del.sort((a, b) => a.inicio.localeCompare(b.inicio));
+  return {
+    bloques: del.filter((e) => claseDeRitmo(e) === "bloque"),
+    recordatorios: del.filter((e) => claseDeRitmo(e) === "recordatorio"),
+    compromisos: del.filter((e) => claseDeRitmo(e) === "compromiso"),
+  };
+}
+
+/**
+ * Mover para SIEMPRE un bloque (o compromiso) que estaba un día de la semana a otro día y hora: el cambio para
+ * `aplicarRitmo` (sus horas y, si cambió de día, ese día de la semana por el nuevo).
+ */
+export function moverSiempre(e, { desde, a, inicio, fin }) {
+  const cambio = { accion: "cambiar", id: e.id, inicio, fin };
+  const de = diaSemana(desde);
+  const hacia = diaSemana(a);
+  if (de !== hacia) cambio.dias = [...new Set([...diasDe(e).filter((d) => d !== de), hacia])];
+  return cambio;
 }
 
 /** El bloque en el que estás a esa hora (el más corto si se pisan) y lo que sigue hoy. */
@@ -87,11 +113,11 @@ export function carga(tareas, bloque) {
   return { ocupado, cabe, sobra: ocupado - cabe };
 }
 
-/** Horas de la semana por sombrero, desde los bloques. [{ id, minutos }] */
+/** Horas de la semana por sombrero, desde los bloques y los compromisos fijos. [{ id, minutos }] */
 export function horasPorSombrero(ritmo, sombreros) {
   const min = Object.fromEntries(sombreros.map((s) => [s.id, 0]));
   for (const e of ritmo ?? []) {
-    if (claseDeRitmo(e) !== "bloque" || !(e.sombrero in min)) continue;
+    if (claseDeRitmo(e) === "recordatorio" || !(e.sombrero in min)) continue;
     min[e.sombrero] += duracion(e) * new Set(diasDe(e)).size;
   }
   const total = Object.values(min).reduce((a, b) => a + b, 0);
@@ -117,8 +143,8 @@ const bloqueDeLaHora = (bloques, hora) => {
  * (las tareas y los recordatorios con hora). Una tarea va al bloque que se le asignó o, si no, al primero de su
  * sombrero ese día. Devuelve { bloques: [{ bloque, recordatorios, tareas }], recordatorios, tareas }.
  */
-export function diaEnBloques(ritmo, dia, tareas = []) {
-  const { bloques, recordatorios } = semanaDelDia(ritmo, dia);
+export function diaEnBloques(ritmo, dia, tareas = [], { tipo = false } = {}) {
+  const { bloques, recordatorios, compromisos } = semanaDelDia(ritmo, dia, { tipo });
   const dentro = new Map(bloques.map((b) => [b.id, { bloque: b, recordatorios: [], tareas: [] }]));
   const sueltos = { recordatorios: [], tareas: [] };
   const recs = [
@@ -133,7 +159,7 @@ export function diaEnBloques(ritmo, dia, tareas = []) {
     const b = (a.bloque && dentro.has(a.bloque) && dentro.get(a.bloque).bloque) || (a.sombrero && bloques.find((x) => x.sombrero === a.sombrero)) || null;
     (b ? dentro.get(b.id).tareas : sueltos.tareas).push(a);
   }
-  return { bloques: [...dentro.values()], ...sueltos };
+  return { bloques: [...dentro.values()], ...sueltos, compromisos };
 }
 
 /** Bloques que se cruzan el mismo día: [{ a, b, dias }]. Con dos a la vez, «Ahora» no sabe cuál toca. */
@@ -203,12 +229,14 @@ export function sombreroPorTitulo(titulo, sombreros) {
  * No trae lo que ya se trajo (`google` = la serie). Devuelve { nuevos, quitar } (los «por confirmar» de partida que
  * caen a la misma hora el mismo día, que la rutina de Google sustituye).
  */
-export function rutinaDeGoogle(externos, ritmo, { ajustes = {}, esRutina }) {
+export function rutinaDeGoogle(externos, ritmo, { ajustes = {}, esRutina = () => true, todas = false }) {
   const sombreros = sombrerosDe(ajustes);
   const ya = new Set((ritmo ?? []).map((e) => e.google).filter(Boolean));
   const series = new Map();
   for (const x of externos ?? []) {
-    if (x.tipo !== "evento" || !x.serie || !x.inicio || x.todoElDia || !esRutina(x) || ya.has(x.serie)) continue;
+    if (x.tipo !== "evento" || !x.serie || !x.inicio || x.todoElDia || ya.has(x.serie)) continue;
+    // Con `todas`: todo lo que se repite y es SÓLO tuyo (lo de otras personas se queda en Google, que es suyo).
+    if (todas ? x.conGente : !esRutina(x)) continue;
     const s = series.get(x.serie) ?? { x, dias: new Set() };
     s.dias.add(diaSemana(x.dia));
     series.set(x.serie, s);
@@ -222,7 +250,7 @@ export function rutinaDeGoogle(externos, ritmo, { ajustes = {}, esRutina }) {
       id: `g-${String(serie).replace(/[^A-Za-z0-9]/g, "").slice(-12) || nuevos.length}`,
       titulo: String(x.titulo).slice(0, 80),
       sombrero,
-      clase: corto ? "recordatorio" : "bloque",
+      clase: corto ? "recordatorio" : todas ? claseParaTraer(x.titulo, sombrero) : "bloque",
       inicio: x.inicio,
       fin: x.fin && x.fin > x.inicio ? x.fin : aHora(Math.min(minutos(x.inicio) + 5, 23 * 60 + 59)),
       repite: { regla: `FREQ=WEEKLY;BYDAY=${codigos.join(",")}`, inicio: "2026-01-05" },
@@ -237,6 +265,13 @@ export function rutinaDeGoogle(externos, ritmo, { ajustes = {}, esRutina }) {
     .filter((e) => e.porConfirmar && nuevos.some((n) => diasDe(n).some((d) => diasDe(e).includes(d)) && Math.abs(minutos(n.inicio) - minutos(e.inicio)) <= 30))
     .map((e) => e.id);
   return { nuevos, quitar };
+}
+
+/** Lo que llega de Google: un BLOQUE si es para meter tareas (el trabajo, «task», un proyecto); si no, un compromiso fijo. */
+export function claseParaTraer(titulo, sombrero) {
+  const t = plano(titulo);
+  if (/\b(trabajo|task|tasks|tareas|oficina|enfoque|proyecto|proyectos|grabar|edicion|produccion|57dmc|bloque)\b/.test(t)) return "bloque";
+  return sombrero === "trabajo" ? "bloque" : "compromiso";
 }
 
 /** Las series de Google que ya viven en la semana de Kairos (para no enseñarlas dos veces). */

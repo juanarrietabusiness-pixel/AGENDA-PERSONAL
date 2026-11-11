@@ -31,7 +31,9 @@
 import { aleatorio, huella } from "./sesion.js";
 import { hoyEn, horaEn, sumarDias, esFecha, esHora, ZONA } from "../../src/lib/fechas.js";
 import { nuevaAccion } from "../../src/lib/metodo.js";
-import { sombrerosDe } from "../../src/lib/sombreros.js";
+import { sombrerosDe, sombreroDeLista } from "../../src/lib/sombreros.js";
+
+export { sombreroDeLista };
 import { clasificar } from "./clasificar.js";
 import { ocurrencias } from "../../src/lib/recurrencia.js";
 import { claseDeRitmo } from "../../src/lib/semana.js";
@@ -226,16 +228,13 @@ export function calendarioParaGuardar(datos, sombrero) {
   return "primary";
 }
 
-const plano = (t) => String(t ?? "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
 
-/** El sombrero de una lista de Google Tasks: la que se llama como él (o su id). Puro. */
-export function sombreroDeLista(lista, sombreros) {
-  const n = plano(lista?.nombre);
-  return sombreros.find((s) => plano(s.nombre) === n || s.id === n)?.id ?? null;
+/** La lista de Google Tasks donde va una tarea de ese sombrero: la enlazada con él (o la que se llama como él); si no, la de siempre. */
+export function listaParaSombrero(listas, sombrero, sombreros, enlaces = {}) {
+  const todas = listas ?? [];
+  const fija = todas.find((l) => enlaces?.[l.id] === sombrero);
+  return (fija ?? todas.find((l) => sombreroDeLista(l, sombreros, enlaces) === sombrero))?.id ?? "@default";
 }
-
-/** La lista de Google Tasks donde va una tarea de ese sombrero: la que se llama como él; si no, la de siempre. */
-export const listaParaSombrero = (listas, sombrero, sombreros) => (listas ?? []).find((l) => sombreroDeLista(l, sombreros) === sombrero)?.id ?? "@default";
 
 const HORAS_LISTA = 6;
 
@@ -283,7 +282,7 @@ export async function crearTarea(env, almacen, accion, cuentasG) {
   const c = cuentaPara(cuentasG, accion.sombrero, "tareasDe");
   if (!c) return null;
   const perfil = await almacen.perfil();
-  const lista = listaParaSombrero(c.datos.listasTareas, accion.sombrero, sombrerosDe(perfil?.ajustes));
+  const lista = listaParaSombrero(c.datos.listasTareas, accion.sombrero, sombrerosDe(perfil?.ajustes), c.datos.ajustes?.listas);
   const r = await api(env, almacen, c.servicio, `${TASKS}/lists/${encodeURIComponent(lista)}/tasks`, { method: "POST", body: aTareaGoogle(accion) });
   return { cuenta: c.datos.cuenta, servicio: c.servicio, lista, id: r.id };
 }
@@ -451,12 +450,13 @@ export async function sincronizar(env, almacen, { hoy, forzar = false } = {}) {
         const estado = await almacen.estado();
         const sombreros = sombrerosDe(estado.ajustes);
         const q = new URLSearchParams({ showCompleted: "true", showHidden: "true", maxResults: "100" });
-        const listas = c.datos.listasTareas?.length ? c.datos.listasTareas.slice(0, 10) : [{ id: "@default", nombre: "" }];
+        const enlaces = c.datos.ajustes?.listas ?? {};
+        const listas = (c.datos.listasTareas?.length ? c.datos.listasTareas : [{ id: "@default", nombre: "" }]).filter((l) => enlaces[l.id] !== "no").slice(0, 10);
         let cambios = [];
         for (const l of listas) {
           const r = await api(env, almacen, c.servicio, `${TASKS}/lists/${encodeURIComponent(l.id)}/tasks?${q}`);
           const ya = [...estado.acciones, ...cambios];
-          cambios = [...cambios, ...cambiosDesdeGoogle(r?.items ?? [], ya, { hoy, cuenta: c.datos.cuenta, servicio: c.servicio, sombrero: sombreroDeLista(l, sombreros), lista: l.id })];
+          cambios = [...cambios, ...cambiosDesdeGoogle(r?.items ?? [], ya, { hoy, cuenta: c.datos.cuenta, servicio: c.servicio, sombrero: sombreroDeLista(l, sombreros, enlaces), lista: l.id })];
         }
         // Lo nuevo sin sombrero (escrito en «Mis tareas»): que lo ponga la IA. Una vez, también lo que entró antes en el
         // primer sombrero por defecto (así salían en Artístico).

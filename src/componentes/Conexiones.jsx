@@ -1,7 +1,7 @@
 import { useEffect, useId, useState } from "react";
 import Icon from "./Icon.jsx";
 import * as api from "../lib/api.js";
-import { estiloDe } from "../lib/sombreros.js";
+import { estiloDe, nombreDe, sombreroDeLista } from "../lib/sombreros.js";
 
 const cuando = (iso) => (iso ? new Date(iso).toLocaleString("es-PA", { dateStyle: "short", timeStyle: "short", timeZone: "America/Panama" }) : "nunca");
 
@@ -190,6 +190,28 @@ function CuentaGoogle({ c, sombreros, guardar, alternar, recargar }) {
         </div>
         {sombreros.some((s) => s.fuente === "juancito-ads") && <span className="nota">Las tareas de {sombreros.find((s) => s.fuente === "juancito-ads").nombre} van a Juancito Ads; sus reuniones sí van a Google Calendar.</span>}
       </div>
+
+      {(c.listasTareas ?? []).length > 0 && (
+        <div className="fila-ajuste" style={{ gridTemplateColumns: "1fr" }}>
+          <span style={{ fontSize: "var(--fs-sm)" }}><strong>Qué sombrero es cada lista de Google Tasks</strong> (lo que escribas en una lista entra en ese sombrero, y al revés)</span>
+          <div className="destinos">
+            {c.listasTareas.map((l) => {
+              const fijado = c.ajustes?.listas?.[l.id] ?? "";
+              const auto = sombreroDeLista(l, sombreros, {});
+              return (
+                <label key={l.id} className="destino" style={estiloDe(fijado && fijado !== "no" ? fijado : auto, sombreros)}>
+                  <span><span className="punto" /> {l.nombre || "Mis tareas"}</span>
+                  <select className="campo" value={fijado} onChange={(e) => guardar(c, { listas: { [l.id]: e.target.value } }, "Listo: la vuelvo a leer.")}>
+                    <option value="">{auto ? `Por el nombre: ${nombreDe(auto, sombreros)}` : "Sin sombrero (lo pone la IA)"}</option>
+                    {sombreros.map((s) => <option key={s.id} value={s.id}>{s.nombre}</option>)}
+                    <option value="no">No traer esta lista</option>
+                  </select>
+                </label>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -23,7 +23,7 @@ const cincoMinDespues = (h) => {
  * Un bloque de tu semana (Trabajo 8–12) o un recordatorio dentro de ella (Proverbios 11:45): su sombrero, sus días,
  * su hora y si avisa. Lo comprueba `aplicarRitmo` (la misma regla que usa el asistente); lo que no cuadra se dice.
  */
-export default function EditarBloque({ item, sombreros, onGuardar, onBorrar, onCerrar }) {
+export default function EditarBloque({ item, sombreros, onGuardar, onBorrar, onCerrar, dia = null, onQuitarDia = null }) {
   const ref = useDialogo(onCerrar);
   const id = useId();
   const nuevo = !item.id;
@@ -41,7 +41,8 @@ export default function EditarBloque({ item, sombreros, onGuardar, onBorrar, onC
   const [error, setError] = useState("");
   const [confirmar, setConfirmar] = useState(false);
   const poner = (k, v) => setF((x) => ({ ...x, [k]: v }));
-  const esBloque = f.clase === "bloque";
+  const esBloque = f.clase === "bloque" || f.clase === "compromiso";
+  const esCompromiso = f.clase === "compromiso";
 
   const guardar = (e) => {
     e.preventDefault();
@@ -55,7 +56,7 @@ export default function EditarBloque({ item, sombreros, onGuardar, onBorrar, onC
       clase: f.clase,
       dias: f.dias,
       inicio: f.inicio,
-      ...(esBloque ? { fin: f.fin, protegido: f.protegido, avisar: f.avisar } : { fin: cincoMinDespues(f.inicio), protegido: false, avisar: f.avisar, antes: Math.max(0, f.antes) }),
+      ...(esBloque ? { fin: f.fin, protegido: f.protegido, avisar: esCompromiso ? false : f.avisar } : { fin: cincoMinDespues(f.inicio), protegido: false, avisar: f.avisar, antes: Math.max(0, f.antes) }),
       devocional: f.sombrero === "reino",
     };
     const r = onGuardar(datos);
@@ -65,15 +66,20 @@ export default function EditarBloque({ item, sombreros, onGuardar, onBorrar, onC
   return (
     <div className="capa" onClick={(e) => e.target === e.currentTarget && onCerrar()}>
       <form ref={ref} className="dialogo" role="dialog" aria-modal="true" aria-labelledby={`${id}-t`} onSubmit={guardar}>
-        <h2 id={`${id}-t`}>{nuevo ? (esBloque ? "Bloque nuevo" : "Recordatorio nuevo") : f.titulo || "Tu semana"}</h2>
+        <h2 id={`${id}-t`}>{nuevo ? (esCompromiso ? "Compromiso fijo nuevo" : esBloque ? "Bloque nuevo" : "Recordatorio nuevo") : f.titulo || "Tu semana"}</h2>
 
         <p className="etiqueta" id={`${id}-q`}>¿Qué es?</p>
         <div className="opciones-clase" role="group" aria-labelledby={`${id}-q`}>
-          <button type="button" className="chip-boton" aria-pressed={esBloque} onClick={() => poner("clase", "bloque")}>Bloque de tiempo</button>
-          <button type="button" className="chip-boton" aria-pressed={!esBloque} onClick={() => poner("clase", "recordatorio")}>Recordatorio</button>
+          <button type="button" className="chip-boton" aria-pressed={f.clase === "bloque"} onClick={() => poner("clase", "bloque")}>Bloque de tiempo</button>
+          <button type="button" className="chip-boton" aria-pressed={esCompromiso} onClick={() => poner("clase", "compromiso")}>Compromiso fijo</button>
+          <button type="button" className="chip-boton" aria-pressed={f.clase === "recordatorio"} onClick={() => poner("clase", "recordatorio")}>Recordatorio</button>
         </div>
         <p className="nota" style={{ marginTop: "var(--sp-2)" }}>
-          {esBloque ? "Un tramo de tu semana para un sombrero: ahí van sus tareas (Trabajo de 8 a 12)." : "Un momento fijo, aunque caiga dentro de otro bloque (Proverbios a las 11:45)."}
+          {esCompromiso
+            ? "Algo fijo que ocupa su tiempo pero no es para meter tareas (la lectura bíblica, el ejercicio, la célula). Se ve en gris."
+            : esBloque
+              ? "Un tramo de tu semana para un sombrero: ahí van sus tareas (Trabajo de 8 a 12)."
+              : "Un momento fijo, aunque caiga dentro de otro bloque (Proverbios a las 11:45)."}
         </p>
 
         <label className="etiqueta" htmlFor={`${id}-n`}>Nombre</label>
@@ -105,7 +111,12 @@ export default function EditarBloque({ item, sombreros, onGuardar, onBorrar, onC
           )}
         </div>
 
-        {esBloque ? (
+        {esCompromiso ? (
+          <label className="casilla">
+            <input type="checkbox" checked={f.protegido} onChange={(e) => poner("protegido", e.target.checked)} />
+            <span>Protegido: que nada suene en medio</span>
+          </label>
+        ) : esBloque ? (
           <>
             <label className="casilla">
               <input type="checkbox" checked={f.avisar} onChange={(e) => poner("avisar", e.target.checked)} />
@@ -129,7 +140,16 @@ export default function EditarBloque({ item, sombreros, onGuardar, onBorrar, onC
         {error && <p role="alert" className="aviso rojo" style={{ marginTop: "var(--sp-3)" }}>{error}</p>}
 
         <div className="botones" style={{ marginTop: "var(--sp-5)", justifyContent: "space-between" }}>
-          {!nuevo && onBorrar ? (
+          {!nuevo && onQuitarDia && dia ? (
+            <span className="botones">
+              <button type="button" className="boton fantasma" onClick={onQuitarDia}>Quitar sólo este día</button>
+              {confirmar ? (
+                <button type="button" className="boton rojo" onClick={() => onBorrar()}><Icon name="trash" size={16} /> Sí, de todas las semanas</button>
+              ) : (
+                <button type="button" className="boton fantasma" onClick={() => setConfirmar(true)}><Icon name="trash" size={16} /> Quitar siempre</button>
+              )}
+            </span>
+          ) : !nuevo && onBorrar ? (
             confirmar ? (
               <button type="button" className="boton rojo" onClick={() => onBorrar()}><Icon name="trash" size={16} /> Sí, quitarlo</button>
             ) : (

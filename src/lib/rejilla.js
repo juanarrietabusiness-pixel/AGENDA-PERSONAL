@@ -9,7 +9,7 @@
 // lista del teléfono.
 // ============================================================
 
-import { minutos, aHora, diaSemana } from "./fechas.js";
+import { minutos, aHora, diaSemana, lunesDe, sumarDias, sumarMeses } from "./fechas.js";
 import { esTodoElDia } from "./agenda.js";
 
 export const DIA_BASE = Object.freeze({ despierta: "06:00", duerme: "22:00" });
@@ -26,9 +26,13 @@ export const ventanaDelDia = (dia, ajustes) => ({ ...DIA_BASE, ...(ajustes?.dias
  * (lo de todo el día, lo de hora por definir y las tareas sin hora). Cada pieza: { tipo: "bloque" | "evento" | "tarea" |
  * "recordatorio", clave, titulo, inicio, fin, sombrero, color?, obj, … }.
  */
-export function piezasDelDia({ bloques = [], recordatorios = [], tareas = [], eventos = [] }) {
+export function piezasDelDia({ bloques = [], recordatorios = [], tareas = [], eventos = [], compromisos = [] }) {
   const conHora = [];
   const delDia = [];
+  // Un compromiso fijo de la semana tipo (la lectura bíblica, el ejercicio): ocupa su tiempo, en gris.
+  for (const c of compromisos) {
+    conHora.push({ tipo: "compromiso", clave: `k:${c.id}`, titulo: String(c.titulo).trim(), inicio: c.inicio, fin: c.fin, sombrero: c.sombrero, obj: c });
+  }
   for (const b of bloques) {
     conHora.push({ tipo: "bloque", clave: `b:${b.bloque.id}`, titulo: String(b.bloque.titulo).trim(), inicio: b.bloque.inicio, fin: b.bloque.fin, sombrero: b.bloque.sombrero, obj: b.bloque, tareas: b.tareas, recordatorios: b.recordatorios });
   }
@@ -113,3 +117,23 @@ export function rangoDeLaRejilla(dias, ajustes) {
   const hasta = Math.min(24, Math.max(desde + 1, Math.ceil(b / 60)));
   return { desde, hasta };
 }
+
+/** Minutos → la hora más cercana en pasos de `paso` (15 por defecto), dentro del día. */
+export function aPaso(min, paso = 15) {
+  return aHora(Math.max(0, Math.min(23 * 60 + 45, Math.round(min / paso) * paso)));
+}
+
+/** La duración de una tarea más cercana entre las que se estiman (5, 15, 30, 60, 90, 120 min). */
+export function duracionCercana(min) {
+  const opciones = [5, 15, 30, 60, 90, 120];
+  return opciones.reduce((m, o) => (Math.abs(o - min) < Math.abs(m - min) ? o : m), 30);
+}
+
+/** Las semanas que enseña un mes: de su primer lunes al domingo de su última semana. */
+export function semanasDelMes(primero) {
+  const ultimo = sumarDias(sumarMeses(primero, 1), -1);
+  const semanas = [];
+  for (let l = lunesDe(primero); l <= ultimo; l = sumarDias(l, 7)) semanas.push(Array.from({ length: 7 }, (_, i) => sumarDias(l, i)));
+  return semanas;
+}
+

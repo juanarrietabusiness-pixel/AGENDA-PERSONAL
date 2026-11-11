@@ -3,6 +3,7 @@ import { sombrero, estiloDe } from "../lib/sombreros.js";
 import { urgencia } from "../lib/prioridad.js";
 import { textoFecha, textoHora } from "../lib/fechas.js";
 import { describir } from "../lib/recurrencia.js";
+import { empezarArrastre } from "../lib/arrastre.js";
 
 const TEXTO_URGENCIA = { vencida: "Se pasó", hoy: "Vence hoy", mañana: "Vence mañana", pronto: "Vence pronto" };
 
@@ -10,7 +11,7 @@ const TEXTO_URGENCIA = { vencida: "Se pasó", hoy: "Vence hoy", mañana: "Vence 
  * Una tarea o un recordatorio: el círculo para marcarla (o desmarcarla), el título —que abre la edición— y lo que hay
  * que saber de ella sin abrirla. `compacta` deja sólo lo urgente (el color ya dice el sombrero): para «Tus 3» y Plan.
  */
-export default function Fila({ accion, hoy, sombreros, proyectos = [], onHecha, onAbrir, onEnfoque, onHoyNo, mostrarDia = true, compacta = false, children }) {
+export default function Fila({ accion, hoy, sombreros, proyectos = [], onHecha, onAbrir, onEnfoque, onHoyNo, mostrarDia = true, compacta = false, arrastrable = false, zona = null, onTecla = null, children }) {
   const s = sombrero(accion.sombrero, sombreros);
   const u = urgencia(accion, hoy);
   const hecha = accion.estado === "hecha";
@@ -18,7 +19,14 @@ export default function Fila({ accion, hoy, sombreros, proyectos = [], onHecha, 
   const planeadaAntes = accion.estado === "abierta" && accion.cuando && accion.cuando < hoy && !u;
   const urgente = u && <span className={`chip ${u === "vencida" ? "rojo" : "ambar"}`}>{TEXTO_URGENCIA[u]}{accion.limite && u !== "hoy" && u !== "mañana" ? ` · ${textoFecha(accion.limite, hoy)}` : ""}</span>;
   return (
-    <li className={`accion${hecha ? " hecha" : ""}${compacta ? " compacta" : ""}`} style={estiloDe(accion.sombrero, sombreros)}>
+    <li
+      className={`accion${hecha ? " hecha" : ""}${compacta ? " compacta" : ""}${arrastrable ? " arrastrable" : ""}`}
+      style={estiloDe(accion.sombrero, sombreros)}
+      draggable={arrastrable || undefined}
+      onDragStart={arrastrable ? (e) => empezarArrastre(e, { tipo: "accion", id: accion.id, titulo: accion.titulo }) : undefined}
+      onKeyDown={onTecla ? (e) => onTecla(e, accion) : undefined}
+      {...(zona ?? {})}
+    >
       <button
         type="button"
         className="marcar"

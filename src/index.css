@@ -112,7 +112,7 @@ button { cursor: pointer; }
 
 .nav {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
-  display: grid; grid-template-columns: repeat(4, 1fr);
+  display: grid; grid-template-columns: repeat(5, 1fr);
   height: calc(var(--nav-alto) + env(safe-area-inset-bottom));
   padding-bottom: env(safe-area-inset-bottom);
   background: var(--surface); border-top: 1px solid var(--borde);
@@ -560,7 +560,6 @@ button.dia-item { width: 100%; background: none; border: 0; text-align: left; fo
 .semana-dias button[aria-pressed="true"] strong { color: var(--sobre-acento); }
 @media (max-width: 899px) {
   .semana .dia:not(.visto) { display: none; }
-  .semana .dia h3 { display: none; }
   .semana .dia { min-height: 0; }
 }
 @media (min-width: 900px) { .semana-dias { display: none; } }
@@ -773,13 +772,15 @@ button.dia-item { width: 100%; background: none; border: 0; text-align: left; fo
 .plan-lado .sombreros, .plan-lado .proyectos-fecha { grid-template-columns: minmax(0, 1fr); }
 .ley-compromiso { display: inline-block; flex-shrink: 0; width: 14px; height: 10px; border-left: 1px solid var(--texto-3); }
 .ley-libre { display: inline-block; flex-shrink: 0; width: 14px; height: 10px; border-radius: 3px; border: 1px dashed var(--texto-3); }
-.pl-hueco button { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; width: 100%; padding: 6px 8px; border: 1px dashed var(--borde); border-radius: var(--radius-sm); background: none; color: var(--texto-3); font: inherit; font-size: var(--fs-2xs); text-align: left; cursor: pointer; }
+.pl-hueco button { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 4px; width: 100%; padding: 6px 8px; border: 1px dashed var(--borde); border-radius: var(--radius-sm); background: none; color: var(--texto-3); font: inherit; font-size: var(--fs-2xs); text-align: left; cursor: pointer; }
 .pl-hueco button:hover { border-color: var(--acento); color: var(--texto-2); }
 .pl-hueco small { font-size: var(--fs-3xs); }
 
 .rejilla { display: none; }
 @container contenido (min-width: 760px) {
-  .plan .semana, .plan .semana-dias { display: none; }
+  .plan .vista-horas .semana, .plan .semana-dias { display: none; }
+  .plan .vista-semana .semana { grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+  .plan .vista-semana .semana .dia { display: block; min-height: 0; padding: var(--sp-2); }
   .rejilla { display: flex; flex-direction: column; border: 1px solid var(--borde); border-radius: var(--radius-lg); background: var(--surface); overflow: hidden; box-shadow: var(--elev-1); }
 }
 @container contenido (min-width: 940px) {
@@ -792,7 +793,12 @@ button.dia-item { width: 100%; background: none; border: 0; text-align: left; fo
     .plan { height: calc(100dvh - 61px - var(--sp-5) - var(--sp-4)); grid-template-rows: auto minmax(0, 1fr); }
     .plan-semana { min-height: 0; display: flex; flex-direction: column; }
     .rejilla { flex: 1; min-height: 0; }
-    .plan-lado { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0 4px 84px 0; }
+    .vista-semana .semana { flex: 1; min-height: 0; align-items: stretch; }
+    .vista-semana .semana .dia { position: relative; overflow-y: auto; overscroll-behavior: contain; padding-bottom: 60px; }
+    .vista-mes .mes { flex: 1; min-height: 0; }
+    .vista-mes .mes-rejilla { height: 100%; }
+    .vista-mes .mes-semana { flex: 1 1 0; min-height: 0; }
+    .plan-lado { position: relative; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0 4px 84px 0; }
     .plan-lado > .seccion:first-of-type { margin-top: var(--sp-3); }
   }
 }
@@ -892,3 +898,147 @@ button.dia-item { width: 100%; background: none; border: 0; text-align: left; fo
 .somb-cuerpo .proyecto-nombre { font-size: var(--fs-2xs); }
 .somb-cuerpo .proyecto-nombre select { min-height: 28px; font-size: var(--fs-2xs); }
 .rejilla-pieza.sobre-bloque { box-shadow: -2px 0 0 var(--surface); }
+
+/* Tareas: el panorama completo, una columna por sombrero */
+.contenido:has(> .tareas) { max-width: 1600px; }
+.tareas { display: grid; gap: var(--sp-3); grid-template-columns: minmax(0, 1fr); }
+.tareas > * { min-width: 0; }
+.tareas-cabeza { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: var(--sp-2) var(--sp-4); }
+.tareas-cabeza .titulo-pantalla { margin-top: 0; }
+.tareas-cabeza .subtitulo { margin: 0; }
+.tareas-controles { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); min-width: 0; }
+.buscar { display: flex; align-items: center; gap: var(--sp-2); width: min(100%, 280px); padding-left: var(--sp-3); border: 1px solid var(--borde); border-radius: var(--radius); background: var(--surface); color: var(--texto-3); }
+.buscar .campo { border: 0; background: transparent; min-height: 38px; padding-left: 0; }
+.tareas-sombreros { display: flex; gap: var(--sp-1); overflow-x: auto; scrollbar-width: none; }
+.tareas-sombreros .chip-boton { flex-shrink: 0; }
+.tareas-sombreros small { color: var(--texto-3); margin-left: 2px; }
+.tablero { display: grid; gap: var(--sp-3); }
+.columna-tareas { display: none; flex-direction: column; min-width: 0; border: 1px solid var(--borde); border-top: 3px solid var(--s, var(--texto-3)); border-radius: var(--radius-lg); background: var(--surface); }
+.columna-tareas.visto { display: flex; }
+.columna-tareas.soltando { box-shadow: 0 0 0 2px var(--s, var(--acento)); }
+.columna-cabeza { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); padding: var(--sp-3) var(--sp-3) var(--sp-1); }
+.columna-cabeza h2 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: var(--fs-md); }
+.columna-cabeza .punto { background: var(--s, var(--texto-3)); }
+.columna-anadir { display: flex; align-items: center; gap: var(--sp-2); margin: 0 var(--sp-2); padding: 0 var(--sp-2); border-radius: var(--radius-sm); color: var(--s, var(--acento)); }
+.columna-anadir:focus-within { background: var(--surface-2); }
+.columna-anadir .anadir-campo { min-height: 38px; font-size: var(--fs-sm); }
+@media (max-width: 899px) { .columna-anadir .anadir-campo { font-size: 16px; } }
+.columna-cuerpo { padding: 0 var(--sp-3) var(--sp-3); }
+.columna-cuerpo .accion-titulo { font-size: var(--fs-sm); }
+.grupo-tareas { margin-top: var(--sp-3); }
+.grupo-tareas h3 { display: flex; align-items: center; gap: 6px; margin: 0 0 2px; font-size: var(--fs-2xs); font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--texto-3); }
+.grupo-tareas h3 small { font-weight: 400; }
+.grupo-vacio { margin: 4px 0 0; font-size: var(--fs-xs); color: var(--texto-3); }
+.columna-hechas { margin-top: var(--sp-3); padding-top: var(--sp-2); border-top: 1px solid var(--borde); }
+.columna-hechas > .enlace { display: inline-flex; align-items: center; gap: 4px; font-size: var(--fs-xs); color: var(--texto-3); min-height: 32px; }
+.accion.arrastrable { cursor: grab; }
+.accion.arrastrable:active { cursor: grabbing; }
+@container contenido (min-width: 760px) {
+  .tareas-sombreros { display: none; }
+  .tablero { grid-auto-flow: column; grid-auto-columns: minmax(180px, 1fr); gap: var(--sp-2); overflow-x: auto; align-items: start; padding-bottom: var(--sp-2); }
+  .columna-tareas { display: flex; }
+}
+@media (min-width: 900px) and (min-height: 560px) {
+  .contenido:has(> .tareas) { padding-bottom: var(--sp-4); }
+  @container contenido (min-width: 760px) {
+    .tareas { height: calc(100dvh - 61px - var(--sp-5) - var(--sp-4)); grid-template-rows: auto minmax(0, 1fr); }
+    .tareas-sombreros { display: none; }
+    .tablero { min-height: 0; align-items: stretch; }
+    .columna-tareas { min-height: 0; }
+    .columna-cuerpo { position: relative; flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-bottom: 72px; }
+  }
+}
+
+/* Plan: navegar, escoger la vista y editar la semana tipo */
+.plan-titulo { display: grid; gap: 2px; min-width: 0; }
+.plan-nav { display: flex; align-items: center; gap: 2px; }
+.plan-nav strong { font-size: var(--fs-md); padding: 0 4px; }
+.boton.icono { min-width: var(--tap-sm); min-height: var(--tap-sm); padding: 0; justify-content: center; }
+.plan-controles { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); }
+.plan-cabeza .leyenda-semana, .aviso-google { flex-basis: 100%; }
+.aviso-google { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0; padding: 6px 10px; border-radius: var(--radius-sm); background: color-mix(in srgb, var(--acento) 10%, transparent); font-size: var(--fs-xs); color: var(--texto-2); }
+.aviso-google .enlace { color: var(--acento); font-weight: 700; text-decoration: underline; }
+.segmentado .solo-ancho { display: none; }
+@container contenido (min-width: 760px) { .segmentado .solo-ancho { display: inline-block; } }
+.plan.editando-tipo .plan-semana { outline: 2px dashed color-mix(in srgb, var(--acento) 45%, transparent); outline-offset: 4px; border-radius: var(--radius-lg); }
+.dia h3 { align-items: center; gap: 6px; }
+.dia-mas { margin-left: auto; display: grid; place-items: center; width: 28px; height: 28px; flex-shrink: 0; border: 0; border-radius: 50%; background: none; color: var(--texto-3); cursor: pointer; }
+.dia-mas:hover, .dia-mas:focus-visible { background: var(--surface-2); color: var(--acento); }
+.dia.soltando { box-shadow: 0 0 0 2px var(--acento); }
+.pl-tarea[draggable], .pl-evento[draggable] { cursor: grab; }
+.lista-por-agendar { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.lista-por-agendar li { cursor: grab; }
+.lista-por-agendar button { display: flex; align-items: center; gap: 6px; width: 100%; min-height: 32px; padding: 4px 6px; border: 0; border-radius: var(--radius-sm); background: none; font: inherit; font-size: var(--fs-xs); color: var(--texto-2); text-align: left; cursor: pointer; }
+.lista-por-agendar button:hover { background: var(--surface-2); }
+.lista-por-agendar svg { flex-shrink: 0; color: var(--s, var(--texto-3)); }
+.ya-tienes { margin-top: var(--sp-4); padding-top: var(--sp-3); border-top: 1px solid var(--borde); }
+.ya-tienes summary { cursor: pointer; font-size: var(--fs-sm); font-weight: 600; color: var(--texto-2); }
+.crear-aqui .opciones-clase .chip-boton { display: inline-flex; align-items: center; gap: 5px; }
+
+/* La semana con horas: crear, mover y estirar arrastrando */
+.rejilla-col { cursor: crosshair; }
+.rejilla-pieza.bloque, .rejilla-compromiso.movible, .rejilla-pieza.tarea { cursor: grab; }
+.rejilla-pieza.arrastrando, .rejilla-compromiso.arrastrando { opacity: 0.35; }
+.asa { position: absolute; left: 0; right: 0; bottom: 0; height: 7px; cursor: ns-resize; }
+.asa::after { content: ""; position: absolute; left: 50%; bottom: 2px; width: 18px; height: 2px; margin-left: -9px; border-radius: 2px; background: currentColor; opacity: 0; }
+.rejilla-pieza:hover .asa::after, .rejilla-compromiso:hover .asa::after { opacity: 0.5; }
+.rejilla-fantasma { position: absolute; z-index: 6; left: 2px; right: 2px; overflow: hidden; padding: 2px 5px; border: 2px dashed var(--acento); border-radius: 6px; background: color-mix(in srgb, var(--acento) 14%, var(--surface)); font-size: 10px; line-height: 1.25; pointer-events: none; }
+.rejilla-fantasma time { display: block; font-weight: 700; font-variant-numeric: tabular-nums; }
+.rejilla-deldia-lista.soltando, .rejilla-col:has(.rejilla-fantasma) { background-color: color-mix(in srgb, var(--acento) 6%, transparent); }
+.rejilla.es-tipo .rejilla-dia strong { text-transform: capitalize; }
+
+/* El mes */
+.mes { display: grid; gap: var(--sp-3); grid-template-rows: minmax(0, 1fr); }
+.mes-rejilla { display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--borde); border-radius: var(--radius-lg); background: var(--surface); }
+.mes-cabeza, .mes-semana { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.mes-semana { flex: 1 0 auto; }
+.mes-cabeza span { padding: 6px 0; border-bottom: 1px solid var(--borde); font-size: var(--fs-3xs); font-weight: 700; color: var(--texto-3); text-align: center; }
+.mes-dia { position: relative; min-width: 0; min-height: 54px; overflow: hidden; padding: 2px 3px; border-left: 1px solid var(--borde); border-bottom: 1px solid var(--borde); }
+.mes-semana .mes-dia:first-child { border-left: 0; }
+.mes-semana:last-child .mes-dia { border-bottom: 0; }
+.mes-dia.fuera { background: color-mix(in srgb, var(--surface-2) 60%, transparent); }
+.mes-dia.fuera .mes-num { color: var(--texto-3); font-weight: 500; }
+.mes-dia.visto { box-shadow: inset 0 0 0 2px var(--acento); }
+.mes-dia.soltando { background: color-mix(in srgb, var(--acento) 14%, transparent); }
+.mes-dia-cabeza { display: flex; align-items: center; justify-content: space-between; }
+.mes-num { display: grid; place-items: center; min-width: 26px; height: 26px; padding: 0 4px; border: 0; border-radius: var(--radius-pill); background: none; font: inherit; font-size: var(--fs-xs); font-weight: 700; color: var(--texto); cursor: pointer; }
+.mes-num:hover { background: var(--surface-2); }
+.mes-dia.es-hoy .mes-num { background: var(--acento); color: var(--sobre-acento); }
+.mes-mas { display: grid; place-items: center; width: 24px; height: 24px; border: 0; border-radius: 50%; background: none; color: var(--texto-3); opacity: 0; cursor: pointer; }
+.mes-dia:hover .mes-mas, .mes-mas:focus-visible { opacity: 1; }
+.mes-mas:hover { background: var(--surface-2); color: var(--acento); }
+.mes-cosas { display: none; list-style: none; margin: 0; padding: 0; }
+.mes-puntos { display: flex; justify-content: center; gap: 3px; padding: 2px 0; }
+.mes-punto { width: 6px; height: 6px; border-radius: 50%; background: var(--s, var(--texto-3)); }
+.mes-punto.mc-tarea { background: none; border: 1.5px solid var(--s, var(--texto-3)); }
+.mes-cosa[draggable] { cursor: grab; }
+.mes-cosa button { display: flex; align-items: center; gap: 4px; width: 100%; padding: 1px 3px; overflow: hidden; border: 0; border-radius: 4px; background: none; font: inherit; font-size: var(--fs-3xs); color: var(--texto-2); text-align: left; white-space: nowrap; cursor: pointer; }
+.mes-cosa button > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.mes-cosa button svg { flex-shrink: 0; color: var(--texto-3); }
+.mes-cosa time { flex-shrink: 0; color: var(--texto-3); font-variant-numeric: tabular-nums; }
+.mes-cosa.mc-especial button { background: color-mix(in srgb, var(--s, var(--acento)) 18%, transparent); color: var(--texto); }
+.mes-cosa.mc-tarea button { color: var(--texto); }
+.mes-cosa .ley-tarea { width: 8px; height: 8px; }
+.mes-cosa button:hover { background: var(--surface-2); }
+.mes-mas-cosas { padding: 0 3px; border: 0; background: none; font: inherit; font-size: var(--fs-3xs); color: var(--texto-3); text-decoration: underline; cursor: pointer; }
+.mes-del-dia-cabeza { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); }
+.mes-del-dia-cabeza h2 { flex: 1; margin: 0; font-size: var(--fs-md); }
+.mes-del-dia-cabeza h2::first-letter { text-transform: uppercase; }
+.mes-lista { list-style: none; margin: var(--sp-2) 0 0; padding: 0; display: grid; gap: 4px; }
+.mes-lista .mes-cosa button { min-height: 36px; padding: 4px 6px; font-size: var(--fs-sm); white-space: normal; }
+@container contenido (min-width: 760px) {
+  .mes-cosas { display: grid; gap: 1px; }
+  .mes-puntos, .mes-del-dia { display: none; }
+  .mes-dia { min-height: 92px; }
+}
+
+/* La semana como lista en la computadora: columnas estrechas, que se lea igual */
+@container contenido (min-width: 760px) {
+  .plan .vista-semana .dia h3 { font-size: var(--fs-xs); margin-bottom: 6px; }
+  .plan .vista-semana .dia h3 .chip { display: none; }
+  .plan .vista-semana .pl-bloque-cabeza { padding: 4px 6px; }
+  .plan .vista-semana .pl-bloque-cabeza strong { font-size: var(--fs-2xs); overflow-wrap: normal; word-break: normal; hyphens: auto; }
+  .plan .vista-semana .pl-dentro { padding: 0 6px 4px; }
+  .plan .vista-semana .pl-hueco button { padding: 3px 6px; }
+}
+.plan-lado .que-es { display: none; }

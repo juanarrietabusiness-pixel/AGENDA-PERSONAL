@@ -7,6 +7,7 @@ import Burbuja from "./componentes/Burbuja.jsx";
 import Hoy from "./pantallas/Hoy.jsx";
 import Plan from "./pantallas/Plan.jsx";
 import Revision from "./pantallas/Revision.jsx";
+import Tareas from "./pantallas/Tareas.jsx";
 import Ajustes from "./pantallas/Ajustes.jsx";
 import Entrar from "./pantallas/Entrar.jsx";
 import Autorizar from "./pantallas/Autorizar.jsx";
@@ -22,6 +23,7 @@ import { elegirVersiculo, ATRIBUCION } from "./lib/versiculos.js";
 const PANTALLAS = [
   { id: "hoy", nombre: "Hoy", icono: "sun" },
   { id: "plan", nombre: "Plan", icono: "calendar" },
+  { id: "tareas", nombre: "Tareas", icono: "checkSquare" },
   { id: "revision", nombre: "Revisión", icono: "clipboardCheck" },
 ];
 // Las direcciones de antes siguen llevando a algún sitio.
@@ -216,6 +218,7 @@ export default function App() {
         <main className="contenido" id="contenido">
           {pantalla === "hoy" && <Hoy {...comunes} cambiar={cambiar} hora={hora} onDecidir={onDecidir} onEnfoque={onEnfoque} onNoHoy={onNoHoy} onAsistente={() => (servidor ? setAsistente(true) : estado.bandeja[0] && setAclarando(estado.bandeja[0]))} />}
           {pantalla === "plan" && <Plan {...comunes} hora={hora} cambiar={cambiar} servidor={servidor} recargar={almacen.recargar} />}
+          {pantalla === "tareas" && <Tareas {...comunes} cambiar={cambiar} onEnfoque={onEnfoque} />}
           {pantalla === "revision" && <Revision {...comunes} cambiar={cambiar} onDecidir={onDecidir} recargar={almacen.recargar} servidor={servidor} onAsistente={() => (servidor ? setAsistente(true) : estado.bandeja[0] && setAclarando(estado.bandeja[0]))} />}
           {pantalla === "ajustes" && (
             <Ajustes estado={estado} cambiar={cambiar} reiniciar={modo === "prototipo" ? reiniciar : null} salir={servidor ? almacen.salir : null} servidor={servidor} recargar={almacen.recargar} avisar={avisar} />

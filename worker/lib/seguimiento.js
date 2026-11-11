@@ -95,7 +95,9 @@ export function queToca({ estado, ahora, hoy }) {
       return acc ? `• ${textoDeAviso(a, acc, hoy)}` : null;
     }).filter(Boolean);
     // Las propias y las de Google Calendar (también las de los calendarios compartidos).
-    const reuniones = reunionesDelPeriodo(estado.eventos ?? [], estado.externos ?? [], { desde: hoy, hasta: hoy }, aj);
+    // Lo que ya se pasó a Kairos (su serie vive en la semana tipo) no se avisa también desde Google.
+    const traidas = new Set((estado.ritmo ?? []).map((e) => e.google).filter(Boolean));
+    const reuniones = reunionesDelPeriodo(estado.eventos ?? [], (estado.externos ?? []).filter((x) => !traidas.has(x.serie)), { desde: hoy, hasta: hoy }, aj);
     const texto = [
       resumenDeLaManana({ nombre, plan, versiculo }),
       ...(reuniones.length ? [["Reuniones y citas de hoy:", ...reuniones.map((e) => `• ${e.horaPorDefinir ? "(hora por definir)" : e.inicio === "00:00" && e.fin === "23:59" ? "(todo el día)" : textoHora(e.inicio)} ${e.titulo}`)].join("\n")] : []),

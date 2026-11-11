@@ -124,11 +124,43 @@ que ocupa cada cosa y los espacios libres, todo en la pantalla de la laptop»). 
 semana: cada pieza del alto de lo que dura (bloques con sus tareas dentro, compromisos y reuniones, tareas con hora), lo
 que se cruza lado a lado (`carriles`), «Del día» arriba (lo de todo el día y las tareas sin hora) y los HUECOS LIBRES
 (`huecos`, entre el despertar y el dormir de Ajustes; los recordatorios no ocupan) que se tocan para poner ahí algo nuevo,
-una reunión por agendar o una tarea sin fecha (`AsignarHueco`: toma ese día y esa hora). Lo que no es un bloque (reuniones, rutinas, compromisos de Google) va SIN caja, como texto gris y pequeño con su rango y una línea fina que dice cuánto dura (decisión de Juan: con fondo parecía un bloque); si cae encima de un bloque, va a su derecha sin partir el bloque. Los huecos de menos de una hora sólo se rotulan al pasar por encima. A la derecha, un panel fino: añadir
+una reunión por agendar o una tarea sin fecha (`CrearAqui`: toma ese día y esa hora). Lo que no es un bloque (reuniones, rutinas, compromisos) va SIN caja, como texto gris y pequeño con su rango y una línea fina que dice cuánto dura (decisión de Juan: con fondo parecía un bloque); si cae encima de un bloque, va a su derecha sin partir el bloque. Los huecos de menos de una hora sólo se rotulan al pasar por encima. A la derecha, un panel fino: añadir
 (sin fecha), tus sombreros (una línea cada uno con prioridad, horas a la semana, abiertas y la siguiente; se abre para
-añadir y ver sus tareas; las horas por sombrero van ahí), tus proyectos con fecha y la semana tipo. Desde 940 px de contenido, a la
+añadir y ver sus tareas; las horas por sombrero van ahí), lo por agendar y tus proyectos con fecha. Desde 940 px de contenido, a la
 altura de la ventana (cada lado se desplaza por dentro). En el teléfono, un día a la vez como lista, con los rangos de
 hora y los huecos libres entre medias.
+
+**Plan para TRABAJAR en él** (decisión de Juan: «todo debería poder hacerlo en el mismo calendario»). Tres vistas
+(`plan-vista` en el navegador): **Semana** (la primera versión: una columna por día, la de partida), **Horas** (la
+rejilla, sólo a lo ancho) y **Mes** (`MesVista`: lo especial, reuniones, compromisos que no son rutina y tareas; en el
+teléfono, puntos y el día tocado debajo). Se navega por semanas o meses. En cualquiera: «+» de un día o un hueco abre
+`CrearAqui` (tarea, reunión, compromiso, recordatorio o bloque, con día y hora puestos; abajo, «o pon aquí algo que ya
+tienes»); en Horas se arrastra en lo vacío para crear con ese rango, y se arrastra un bloque, compromiso, reunión de Kairos
+o tarea para moverlo (su borde de abajo, `.asa`, para estirarlo; puntero propio en `SemanaRejilla`, con un clic que no
+abre nada tras arrastrar). Lo de Google no se mueve aquí. Las tareas (y las reuniones por agendar) se arrastran con
+HTML5 (`src/lib/arrastre.js`, tipo MIME propio) a un día, un hueco, un bloque o «Del día». Lo que se repite pregunta
+«¿Sólo este día o todas las semanas?» (`Alcance`): sólo un día va a `cambios` del bloque (`aplicarRitmo` con `unDia`:
+`{ inicio, fin }`, `{ quitado }` o `{ extra }`; lo de hace más de un mes se olvida) y `semanaDelDia` lo aplica (con `{ tipo:
+true }`, la semana tipo sin esos cambios); siempre, `moverSiempre`. «Semana tipo» edita lo que se repite en el MISMO
+calendario (sin fechas, el editor de siempre al lado). Un evento de Kairos que se repite sólo cambia de hora arrastrando.
+La publicación en «Kairos · Bloques» enseña la semana tipo, no los cambios de un día.
+
+**El compromiso fijo** (`clase: "compromiso"` en el ritmo): se repite y ocupa su tiempo (huecos, horas por sombrero) pero
+no es un bloque para meter tareas; se ve en gris, sin caja, y no avisa salvo que se pida. **Pasar a Kairos**
+(`rutinaDeGoogle(…, { todas: true })`, el aviso de Plan y el botón de la semana tipo): toda serie de Google que se repite y
+es SÓLO suya (sin `conGente`) entra en la semana tipo, como bloque si lleva tareas (`claseParaTraer`: trabajo, task,
+57DMC…) y si no como compromiso; desde ahí no se lee de Google (`seriesTraidas`, también en los avisos de reuniones) y se
+ofrece publicarla en «Kairos · Bloques». Lo de otras personas sigue viniendo de Google.
+
+**Tareas: el panorama completo** (`src/pantallas/Tareas.jsx`, `src/lib/tablero.js`; pestaña entre Plan y Revisión): una
+columna por sombrero (con «Sin sombrero» si hace falta), dentro las sueltas, cada empresa (`cliente`) y cada proyecto
+(también los que no tienen siguiente paso); filtros, buscar, «Completadas» plegado. Se arrastra para ordenar (`orden`, de
+10 en 10; lo que aún no se ordenó va arriba, por prioridad) o a otra columna para cambiar de sombrero (`soltarEnTablero`;
+sale del proyecto si es de otro sombrero); con el teclado, Alt + ↑/↓. En el teléfono, una columna a la vez.
+
+**Google Tasks: qué sombrero es cada lista** (`sombreroDeLista` en src/lib/sombreros.js, `ajustes.listas` de la cuenta:
+un sombrero o «no»): lo escogido manda; si no, el nombre parecido (`nombreParecido`: sin «el», «mis», en singular — «EL
+REINO» es Reino, «PERSONALES» es Personal). `listaParaSombrero` usa lo mismo al revés. Se escoge en Ajustes → Google.
 
 **Reflejar** (`worker/lib/reflejar.js`): UN sitio para que un cambio (pantalla, asistente, Telegram, Claude) vaya a
 Juancito Ads y a Google. Lo que falla fuera NO deshace lo de aquí: la agenda es la verdad y la vuelta reintenta.

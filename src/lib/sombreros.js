@@ -148,3 +148,30 @@ export function descuidados(filas, umbral = 8) {
   if (!total) return [];
   return filas.filter((f) => f.porcentaje < umbral).map((f) => f.id);
 }
+
+// ------------------------------------------------------------
+// Las listas de Google Tasks y los sombreros
+// ------------------------------------------------------------
+
+const planoLista = (t) => String(t ?? "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+
+/** Un nombre para compararlo: sin tildes, sin «el», «la», «mis»… y en singular («EL REINO» = «Reino», «PERSONALES» = «Personal»). */
+export function nombreParecido(t) {
+  return planoLista(t)
+    .replace(/^(el|la|los|las|mi|mis|my)\s+/, "")
+    .split(/\s+/)
+    .map((p) => (p.length > 4 && p.endsWith("es") ? p.slice(0, -2) : p.length > 3 && p.endsWith("s") ? p.slice(0, -1) : p))
+    .join(" ");
+}
+
+/**
+ * El sombrero de una lista de Google Tasks: el que Juan le escogió (`enlaces[lista.id]`: un sombrero, o «no» para no
+ * traerla) o, si no escogió, el que se llama parecido. Puro.
+ */
+export function sombreroDeLista(lista, sombreros, enlaces = {}) {
+  const fijado = enlaces?.[lista?.id];
+  if (fijado === "no") return null;
+  if (fijado && sombreros.some((s) => s.id === fijado)) return fijado;
+  const n = nombreParecido(lista?.nombre);
+  return sombreros.find((s) => nombreParecido(s.nombre) === n || s.id === n)?.id ?? null;
+}

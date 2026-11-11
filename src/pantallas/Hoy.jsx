@@ -78,7 +78,7 @@ export default function Hoy({ estado, hoy, hora, onHecha, onAbrir, onDecidir, on
       porAgendar: eventosPorAgendar(eventos).filter(deFiltro),
       // Tu semana de hoy (los bloques y recordatorios de Kairos) y la rutina de Google que todavía no trajiste.
       rutina: [
-        ...(periodo === "dia" ? (() => { const sd = semanaDelDia(ritmo, dia); return [...sd.bloques, ...sd.recordatorios].map((e) => ({ ...e, dia, fuente: "kairos" })); })() : []),
+        ...(periodo === "dia" ? (() => { const sd = semanaDelDia(ritmo, dia); return [...sd.bloques, ...sd.compromisos, ...sd.recordatorios].map((e) => ({ ...e, dia, fuente: "kairos" })); })() : []),
         ...rutinaDelPeriodo(externosVis, r, ajustes, eventos),
       ].sort((a, b) => (a.dia + (a.inicio ?? "")).localeCompare(b.dia + (b.inicio ?? ""))),
       especiales: especialesDelMes(acciones, eventos, dia, externosVis, ajustes).filter((e) => !filtro || e.sombrero === filtro || e.fuente === "google"),

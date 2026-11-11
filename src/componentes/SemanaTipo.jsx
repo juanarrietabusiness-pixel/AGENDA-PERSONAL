@@ -3,7 +3,6 @@ import Icon from "./Icon.jsx";
 import EditarBloque from "./EditarBloque.jsx";
 import { aplicarRitmo } from "../lib/ritmo.js";
 import { claseDeRitmo, textoDias, diasDe, avisa, rutinaDeGoogle, porRevisar, sombreroPorTitulo } from "../lib/semana.js";
-import { claseDeGoogle } from "../lib/agenda.js";
 import { estiloDe, nombreDe } from "../lib/sombreros.js";
 import { rangoCorto, horaCorta, DIAS } from "../lib/fechas.js";
 import * as api from "../lib/api.js";
@@ -24,7 +23,7 @@ export default function SemanaTipo({ estado, sombreros, cambiar, avisar, servido
   const google = (estado.conexiones ?? []).filter((c) => c.servicio?.startsWith("google:"));
   const publicada = google.some((c) => c.semana);
   const deGoogle = useMemo(
-    () => rutinaDeGoogle(estado.externos ?? [], ritmo, { ajustes: estado.ajustes, esRutina: (x) => claseDeGoogle(x, estado.ajustes) === "rutina" }),
+    () => rutinaDeGoogle(estado.externos ?? [], ritmo, { ajustes: estado.ajustes, todas: true }),
     [estado.externos, ritmo, estado.ajustes],
   );
   const revisar = useMemo(() => porRevisar(ritmo, sombreros), [ritmo, sombreros]);
@@ -32,6 +31,7 @@ export default function SemanaTipo({ estado, sombreros, cambiar, avisar, servido
   const orden = [...ritmo].sort((a, b) => primerDia(a) - primerDia(b) || a.inicio.localeCompare(b.inicio));
   const bloques = orden.filter((e) => claseDeRitmo(e) === "bloque");
   const recordatorios = orden.filter((e) => claseDeRitmo(e) === "recordatorio");
+  const compromisos = orden.filter((e) => claseDeRitmo(e) === "compromiso");
 
   const aplicar = (cambio, aviso) => {
     try {
@@ -58,7 +58,7 @@ export default function SemanaTipo({ estado, sombreros, cambiar, avisar, servido
   const traer = () => {
     const { nuevos, quitar } = deGoogle;
     cambiar((e) => ({ ...e, ritmo: [...(e.ritmo ?? []).filter((x) => !quitar.includes(x.id)), ...nuevos] }));
-    avisar(`Traje ${nuevos.length} de tu Google Calendar.`);
+    avisar(`Pasé ${nuevos.length} de tu Google Calendar a tu semana tipo: ahora se mueven y se editan aquí.`);
   };
 
   const publicar = async (si) => {
@@ -77,7 +77,7 @@ export default function SemanaTipo({ estado, sombreros, cambiar, avisar, servido
   const fila = (e) => (
     <li key={e.id}>
       <button type="button" className="bloque-fila" style={estiloDe(e.sombrero, sombreros)} onClick={() => setEditando(e)}>
-        {claseDeRitmo(e) === "bloque" ? <span className="ley-bloque" aria-hidden="true" /> : <Icon name="bell" size={14} />}
+        {claseDeRitmo(e) === "bloque" ? <span className="ley-bloque" aria-hidden="true" /> : <Icon name={claseDeRitmo(e) === "compromiso" ? "calendar" : "bell"} size={14} />}
         <span className="bloque-fila-texto">
           <strong>{e.titulo}</strong>
           <small>{cuando(e)}{e.sombrero ? ` · ${nombreDe(e.sombrero, sombreros)}` : " · sin sombrero"}{!avisa(e) ? " · no avisa" : ""}</small>
@@ -93,7 +93,7 @@ export default function SemanaTipo({ estado, sombreros, cambiar, avisar, servido
         <div>
           <h2 id={`${id}-t`}>Tu semana tipo</h2>
           <p className="nota">
-            {bloques.length} bloque{bloques.length === 1 ? "" : "s"} · {recordatorios.length} recordatorio{recordatorios.length === 1 ? "" : "s"}
+            {bloques.length} bloque{bloques.length === 1 ? "" : "s"} · {compromisos.length} compromiso{compromisos.length === 1 ? "" : "s"} · {recordatorios.length} recordatorio{recordatorios.length === 1 ? "" : "s"}
             {cuantasRevisar > 0 && <span className="chip ambar" style={{ marginLeft: 8 }}>{cuantasRevisar} por revisar</span>}
           </p>
         </div>
@@ -162,14 +162,17 @@ export default function SemanaTipo({ estado, sombreros, cambiar, avisar, servido
 
           <h3 className="sub-semana">Bloques</h3>
           {bloques.length ? <ul className="lista-bloques">{bloques.map(fila)}</ul> : <p className="vacio">Todavía no hay bloques.</p>}
+          <h3 className="sub-semana">Compromisos fijos</h3>
+          {compromisos.length ? <ul className="lista-bloques">{compromisos.map(fila)}</ul> : <p className="vacio">Ninguno. Ejemplo: «Lectura bíblica», de lunes a viernes de 7 a 8.</p>}
           <h3 className="sub-semana">Recordatorios</h3>
           {recordatorios.length ? <ul className="lista-bloques">{recordatorios.map(fila)}</ul> : <p className="vacio">Ninguno. Ejemplo: «Lectura de Proverbios», de lunes a viernes a las 11:45, que te avise 15 min antes.</p>}
 
           <div className="botones" style={{ marginTop: "var(--sp-4)" }}>
             <button type="button" className="boton" onClick={() => setEditando({ clase: "bloque", sombrero: sombreros[0]?.id ?? null })}><Icon name="plus" size={16} /> Bloque</button>
+            <button type="button" className="boton" onClick={() => setEditando({ clase: "compromiso", sombrero: null })}><Icon name="plus" size={16} /> Compromiso</button>
             <button type="button" className="boton" onClick={() => setEditando({ clase: "recordatorio", inicio: "11:45" })}><Icon name="plus" size={16} /> Recordatorio</button>
             {deGoogle.nuevos.length > 0 && (
-              <button type="button" className="boton" onClick={traer}><Icon name="download" size={16} /> Traer {deGoogle.nuevos.length} de Google Calendar</button>
+              <button type="button" className="boton" onClick={traer}><Icon name="download" size={16} /> Pasar {deGoogle.nuevos.length} de Google Calendar a Kairos</button>
             )}
           </div>
 
