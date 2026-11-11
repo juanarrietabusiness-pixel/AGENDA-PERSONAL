@@ -11,6 +11,10 @@ import { RITMO_BASE } from "../lib/ritmo.js";
 import SemanaTipo from "../componentes/SemanaTipo.jsx";
 import AsignarBloque from "../componentes/AsignarBloque.jsx";
 import ProyectosConFecha from "../componentes/ProyectosConFecha.jsx";
+import SemanaRejilla from "../componentes/SemanaRejilla.jsx";
+import AsignarHueco from "../componentes/AsignarHueco.jsx";
+import AnadirRapido from "../componentes/AnadirRapido.jsx";
+import { piezasDelDia, huecos, ventanaDelDia } from "../lib/rejilla.js";
 import { seriesTraidas, horasPorSombrero, semanaDelDia, diaEnBloques, minutosSinSombrero, porRevisar, textoHoras } from "../lib/semana.js";
 
 const PRIORIDADES = { alta: "Alta", media: "Media", baja: "Baja" };
@@ -20,7 +24,7 @@ const EN_BLOQUE = 3; // tareas que se ven dentro de un bloque; las demás, al to
  * Tu plan: la semana tal como es (cada bloque con sus recordatorios y sus tareas dentro), las horas de cada sombrero,
  * tu semana tipo (plegada) y cada sombrero con sus tareas (plegado). Lo que no hace falta ver siempre, plegado.
  */
-export default function Plan({ estado, hoy, cambiar, onHecha, onAbrir, avisar, servidor = false, recargar }) {
+export default function Plan({ estado, hoy, hora, cambiar, onHecha, onAbrir, avisar, servidor = false, recargar }) {
   const id = useId();
   const { acciones, eventos, proyectos, ajustes } = estado;
   const sombreros = sombrerosDe(ajustes);
@@ -33,6 +37,7 @@ export default function Plan({ estado, hoy, cambiar, onHecha, onAbrir, avisar, s
   const [visto, setVisto] = useState(dias.includes(hoy) ? hoy : dias[0]);
   const [asignando, setAsignando] = useState(null);
   const [semanaAbierta, setSemanaAbierta] = useState(false);
+  const [hueco, setHueco] = useState(null);
 
   const porDia = dias.map((d) => {
     const google = externos
@@ -40,7 +45,9 @@ export default function Plan({ estado, hoy, cambiar, onHecha, onAbrir, avisar, s
       .map((x) => ({ ...x, fuente: "google", clase: claseDeGoogle(x, ajustes) }));
     const propios = eventosDelDia(eventos, d).map((e) => ({ ...e, fuente: "agenda" }));
     const tareas = acciones.filter((a) => a.estado === "abierta" && (a.cuando === d || a.limite === d));
-    return { dia: d, eventos: [...propios, ...google], ...diaEnBloques(ritmo, d, tareas) };
+    const base = diaEnBloques(ritmo, d, tareas);
+    const todos = [...propios, ...google];
+    return { dia: d, eventos: todos, ...base, ...piezasDelDia({ ...base, eventos: todos }) };
   });
 
   // Las horas de cada sombrero salen de tus bloques; sin bloques con sombrero, de lo que pasó esta semana.
@@ -57,23 +64,29 @@ export default function Plan({ estado, hoy, cambiar, onHecha, onAbrir, avisar, s
     requestAnimationFrame(() => document.querySelector(".semana-tipo")?.scrollIntoView({ behavior: "smooth", block: "start" }));
   };
 
-  return (
-    <>
-      <h1 className="titulo-pantalla">Tu plan</h1>
-      <p className="subtitulo">Semana del lunes {partes(dias[0]).dia} al domingo {partes(dias[6]).dia}.</p>
+  const anadirSinFecha = ({ titulo, sombrero }) => {
+    cambiar((e) => ({ ...e, acciones: [...e.acciones, nuevaAccion({ titulo, sombrero, lista: "siguientes", origen: "app" }, hoy)] }));
+    avisar(`Añadida a ${sombrero ? nombreDe(sombrero, sombreros) : "tus tareas"}: «${titulo}». Ponle un hueco de la semana cuando quieras.`);
+  };
 
-      <section className="seccion" aria-labelledby={`${id}-dias`} style={{ marginTop: 0 }}>
-        <div className="seccion-cabeza">
-          <h2 id={`${id}-dias`}>Tu semana</h2>
-          <span className="nota">Toca un bloque para ponerle tareas</span>
+  return (
+    <div className="plan">
+      <div className="plan-cabeza">
+        <div>
+          <h1 className="titulo-pantalla">Tu plan</h1>
+          <p className="subtitulo">Semana del lunes {partes(dias[0]).dia} al domingo {partes(dias[6]).dia}.</p>
         </div>
         <ul className="leyenda-semana" aria-label="Qué es cada cosa">
           <li><span className="ley-bloque" aria-hidden="true" /> Bloque</li>
+          <li><span className="ley-compromiso" aria-hidden="true" /> Compromiso</li>
           <li><Icon name="bell" size={13} /> Recordatorio</li>
           <li><span className="ley-tarea" aria-hidden="true" /> Tarea</li>
-          <li><Icon name="users" size={13} /> Reunión</li>
+          <li><span className="ley-libre" aria-hidden="true" /> Libre: tócalo y pon algo</li>
         </ul>
+      </div>
 
+      <section className="plan-semana" aria-labelledby={`${id}-dias`}>
+        <h2 id={`${id}-dias`} className="solo-lector">Tu semana</h2>
         <div className="semana-dias" role="group" aria-label="Día de la semana">
           {dias.map((d) => (
             <button key={d} type="button" aria-pressed={visto === d} className={d === hoy ? "es-hoy" : undefined} onClick={() => setVisto(d)}>
@@ -82,43 +95,53 @@ export default function Plan({ estado, hoy, cambiar, onHecha, onAbrir, avisar, s
             </button>
           ))}
         </div>
-
         <div className="semana">
           {porDia.map((p) => (
-            <DiaPlan key={p.dia} {...p} hoy={hoy} visto={visto === p.dia} sombreros={sombreros} onBloque={(bloque) => setAsignando({ bloque, dia: p.dia })} onAbrir={onAbrir} />
+            <DiaPlan key={p.dia} {...p} hoy={hoy} hora={hora} ajustes={ajustes} visto={visto === p.dia} sombreros={sombreros} onBloque={(bloque) => setAsignando({ bloque, dia: p.dia })} onAbrir={onAbrir} onHueco={setHueco} />
           ))}
         </div>
+        <SemanaRejilla dias={porDia} hoy={hoy} hora={hora} ajustes={ajustes} sombreros={sombreros} onBloque={(bloque, dia) => setAsignando({ bloque, dia })} onAbrir={onAbrir} onHueco={setHueco} />
       </section>
 
-      <section className="tarjeta seccion balance-tarjeta" aria-labelledby={`${id}-balance`}>
-        <div className="seccion-cabeza">
-          <h2 id={`${id}-balance`}>Horas por sombrero</h2>
-          <span className="nota">{hayBloques ? "a la semana, según tus bloques" : "esta semana"}</span>
+      <aside className="plan-lado" aria-label="Tus sombreros, tus proyectos y tu semana tipo">
+        <div className="plan-anadir">
+          <AnadirRapido sombreros={sombreros} paraCuando="(sin fecha)" onAnadir={anadirSinFecha} />
         </div>
-        <div className="balance" role="img" aria-label={filas.map((f) => `${nombreDe(f.id, sombreros)} ${hayBloques ? textoHoras(f.minutos) : `${f.porcentaje} %`}`).join(", ")}>
-          {filas.map((f) => <span key={f.id} style={{ ...estiloDe(f.id, sombreros), width: `${hayBloques ? (totalMin ? (f.minutos / totalMin) * 100 : 0) : f.porcentaje}%` }} />)}
-          {sinSombrero > 0 && <span className="sin-sombrero" style={{ width: `${(sinSombrero / totalMin) * 100}%` }} />}
-        </div>
-        <div className="balance-leyenda">
-          {filas.map((f) => (
-            <span key={f.id} style={estiloDe(f.id, sombreros)}><span className="punto" />{nombreDe(f.id, sombreros)} {hayBloques ? (f.minutos ? textoHoras(f.minutos) : "0 h") : `${f.porcentaje} %`}</span>
-          ))}
-          {sinSombrero > 0 && <span><span className="punto" style={{ background: "var(--texto-3)", opacity: 0.5 }} />Sin sombrero {textoHoras(sinSombrero)}</span>}
-        </div>
-        {bloquesSinSombrero > 0 ? (
-          <p className="nota" style={{ margin: "var(--sp-3) 0 0" }}>
-            {bloquesSinSombrero} bloque{bloquesSinSombrero === 1 ? " no tiene" : "s no tienen"} sombrero y no cuenta{bloquesSinSombrero === 1 ? "" : "n"}. <button type="button" className="enlace" onClick={abrirSemanaTipo}>Asignarles uno</button>
-          </p>
-        ) : (
-          flojos.length > 0 && (
+
+        <Sombreros estado={estado} hoy={hoy} sombreros={sombreros} cambiar={cambiar} onHecha={onHecha} onAbrir={onAbrir} avisar={avisar} />
+
+        <ProyectosConFecha estado={estado} hoy={hoy} sombreros={sombreros} cambiar={cambiar} onHecha={onHecha} onAbrir={onAbrir} avisar={avisar} />
+
+        <section className="tarjeta seccion balance-tarjeta" aria-labelledby={`${id}-balance`}>
+          <div className="seccion-cabeza">
+            <h2 id={`${id}-balance`}>Horas por sombrero</h2>
+            <span className="nota">{hayBloques ? "a la semana, según tus bloques" : "esta semana"}</span>
+          </div>
+          <div className="balance" role="img" aria-label={filas.map((f) => `${nombreDe(f.id, sombreros)} ${hayBloques ? textoHoras(f.minutos) : `${f.porcentaje} %`}`).join(", ")}>
+            {filas.map((f) => <span key={f.id} style={{ ...estiloDe(f.id, sombreros), width: `${hayBloques ? (totalMin ? (f.minutos / totalMin) * 100 : 0) : f.porcentaje}%` }} />)}
+            {sinSombrero > 0 && <span className="sin-sombrero" style={{ width: `${(sinSombrero / totalMin) * 100}%` }} />}
+          </div>
+          <div className="balance-leyenda">
+            {filas.map((f) => (
+              <span key={f.id} style={estiloDe(f.id, sombreros)}><span className="punto" />{nombreDe(f.id, sombreros)} {hayBloques ? (f.minutos ? textoHoras(f.minutos) : "0 h") : `${f.porcentaje} %`}</span>
+            ))}
+            {sinSombrero > 0 && <span><span className="punto" style={{ background: "var(--texto-3)", opacity: 0.5 }} />Sin sombrero {textoHoras(sinSombrero)}</span>}
+          </div>
+          {bloquesSinSombrero > 0 ? (
             <p className="nota" style={{ margin: "var(--sp-3) 0 0" }}>
-              {flojos.map((x) => nombreDe(x, sombreros)).join(" y ")} casi no tiene{flojos.length > 1 ? "n" : ""} tiempo esta semana.
+              {bloquesSinSombrero} bloque{bloquesSinSombrero === 1 ? " no tiene" : "s no tienen"} sombrero y no cuenta{bloquesSinSombrero === 1 ? "" : "n"}. <button type="button" className="enlace" onClick={abrirSemanaTipo}>Asignarles uno</button>
             </p>
-          )
-        )}
-      </section>
+          ) : (
+            flojos.length > 0 && (
+              <p className="nota" style={{ margin: "var(--sp-3) 0 0" }}>
+                {flojos.map((x) => nombreDe(x, sombreros)).join(" y ")} casi no tiene{flojos.length > 1 ? "n" : ""} tiempo esta semana.
+              </p>
+            )
+          )}
+        </section>
 
-      <SemanaTipo estado={estado} sombreros={sombreros} cambiar={cambiar} avisar={avisar} servidor={servidor} recargar={recargar} abierta={semanaAbierta} setAbierta={setSemanaAbierta} />
+        <SemanaTipo estado={estado} sombreros={sombreros} cambiar={cambiar} avisar={avisar} servidor={servidor} recargar={recargar} abierta={semanaAbierta} setAbierta={setSemanaAbierta} />
+      </aside>
 
       {asignando && (
         <AsignarBloque
@@ -134,21 +157,22 @@ export default function Plan({ estado, hoy, cambiar, onHecha, onAbrir, avisar, s
           onCerrar={() => setAsignando(null)}
         />
       )}
-
-      <ProyectosConFecha estado={estado} hoy={hoy} sombreros={sombreros} cambiar={cambiar} onHecha={onHecha} onAbrir={onAbrir} avisar={avisar} />
-
-      <Sombreros estado={estado} hoy={hoy} sombreros={sombreros} cambiar={cambiar} onHecha={onHecha} onAbrir={onAbrir} avisar={avisar} />
-    </>
+      {hueco && <AsignarHueco hueco={hueco} hoy={hoy} estado={estado} sombreros={sombreros} cambiar={cambiar} avisar={avisar} onCerrar={() => setHueco(null)} />}
+    </div>
   );
 }
 
 /** Un día: lo de todo el día arriba, luego en orden de hora los bloques (con lo suyo dentro), los recordatorios sueltos y las reuniones; al final, las tareas sin bloque. */
-function DiaPlan({ dia, hoy, visto, eventos, bloques, recordatorios, tareas, sombreros, onBloque, onAbrir }) {
+function DiaPlan({ dia, hoy, hora, ajustes, visto, eventos, bloques, recordatorios, tareas, conHora: piezas, sombreros, onBloque, onAbrir, onHueco }) {
   const todoElDia = eventos.filter((e) => !e.inicio || e.todoElDia || esTodoElDia(e));
+  // Los huecos libres de ese día (desde ahora si es hoy): se tocan para poner algo ahí.
+  const v = ventanaDelDia(dia, ajustes);
+  const libres = dia < hoy ? [] : huecos(piezas ?? [], { desde: v.despierta, hasta: v.duerme, ahora: dia === hoy ? hora : null });
   const conHora = [
     ...bloques.map((b) => ({ tipo: "bloque", inicio: b.bloque.inicio, ...b })),
     ...recordatorios.map((r) => ({ tipo: "recordatorio", inicio: r.inicio ?? "99", r })),
     ...eventos.filter((e) => e.inicio && !e.todoElDia && !esTodoElDia(e)).map((e) => ({ tipo: "evento", inicio: e.inicio, e })),
+    ...libres.map((h) => ({ tipo: "libre", inicio: h.inicio, h })),
   ].sort((a, b) => a.inicio.localeCompare(b.inicio));
   const vacio = !conHora.length && !todoElDia.length && !tareas.length;
 
@@ -181,6 +205,12 @@ function DiaPlan({ dia, hoy, visto, eventos, bloques, recordatorios, tareas, som
                   )}
                 </ul>
               )}
+            </li>
+          ) : x.tipo === "libre" ? (
+            <li key={`l:${x.h.inicio}`} className="pl-hueco">
+              <button type="button" onClick={() => onHueco({ dia, ...x.h })}>
+                <span>Libre · {rangoCorto(x.h.inicio, x.h.fin)}</span> <small>{textoHoras(x.h.minutos)} · poner algo</small>
+              </button>
             </li>
           ) : x.tipo === "recordatorio" ? (
             <Recordatorio key={`r:${x.r.id}`} r={x.r} sombreros={sombreros} suelto onAbrir={onAbrir} />
@@ -230,12 +260,12 @@ function Tarea({ a, sombreros, onAbrir }) {
 
 function Evento({ e, sombreros, onAbrir }) {
   const rutina = e.fuente === "google" && e.clase === "rutina";
-  const icono = e.clase === "especial" || !e.inicio || e.todoElDia ? "star" : rutina ? "calendar" : "users";
+  const icono = e.clase === "especial" || !e.inicio || e.todoElDia ? "star" : e.clase === "reunion" && !rutina ? "users" : "calendar";
   return (
     <li className={`pl-evento${rutina ? " es-rutina" : ""}`} style={e.fuente === "google" ? (e.color ? { "--s": e.color } : undefined) : estiloDe(e.sombrero, sombreros)}>
       <button type="button" onClick={() => (e.fuente === "google" ? onAbrir("google", e) : onAbrir("evento", e))}>
         <Icon name={icono} size={12} />
-        <time>{e.horaPorDefinir ? "Hora por definir" : e.inicio && !e.todoElDia && !esTodoElDia(e) ? horaCorta(e.inicio) : "Todo el día"}</time>
+        <time>{e.horaPorDefinir ? "Hora por definir" : e.inicio && !e.todoElDia && !esTodoElDia(e) ? rangoCorto(e.inicio, e.fin) : "Todo el día"}</time>
         <span>{e.titulo}</span>
       </button>
     </li>

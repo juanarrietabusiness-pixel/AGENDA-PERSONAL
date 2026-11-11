@@ -756,3 +756,88 @@ button.dia-item { width: 100%; background: none; border: 0; text-align: left; fo
 .enfoque-modo-pie { display: flex; align-items: center; justify-content: center; gap: 6px; margin: 0; font-size: var(--fs-xs); color: var(--texto-3); text-align: center; }
 .foco-cabeza .boton-enfocarme { margin-left: auto; min-height: 32px; padding: 0 var(--sp-3); font-size: var(--fs-xs); }
 .foco-cabeza .nota { margin-left: var(--sp-2); }
+
+/* ============================================================
+   Plan: la semana con horas a la izquierda y el panel a la derecha; en la computadora cabe sin desplazar la página.
+   ============================================================ */
+.contenido:has(> .plan) { max-width: 1600px; }
+.plan { display: grid; gap: var(--sp-3) var(--sp-4); grid-template-columns: minmax(0, 1fr); grid-template-areas: "cabeza" "semana" "lado"; }
+.plan-cabeza { grid-area: cabeza; display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: var(--sp-2) var(--sp-4); }
+.plan-cabeza .titulo-pantalla { margin-top: 0; }
+.plan-cabeza .subtitulo { margin: 0; }
+.plan-cabeza .leyenda-semana { margin: 0; }
+.plan-semana { grid-area: semana; min-width: 0; }
+.plan-lado { grid-area: lado; min-width: 0; }
+.plan-lado .seccion:first-of-type, .plan-lado > .seccion { margin-top: var(--sp-4); }
+.plan-anadir .anadir { margin: 0; }
+.plan-lado .sombreros, .plan-lado .proyectos-fecha { grid-template-columns: minmax(0, 1fr); }
+.ley-compromiso { display: inline-block; flex-shrink: 0; width: 14px; height: 10px; border-radius: 3px; border: 1px solid var(--texto-3); border-left-width: 3px; }
+.ley-libre { display: inline-block; flex-shrink: 0; width: 14px; height: 10px; border-radius: 3px; border: 1px dashed var(--texto-3); }
+.pl-hueco button { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; width: 100%; padding: 6px 8px; border: 1px dashed var(--borde); border-radius: var(--radius-sm); background: none; color: var(--texto-3); font: inherit; font-size: var(--fs-2xs); text-align: left; cursor: pointer; }
+.pl-hueco button:hover { border-color: var(--acento); color: var(--texto-2); }
+.pl-hueco small { font-size: var(--fs-3xs); }
+
+.rejilla { display: none; }
+@container contenido (min-width: 760px) {
+  .plan .semana, .plan .semana-dias { display: none; }
+  .rejilla { display: flex; flex-direction: column; border: 1px solid var(--borde); border-radius: var(--radius-lg); background: var(--surface); overflow: hidden; box-shadow: var(--elev-1); }
+}
+@container contenido (min-width: 940px) {
+  .plan { grid-template-columns: minmax(0, 1fr) 290px; grid-template-areas: "cabeza cabeza" "semana lado"; }
+  .plan-lado > .plan-anadir { margin-top: 0; }
+}
+@media (min-width: 900px) and (min-height: 560px) {
+  .contenido:has(> .plan) { padding-bottom: var(--sp-4); }
+  @container contenido (min-width: 940px) {
+    .plan { height: calc(100dvh - 61px - var(--sp-5) - var(--sp-4)); grid-template-rows: auto minmax(0, 1fr); }
+    .plan-semana { min-height: 0; display: flex; flex-direction: column; }
+    .rejilla { flex: 1; min-height: 0; }
+    .plan-lado { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0 4px 84px 0; }
+    .plan-lado > .seccion:first-of-type { margin-top: var(--sp-3); }
+  }
+}
+
+/* La rejilla de la semana */
+.rejilla-fila { display: grid; grid-template-columns: 48px repeat(7, minmax(0, 1fr)); border-bottom: 1px solid var(--borde); }
+.rejilla-dia { display: grid; padding: 6px 8px; border-left: 1px solid var(--borde); }
+.rejilla-dia strong { font-size: var(--fs-sm); text-transform: capitalize; }
+.rejilla-dia small { font-size: var(--fs-3xs); color: var(--texto-3); }
+.rejilla-dia.es-hoy { background: color-mix(in srgb, var(--acento) 12%, transparent); }
+.rejilla-dia.es-hoy strong { color: var(--acento); }
+.rejilla-etq { align-self: center; padding: 4px; font-size: var(--fs-3xs); color: var(--texto-3); text-align: right; }
+.rejilla-deldia-lista { list-style: none; margin: 0; padding: 3px; display: grid; gap: 2px; align-content: start; min-height: 24px; max-height: 70px; overflow-y: auto; border-left: 1px solid var(--borde); }
+.rejilla-chip { display: flex; align-items: center; gap: 4px; width: 100%; min-width: 0; padding: 2px 4px; border: 0; border-radius: 4px; background: color-mix(in srgb, var(--s, var(--texto-3)) 16%, transparent); color: var(--texto); font: inherit; font-size: var(--fs-3xs); text-align: left; cursor: pointer; }
+.rejilla-chip > span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rejilla-chip .ley-tarea { width: 8px; height: 8px; }
+.rejilla-mas { padding-left: 4px; font-size: var(--fs-3xs); color: var(--texto-3); }
+.rejilla-cuerpo { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.rejilla-lienzo { position: relative; display: grid; grid-template-columns: 48px repeat(7, minmax(0, 1fr)); height: max(100%, calc(var(--horas) * 34px)); }
+.rejilla-horas { position: relative; }
+.rejilla-horas span { position: absolute; right: 6px; transform: translateY(-50%); font-size: 10px; color: var(--texto-3); white-space: nowrap; }
+.rejilla-horas span:first-child { transform: none; }
+.rejilla-col { position: relative; border-left: 1px solid var(--borde); background-image: linear-gradient(to bottom, color-mix(in srgb, var(--borde) 70%, transparent) 1px, transparent 1px); background-size: 100% calc(100% / var(--horas)); }
+.rejilla-col.es-hoy { background-color: color-mix(in srgb, var(--acento) 5%, transparent); }
+.rejilla-pieza { position: absolute; z-index: 2; display: block; overflow: hidden; padding: 2px 5px; border-radius: 6px; font: inherit; font-size: var(--fs-3xs); line-height: 1.25; text-align: left; color: var(--texto); }
+.rejilla-pieza strong { display: block; font-size: var(--fs-2xs); overflow-wrap: anywhere; }
+.rejilla-pieza time { display: block; color: var(--texto-2); font-variant-numeric: tabular-nums; }
+.rejilla-pieza.corta { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+.rejilla-pieza.corta strong { flex: 1 1 auto; min-width: 3em; overflow: hidden; text-overflow: ellipsis; font-size: var(--fs-3xs); }
+.rejilla-pieza.corta time { flex: 0 1000 auto; min-width: 0; overflow: hidden; text-overflow: clip; }
+.rejilla-pieza.bloque { background: color-mix(in srgb, var(--s, var(--texto-3)) 24%, var(--surface)); border-left: 3px solid var(--s, var(--texto-3)); }
+.rejilla-pieza.evento { cursor: pointer; background: var(--surface-2); border: 1px solid color-mix(in srgb, var(--s, var(--texto-3)) 55%, transparent); border-left: 3px solid var(--s, var(--texto-3)); }
+.rejilla-pieza.tarea { cursor: pointer; background: color-mix(in srgb, var(--s, var(--texto-3)) 10%, var(--surface)); border: 1px dashed var(--s, var(--texto-3)); }
+.rejilla-pieza.evento strong svg, .rejilla-pieza.tarea .ley-tarea { display: inline-block; margin-right: 3px; vertical-align: -1px; }
+.rejilla-pieza-cabeza { display: block; width: 100%; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.rejilla-pieza.corta .rejilla-pieza-cabeza { display: flex; gap: 4px; align-items: center; white-space: nowrap; overflow: hidden; }
+.rejilla-pieza ul { list-style: none; margin: 3px 0 0; padding: 0; display: grid; gap: 1px; }
+.rejilla-pieza li button { display: flex; align-items: flex-start; gap: 4px; width: 100%; padding: 1px 0; border: 0; background: none; color: var(--texto); font: inherit; font-size: var(--fs-3xs); text-align: left; cursor: pointer; }
+.rejilla-pieza li .ley-tarea { width: 8px; height: 8px; margin-top: 2px; }
+.rejilla-pieza .dentro-rec { color: var(--texto-2); }
+.rejilla-rec { position: absolute; z-index: 3; display: flex; align-items: center; gap: 3px; padding: 0 6px; border-radius: var(--radius-pill); background: color-mix(in srgb, var(--s, var(--acento)) 30%, var(--surface)); font-size: 10px; line-height: 16px; white-space: nowrap; overflow: hidden; pointer-events: none; }
+.rejilla-hueco { position: absolute; z-index: 1; left: 2px; right: 2px; display: flex; justify-content: center; padding-top: 2px; border: 1px dashed transparent; border-radius: 6px; background: none; color: var(--texto-3); font: inherit; font-size: 10px; cursor: pointer; overflow: hidden; }
+.rejilla-hueco span { opacity: 0.6; }
+.rejilla-hueco:hover, .rejilla-hueco:focus-visible { border-color: var(--acento); background: color-mix(in srgb, var(--acento) 8%, transparent); }
+.rejilla-hueco:hover span { opacity: 1; color: var(--texto-2); }
+.rejilla-ahora { position: absolute; z-index: 4; left: 0; right: 0; height: 2px; background: var(--rojo); pointer-events: none; }
+.rejilla-pieza.corta .rejilla-pieza-cabeza strong { flex: 1 1 auto; min-width: 3em; overflow: hidden; text-overflow: ellipsis; }
+.rejilla-pieza.corta .rejilla-pieza-cabeza time { flex: 0 1000 auto; min-width: 0; overflow: hidden; }

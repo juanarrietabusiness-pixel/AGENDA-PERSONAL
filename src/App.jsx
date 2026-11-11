@@ -215,7 +215,7 @@ export default function App() {
         </nav>
         <main className="contenido" id="contenido">
           {pantalla === "hoy" && <Hoy {...comunes} cambiar={cambiar} hora={hora} onDecidir={onDecidir} onEnfoque={onEnfoque} onNoHoy={onNoHoy} onAsistente={() => (servidor ? setAsistente(true) : estado.bandeja[0] && setAclarando(estado.bandeja[0]))} />}
-          {pantalla === "plan" && <Plan {...comunes} cambiar={cambiar} servidor={servidor} recargar={almacen.recargar} />}
+          {pantalla === "plan" && <Plan {...comunes} hora={hora} cambiar={cambiar} servidor={servidor} recargar={almacen.recargar} />}
           {pantalla === "revision" && <Revision {...comunes} cambiar={cambiar} onDecidir={onDecidir} recargar={almacen.recargar} servidor={servidor} onAsistente={() => (servidor ? setAsistente(true) : estado.bandeja[0] && setAclarando(estado.bandeja[0]))} />}
           {pantalla === "ajustes" && (
             <Ajustes estado={estado} cambiar={cambiar} reiniciar={modo === "prototipo" ? reiniciar : null} salir={servidor ? almacen.salir : null} servidor={servidor} recargar={almacen.recargar} avisar={avisar} />

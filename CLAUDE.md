@@ -119,6 +119,16 @@ los de inicio de bloque (`enEnfoque`), no los recordatorios fijos ni las reunion
 (`public/manifest.webmanifest` con íconos) y el ícono tiene dos atajos: «Hablar» (`/?hablar=1`, el micrófono listo; si el
 navegador no deja escuchar sin un toque, queda el botón «Hablar») y «Añadir» (`/?anadir=1`, el campo con el foco).
 
+**Plan: la semana con horas** (`src/lib/rejilla.js`, `componentes/SemanaRejilla.jsx`; decisión de Juan: «ver el tiempo
+que ocupa cada cosa y los espacios libres, todo en la pantalla de la laptop»). En la computadora, un calendario de la
+semana: cada pieza del alto de lo que dura (bloques con sus tareas dentro, compromisos y reuniones, tareas con hora), lo
+que se cruza lado a lado (`carriles`), «Del día» arriba (lo de todo el día y las tareas sin hora) y los HUECOS LIBRES
+(`huecos`, entre el despertar y el dormir de Ajustes; los recordatorios no ocupan) que se tocan para poner ahí algo nuevo,
+una reunión por agendar o una tarea sin fecha (`AsignarHueco`: toma ese día y esa hora). A la derecha, el panel: añadir
+(sin fecha), tus sombreros, tus proyectos con fecha, horas por sombrero y la semana tipo. Desde 940 px de contenido, a la
+altura de la ventana (cada lado se desplaza por dentro). En el teléfono, un día a la vez como lista, con los rangos de
+hora y los huecos libres entre medias.
+
 **Reflejar** (`worker/lib/reflejar.js`): UN sitio para que un cambio (pantalla, asistente, Telegram, Claude) vaya a
 Juancito Ads y a Google. Lo que falla fuera NO deshace lo de aquí: la agenda es la verdad y la vuelta reintenta.
 
