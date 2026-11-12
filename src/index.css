@@ -564,6 +564,7 @@ button.dia-item { width: 100%; background: none; border: 0; text-align: left; fo
 }
 @media (min-width: 900px) { .semana-dias { display: none; } }
 .dia-cosas { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.dia-cosas.dia-arriba { margin-bottom: 6px; }
 .pl-bloque { border-radius: var(--radius-sm); background: color-mix(in srgb, var(--s, var(--texto-3)) 13%, var(--surface)); border-left: 3px solid var(--s, var(--texto-3)); overflow: hidden; }
 .pl-bloque.por-confirmar { border-left-style: dashed; opacity: 0.7; }
 .pl-bloque-cabeza { width: 100%; display: grid; text-align: left; padding: 6px 8px; border: 0; background: none; font: inherit; color: var(--texto); cursor: pointer; }
@@ -930,6 +931,47 @@ button.rejilla-mas { cursor: pointer; text-decoration: underline; }
 .grupo-tareas h3 { display: flex; align-items: center; gap: 6px; margin: 0 0 2px; font-size: var(--fs-2xs); font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--texto-3); }
 .grupo-tareas h3 small { font-weight: 400; }
 .grupo-vacio { margin: 4px 0 0; font-size: var(--fs-xs); color: var(--texto-3); }
+/* Etiquetas, pasos y proyectos plegables (Tareas). */
+.tareas-etiquetas { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-1); }
+@media (max-width: 759px) {
+  .tareas-etiquetas { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin-inline: calc(-1 * var(--sp-4)); padding-inline: var(--sp-4); }
+  .tareas-etiquetas > * { flex-shrink: 0; }
+  .tareas-cabeza .subtitulo { display: none; }
+}
+.tareas-etiquetas > .nota { display: inline-flex; align-items: center; gap: 4px; margin: 0 var(--sp-1) 0 0; }
+.etiqueta-chip { min-height: 32px; font-size: var(--fs-xs); gap: 3px; }
+.etiqueta-chip small { color: var(--texto-3); margin-left: 2px; }
+.sombrero-nuevo { display: flex; gap: var(--sp-2); }
+.sombrero-nuevo .campo { min-width: 0; width: 170px; }
+.columna-cabeza .somb-cuenta { margin-left: auto; }
+.columna-cabeza .editar-fila { flex-shrink: 0; }
+.columna-editar { margin: 0 var(--sp-2) var(--sp-2); }
+.columna-editar .editar-sombrero { margin-top: 0; }
+.grupo-boton { display: flex; align-items: center; gap: 6px; width: 100%; min-height: 32px; padding: 0; border: 0; background: none; color: inherit; font: inherit; letter-spacing: inherit; text-transform: inherit; text-align: left; cursor: pointer; border-radius: var(--radius-sm); }
+.grupo-boton:hover { color: var(--texto); }
+.grupo-boton .grupo-nombre { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.grupo-boton small { margin-left: auto; font-weight: 400; }
+.avance { height: 4px; margin: 0 0 var(--sp-1); border-radius: var(--radius-pill); background: var(--surface-3); overflow: hidden; }
+.avance > span { display: block; height: 100%; border-radius: inherit; background: var(--s, var(--acento)); transition: width 0.3s; }
+.tarea-detalle { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.accion.compacta .accion-acciones { margin-top: 2px; }
+.accion.compacta:has(.tarea-detalle) { align-items: start; }
+.accion.compacta:has(.tarea-detalle) .marcar { margin-top: 2px; }
+.pasos-anadir .campo { width: 100%; min-width: 0; }
+.etiqueta-mini, .pasos-cuenta { display: inline-flex; align-items: center; gap: 3px; min-height: 24px; padding: 0 7px; border: 1px solid var(--borde); border-radius: var(--radius-pill); background: var(--surface); color: var(--texto-2); font: inherit; font-size: var(--fs-3xs); cursor: pointer; }
+.etiqueta-mini[aria-pressed="true"] { border-color: var(--acento); color: var(--acento); }
+.pasos-cuenta.completos { color: var(--verde, var(--acento)); }
+.tarea-pasos { flex-basis: 100%; }
+.pasos ul { list-style: none; margin: 0; padding: 0; }
+.pasos li { display: flex; align-items: center; gap: var(--sp-1); }
+.pasos li label { display: flex; flex: 1; align-items: center; gap: var(--sp-2); min-height: 36px; min-width: 0; cursor: pointer; }
+.pasos li label input { width: 18px; height: 18px; flex-shrink: 0; accent-color: var(--s, var(--acento)); }
+.pasos li.hecho span { color: var(--texto-3); text-decoration: line-through; }
+.pasos li .enlace { color: var(--texto-3); }
+.pasos-anadir .campo { min-height: 36px; margin-top: 2px; }
+.pasos.compacto li label { min-height: 30px; font-size: var(--fs-xs); }
+.pasos.compacto .pasos-anadir .campo { min-height: 32px; padding-block: 2px; font-size: var(--fs-xs); }
+@media (max-width: 899px) { .pasos.compacto .pasos-anadir .campo { font-size: 16px; } }
 .columna-hechas { margin-top: var(--sp-3); padding-top: var(--sp-2); border-top: 1px solid var(--borde); }
 .columna-hechas > .enlace { display: inline-flex; align-items: center; gap: 4px; font-size: var(--fs-xs); color: var(--texto-3); min-height: 32px; }
 .accion.arrastrable { cursor: grab; }
@@ -942,6 +984,7 @@ button.rejilla-mas { cursor: pointer; text-decoration: underline; }
   .contenido:has(> .tareas) { padding-bottom: var(--sp-4); }
   @container contenido (min-width: 760px) {
     .tareas { height: calc(100dvh - 61px - var(--sp-5) - var(--sp-4)); grid-template-rows: auto minmax(0, 1fr); }
+    .tareas:has(> .tareas-etiquetas) { grid-template-rows: auto auto minmax(0, 1fr); }
     .tareas-sombreros { display: none; }
     .tablero { min-height: 0; align-items: stretch; }
     .columna-tareas { min-height: 0; }
@@ -1121,3 +1164,28 @@ button.rejilla-mas { cursor: pointer; text-decoration: underline; }
 .lista-viene time { color: var(--texto-3); font-variant-numeric: tabular-nums; }
 .lo-que-viene > .enlace { margin-top: var(--sp-2); }
 .lo-que-viene .seccion-cabeza .enlace { margin-left: auto; text-decoration: underline; }
+
+/* Lo que NO se repite, en color (que no se te escape); lo especial, relleno y con estrella. Gris sólo la rutina. */
+.rejilla-evento { position: absolute; z-index: 3; display: block; overflow: hidden; padding: 2px 5px; border: 1.5px solid var(--s, var(--acento)); border-left-width: 4px; border-radius: 6px; background: color-mix(in srgb, var(--s, var(--acento)) 10%, var(--surface)); font: inherit; font-size: var(--fs-3xs); line-height: 1.25; text-align: left; color: var(--texto); cursor: pointer; box-shadow: var(--elev-1); }
+.rejilla-evento strong { display: flex; align-items: center; gap: 3px; font-size: var(--fs-2xs); font-weight: 700; overflow-wrap: anywhere; }
+.rejilla-evento strong svg { flex-shrink: 0; color: var(--s, var(--acento)); }
+.rejilla-evento time { display: block; color: var(--texto-2); font-variant-numeric: tabular-nums; }
+.rejilla-evento.corta { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+.rejilla-evento.corta strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: var(--fs-3xs); }
+.rejilla-evento.especial { background: color-mix(in srgb, var(--s, var(--acento)) 38%, var(--surface)); border-color: var(--s, var(--acento)); }
+.rejilla-evento.especial strong svg { color: var(--texto); }
+.rejilla-evento.arrastrando { opacity: 0.35; }
+.rejilla-evento:hover .asa::after { opacity: 0.5; }
+.rejilla-chip.especial { background: color-mix(in srgb, var(--s, var(--acento)) 38%, transparent); color: var(--texto); font-weight: 700; }
+.rejilla-chip.evento:not(.especial) { background: color-mix(in srgb, var(--s, var(--acento)) 14%, transparent); color: var(--texto); }
+.rejilla-rec { color: var(--texto); font-weight: 600; box-shadow: 0 0 0 1px color-mix(in srgb, var(--s, var(--acento)) 55%, transparent); }
+.pl-evento.es-evento button { padding: 3px 6px; border-left: 3px solid var(--s, var(--acento)); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; background: color-mix(in srgb, var(--s, var(--acento)) 10%, transparent); color: var(--texto); font-weight: 600; }
+.pl-evento.es-evento svg { color: var(--s, var(--acento)); }
+.pl-evento.es-especial button { background: color-mix(in srgb, var(--s, var(--acento)) 32%, transparent); font-weight: 700; }
+.pl-evento.es-especial svg { color: var(--texto); }
+.plan-nuevo { width: 100%; justify-content: center; margin-top: var(--sp-3); }
+.horas-lista { list-style: none; margin: var(--sp-2) 0 0; padding: 0; display: grid; gap: 2px; font-size: var(--fs-xs); color: var(--texto-2); }
+.horas-lista li { display: flex; align-items: center; gap: 6px; }
+.horas-lista li .punto { background: var(--s, var(--texto-3)); }
+.horas-lista li > span:last-child { margin-left: auto; color: var(--texto-3); font-variant-numeric: tabular-nums; }
+.por-agendar .enlace.nota { display: inline-block; margin-top: 4px; text-decoration: underline; }

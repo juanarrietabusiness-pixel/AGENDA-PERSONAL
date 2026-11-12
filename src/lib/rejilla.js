@@ -47,12 +47,29 @@ export function piezasDelDia({ bloques = [], recordatorios = [], tareas = [], ev
     else delDia.push(p);
   }
   for (const e of eventos) {
-    const p = { tipo: "evento", clave: `e:${e.fuente ?? "agenda"}:${e.id}`, titulo: e.titulo, sombrero: e.sombrero, color: e.color, obj: e };
-    if (e.inicio && !e.todoElDia && !esTodoElDia(e)) conHora.push({ ...p, inicio: e.inicio, fin: e.fin && e.fin > e.inicio ? e.fin : fin(e.inicio, 30) });
-    else delDia.push(p);
+    const p = { tipo: "evento", clave: `e:${e.fuente ?? "agenda"}:${e.id}`, titulo: e.titulo, sombrero: e.sombrero, color: e.color, obj: e, rutina: esRutinario(e), especial: e.clase === "especial" };
+    if (e.inicio && !e.todoElDia && !esTodoElDia(e)) {
+      conHora.push({ ...p, inicio: e.inicio, fin: e.fin && e.fin > e.inicio ? e.fin : fin(e.inicio, 30) });
+      // Un especial con hora sale ARRIBA del día y también en su hora: sólo en su hora pasaría por rutina.
+      if (p.especial) delDia.push({ ...p, clave: `${p.clave}:arriba`, arriba: true, inicio: e.inicio });
+    } else delDia.push(p);
   }
   conHora.sort((a, b) => a.inicio.localeCompare(b.inicio) || b.fin.localeCompare(a.fin));
+  // Arriba del día, lo que no se puede pasar va primero: lo especial, luego los eventos y recordatorios, y las tareas.
+  const rango = (p) => (p.especial ? 0 : p.tipo === "evento" ? 1 : p.tipo === "recordatorio" ? 2 : 3);
+  delDia.sort((a, b) => rango(a) - rango(b));
   return { conHora, delDia };
+}
+
+/**
+ * ¿Es rutina? (va en gris, para no hacer ruido) Lo que se repite cada semana o cada día: un evento de Kairos con esa
+ * repetición o una serie de Google. Lo de una sola vez —una reunión, una cita, un evento— va en color, y lo especial
+ * nunca es rutina. Los compromisos fijos de la semana tipo son rutina por definición (su propio tipo de pieza).
+ */
+export function esRutinario(e) {
+  if (!e || e.clase === "especial") return false;
+  if (e.fuente === "google") return Boolean(e.serie);
+  return /FREQ=(WEEKLY|DAILY)/.test(e.repite?.regla ?? "");
 }
 
 /**

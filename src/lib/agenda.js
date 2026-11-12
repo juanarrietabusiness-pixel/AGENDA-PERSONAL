@@ -321,7 +321,7 @@ export const diasParada = (a, hoy) => (a.creada ? Math.max(0, diasEntre(a.creada
 // Cambiar QUÉ ES algo, a mano: tarea, recordatorio, reunión, evento o evento especial
 // ------------------------------------------------------------
 
-export const QUE_ES = Object.freeze({ tarea: "Tarea", recordatorio: "Recordatorio", reunion: "Reunión o cita", evento: "Evento", especial: "Evento especial" });
+export const QUE_ES = Object.freeze({ tarea: "Tarea", recordatorio: "Recordatorio", reunion: "Evento con otras personas", evento: "Evento", especial: "Evento especial" });
 export const esDeAccion = (clase) => clase === "tarea" || clase === "recordatorio";
 
 /**
@@ -340,7 +340,7 @@ export function convertir(obj, tipo, clase, hoy) {
     const dia = obj.cuando ?? obj.limite ?? hoy;
     const repite = obj.repite?.regla ? { regla: obj.repite.regla, inicio: obj.repite.inicio ?? dia } : null;
     // Sin hora no se inventa una: queda de todo el día (con la hora por definir si no es especial).
-    const inicio = clase !== "especial" && esHora(obj.hora) ? obj.hora : null;
+    const inicio = esHora(obj.hora) ? obj.hora : null;
     const fin = inicio ? aHora(Math.min(minutos(inicio) + (Number(obj.minutos) || 60), 23 * 60 + 59)) : null;
     return { tipo: "evento", obj: normalizarEvento({ id: nuevoId("e"), ...comunes, clase, fecha: repite ? null : dia, repite, inicio, fin, protegido: false, fuente: "app" }) };
   }

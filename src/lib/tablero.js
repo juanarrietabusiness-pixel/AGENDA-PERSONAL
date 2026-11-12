@@ -9,6 +9,7 @@
 
 import { ordenarPor } from "./agenda.js";
 import { lunesDe, sumarDias } from "./fechas.js";
+import { limpiarEtiquetas } from "./metodo.js";
 
 export const FILTROS = Object.freeze({
   todo: "Todo",
@@ -56,10 +57,10 @@ const esTarea = (a) => (a.clase ?? "tarea") === "tarea";
  * Las columnas: [{ id, nombre, total, grupos: [{ clave, tipo: "sueltas" | "empresa" | "proyecto", titulo, proyecto?,
  * tareas }], hechas }]. Con `filtro` y `buscar`. Una columna «Sin sombrero» si hay algo sin sombrero.
  */
-export function tablero(acciones, { sombreros, proyectos = [], filtro = "todo", buscar = "", hoy }) {
+export function tablero(acciones, { sombreros, proyectos = [], filtro = "todo", buscar = "", etiqueta = null, hoy }) {
   const q = plano(buscar).trim();
   const ids = new Set(sombreros.map((s) => s.id));
-  const busca = (a) => !q || plano(`${a.titulo} ${a.notas ?? ""} ${a.cliente ?? ""}`).includes(q);
+  const busca = (a) => (!q || plano(`${a.titulo} ${a.notas ?? ""} ${a.cliente ?? ""} ${(a.etiquetas ?? []).join(" ")}`).includes(q)) && (!etiqueta || tieneEtiqueta(a, etiqueta));
   const abiertas = acciones.filter((a) => a.estado === "abierta" && esTarea(a) && LISTAS_TABLERO.includes(a.lista) && pasaFiltro(a, filtro, hoy) && busca(a));
   const hechas = acciones.filter((a) => a.estado === "hecha" && esTarea(a) && busca(a));
   const ctx = { hoy, proyectos, sombreros };
@@ -75,7 +76,9 @@ export function tablero(acciones, { sombreros, proyectos = [], filtro = "todo", 
     // Los proyectos salen aunque no tengan nada en el filtro «Todo»: uno sin siguiente paso es justo lo que hay que ver.
     for (const p of activos) {
       const delP = enOrden(suyas.filter((a) => a.proyectoId === p.id), ctx);
-      if (delP.length || (filtro === "todo" && !q)) grupos.push({ clave: `p:${p.id}`, tipo: "proyecto", titulo: p.nombre, proyecto: p, tareas: delP });
+      const delProyecto = acciones.filter((a) => a.proyectoId === p.id && esTarea(a) && a.estado !== "soltada");
+      const avance = { hechos: delProyecto.filter((a) => a.estado === "hecha").length, total: delProyecto.length };
+      if (delP.length || (filtro === "todo" && !q && !etiqueta)) grupos.push({ clave: `p:${p.id}`, tipo: "proyecto", titulo: p.nombre, proyecto: p, tareas: delP, avance });
     }
     return {
       ...c,
@@ -120,3 +123,43 @@ export function moverUnPuesto(acciones, grupo, id, paso) {
   [ids[i], ids[j]] = [ids[j], ids[i]];
   return reordenar(acciones, ids);
 }
+
+// ------------------------------------------------------------
+// Etiquetas y subtareas
+// ------------------------------------------------------------
+
+/** ¿Lleva esa etiqueta? La empresa (cliente de Juancito Ads) cuenta como etiqueta. */
+export const tieneEtiqueta = (a, etiqueta) => (a.etiquetas ?? []).includes(etiqueta) || plano(a.cliente ?? "") === plano(etiqueta);
+
+/** «Llamar a Pedro #llamadas #iglesia» → { titulo: "Llamar a Pedro", etiquetas: ["llamadas", "iglesia"] }. */
+export function leerEtiquetas(texto) {
+  const etiquetas = [...String(texto ?? "").matchAll(/#([\p{L}\p{N}_-]+)/gu)].map((m) => m[1]);
+  const titulo = String(texto ?? "").replace(/#[\p{L}\p{N}_-]+/gu, "").replace(/\s{2,}/g, " ").trim();
+  return { titulo, etiquetas: limpiarEtiquetas(etiquetas) };
+}
+
+/** Las etiquetas en uso (las tuyas y las empresas), con cuántas tareas abiertas lleva cada una. */
+export function etiquetasEnUso(acciones) {
+  const cuenta = new Map();
+  const sumar = (nombre, tipo) => {
+    const k = `${tipo}:${nombre}`;
+    cuenta.set(k, { nombre, tipo, n: (cuenta.get(k)?.n ?? 0) + 1 });
+  };
+  for (const a of acciones) {
+    if (a.estado !== "abierta" || !esTarea(a)) continue;
+    for (const e of a.etiquetas ?? []) sumar(e, "propia");
+    if (a.cliente) sumar(a.cliente, "empresa");
+  }
+  return [...cuenta.values()].sort((x, y) => (x.tipo === y.tipo ? x.nombre.localeCompare(y.nombre, "es") : x.tipo === "propia" ? -1 : 1));
+}
+
+let pasoN = 0;
+/** Añadir un paso a una tarea (sin texto, no cambia nada). */
+export const agregarPaso = (a, texto) => {
+  const t = String(texto ?? "").trim().slice(0, 200);
+  return t ? { ...a, pasos: [...(a.pasos ?? []), { id: `p-${Date.now().toString(36)}-${(pasoN++).toString(36)}`, texto: t, hecho: false }].slice(0, 30) } : a;
+};
+/** Marcar o desmarcar un paso. */
+export const alternarPaso = (a, id) => ({ ...a, pasos: (a.pasos ?? []).map((p) => (p.id === id ? { ...p, hecho: !p.hecho } : p)) });
+/** Quitar un paso. */
+export const quitarPaso = (a, id) => ({ ...a, pasos: (a.pasos ?? []).filter((p) => p.id !== id) });

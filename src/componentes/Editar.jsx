@@ -1,7 +1,8 @@
 import { useId, useState } from "react";
 import Icon from "./Icon.jsx";
 import { useDialogo } from "../hooks/useDialogo.js";
-import { DURACIONES } from "../lib/metodo.js";
+import { DURACIONES, limpiarEtiquetas, limpiarPasos } from "../lib/metodo.js";
+import { agregarPaso, quitarPaso, alternarPaso } from "../lib/tablero.js";
 import { QUE_ES, esDeAccion, normalizarEvento, esTodoElDia } from "../lib/agenda.js";
 import { describir } from "../lib/recurrencia.js";
 
@@ -29,6 +30,9 @@ export default function Editar({ tipo, obj, sombreros, proyectos = [], hoy, onGu
     e.preventDefault();
     const limpio = { ...f, titulo: String(f.titulo ?? "").trim() || obj.titulo, notas: String(f.notas ?? "") };
     if (esAccion) {
+      if (limpio.etiquetasTexto !== undefined) limpio.etiquetas = limpiarEtiquetas(String(limpio.etiquetasTexto).split(/[\s,]+/));
+      delete limpio.etiquetasTexto;
+      limpio.pasos = limpiarPasos(limpio.pasos);
       limpio.minutos = Number(limpio.minutos) || 30;
       if (!limpio.delegable?.a) limpio.delegable = null;
     }
@@ -51,10 +55,31 @@ export default function Editar({ tipo, obj, sombreros, proyectos = [], hoy, onGu
 
         <p className="etiqueta" id={`${id}-que`}>¿Qué es?</p>
         <div className="opciones-clase" role="group" aria-labelledby={`${id}-que`}>
-          {Object.entries(QUE_ES).map(([v, t]) => (
-            <button key={v} type="button" className="chip-boton" aria-pressed={que === v} onClick={() => setQue(v)}>{t}</button>
-          ))}
+          <button type="button" className="chip-boton" aria-pressed={que === "tarea"} onClick={() => setQue("tarea")}>Tarea</button>
+          <button type="button" className="chip-boton" aria-pressed={que === "recordatorio"} onClick={() => setQue("recordatorio")}>Recordatorio</button>
+          <button type="button" className="chip-boton" aria-pressed={!esDeAccion(que)} onClick={() => !esDeAccion(que) || setQue(f.conPersonas ? "reunion" : "evento")}>Evento</button>
         </div>
+        {!esDeAccion(que) && (
+          <>
+            <label className="casilla">
+              <input type="checkbox" checked={que === "reunion" || Boolean(f.conPersonas)} onChange={(e) => (que === "especial" ? setF((x) => ({ ...x, conPersonas: e.target.checked })) : setQue(e.target.checked ? "reunion" : "evento"))} />
+              <span>Es con otras personas (reunión o cita)</span>
+            </label>
+            <label className="casilla">
+              <input
+                type="checkbox"
+                checked={que === "especial"}
+                onChange={(e) => {
+                  if (e.target.checked) {
+                    setF((x) => ({ ...x, conPersonas: que === "reunion" || Boolean(x.conPersonas) }));
+                    setQue("especial");
+                  } else setQue(f.conPersonas ? "reunion" : "evento");
+                }}
+              />
+              <span><Icon name="star" size={13} style={{ display: "inline", verticalAlign: "-2px" }} /> Especial: que no se me pase</span>
+            </label>
+          </>
+        )}
         {cambiaDeTipo && (
           <p className="nota-fuente" role="status">
             Al guardar pasa a ser {QUE_ES[que].toLowerCase()}, con el día{esDeAccion(que) ? " y la hora" : ", la hora y lo que dura"} de abajo.
@@ -160,6 +185,21 @@ export default function Editar({ tipo, obj, sombreros, proyectos = [], hoy, onGu
           </>
         )}
 
+        {esAccion && !cambiaDeTipo && (
+          <>
+            <label className="etiqueta" htmlFor={`${id}-et`}>Etiquetas <span className="nota">(separadas por espacios: llamadas compras)</span></label>
+            <input
+              id={`${id}-et`}
+              className="campo"
+              value={f.etiquetasTexto ?? (f.etiquetas ?? []).map((t) => `#${t}`).join(" ")}
+              onChange={(e) => setF((x) => ({ ...x, etiquetasTexto: e.target.value }))}
+              placeholder="#llamadas #compras"
+            />
+            <p className="etiqueta">Pasos <span className="nota">(subtareas: se marcan sin abrirla)</span></p>
+            <Pasos pasos={f.pasos ?? []} onCambiar={(fn) => setF((x) => fn(x))} />
+          </>
+        )}
+
         <label className="etiqueta" htmlFor={`${id}-n`}>Notas</label>
         <textarea id={`${id}-n`} className="campo" value={f.notas ?? ""} onChange={(e) => setF((x) => ({ ...x, notas: e.target.value }))} placeholder="Lo que haga falta recordar: qué llevar, de qué se habló, enlaces…" />
 
@@ -175,6 +215,46 @@ export default function Editar({ tipo, obj, sombreros, proyectos = [], hoy, onGu
           </div>
         </div>
       </form>
+    </div>
+  );
+}
+
+/** Los pasos de una tarea, para marcarlos, quitarlos y añadir más. `onCambiar(fn)` recibe la tarea y devuelve la nueva. */
+export function Pasos({ pasos, onCambiar, compacto = false }) {
+  const id = useId();
+  const [nuevo, setNuevo] = useState("");
+  return (
+    <div className={`pasos${compacto ? " compacto" : ""}`}>
+      {pasos.length > 0 && (
+        <ul>
+          {pasos.map((p) => (
+            <li key={p.id} className={p.hecho ? "hecho" : undefined}>
+              <label>
+                <input type="checkbox" checked={p.hecho} onChange={() => onCambiar((a) => alternarPaso(a, p.id))} />
+                <span>{p.texto}</span>
+              </label>
+              <button type="button" className="enlace" aria-label={`Quitar el paso: ${p.texto}`} onClick={() => onCambiar((a) => quitarPaso(a, p.id))}><Icon name="close" size={13} /></button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="pasos-anadir">
+        <label className="solo-lector" htmlFor={`${id}-p`}>Un paso más</label>
+        <input
+          id={`${id}-p`}
+          className="campo"
+          value={nuevo}
+          placeholder="+ Un paso…"
+          onChange={(e) => setNuevo(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key !== "Enter") return;
+            e.preventDefault();
+            if (!nuevo.trim()) return;
+            onCambiar((a) => agregarPaso(a, nuevo));
+            setNuevo("");
+          }}
+        />
+      </div>
     </div>
   );
 }

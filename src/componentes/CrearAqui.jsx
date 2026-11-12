@@ -12,10 +12,9 @@ const CODIGOS = ["SU", "MO", "TU", "WE", "TH", "FR", "SA"];
 const DIAS_SEMANA = [[1, "L"], [2, "M"], [3, "X"], [4, "J"], [5, "V"], [6, "S"], [0, "D"]];
 const QUE = {
   tarea: { nombre: "Tarea", icono: "checkSquare", nota: "Algo que haces tú." },
-  reunion: { nombre: "Reunión", icono: "users", nota: "Con otras personas, a una hora." },
-  compromiso: { nombre: "Compromiso", icono: "calendar", nota: "Algo con hora que no es para meter tareas (cita, culto, ejercicio). En gris." },
+  evento: { nombre: "Evento", icono: "calendar", nota: "Algo con hora: una reunión, una cita, un ensayo, un culto. De una sola vez se ve en color; si se repite cada semana, en gris (es rutina)." },
   recordatorio: { nombre: "Recordatorio", icono: "bell", nota: "Un momento que te avisa." },
-  bloque: { nombre: "Bloque", icono: "layers", nota: "Un tramo de tu semana para un sombrero; ahí caen sus tareas. Se repite cada semana." },
+  bloque: { nombre: "Bloque", icono: "layers", nota: "Tiempo para hacer tareas de un sombrero (Trabajo de 8 a 12); ahí caen sus tareas. Se repite cada semana." },
 };
 
 /**
@@ -23,7 +22,7 @@ const QUE = {
  * tu semana, con su día y su hora ya puestos. Abajo, «o pon aquí algo que ya tienes»: una reunión por agendar o una
  * tarea sin fecha. En la semana tipo sólo se crea lo que se repite (bloque, compromiso fijo, recordatorio).
  */
-export default function CrearAqui({ en, tipo = false, hoy, estado, sombreros, cambiar, aplicarAlRitmo, avisar, onCerrar }) {
+export default function CrearAqui({ en, tipo = false, queInicial = null, hoy, estado, sombreros, cambiar, aplicarAlRitmo, avisar, onCerrar }) {
   const ref = useDialogo(onCerrar);
   const id = useId();
   const ritmo = estado.ritmo ?? [];
@@ -31,7 +30,9 @@ export default function CrearAqui({ en, tipo = false, hoy, estado, sombreros, ca
   const tactil = typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches;
   const bloqueAhi = en.inicio ? semanaDelDia(ritmo, en.dia).bloques.find((b) => b.inicio <= en.inicio && en.inicio < b.fin) : null;
   const [f, setF] = useState(() => ({
-    que: tipo ? "bloque" : "tarea",
+    que: queInicial && QUE[queInicial] ? queInicial : tipo ? "bloque" : "tarea",
+    personas: false,
+    especial: false,
     titulo: "",
     sombrero: bloqueAhi?.sombrero ?? null,
     dia: en.dia,
@@ -42,7 +43,7 @@ export default function CrearAqui({ en, tipo = false, hoy, estado, sombreros, ca
   }));
   const [error, setError] = useState("");
   const poner = (k, v) => setF((x) => ({ ...x, [k]: v }));
-  const opciones = tipo ? ["bloque", "compromiso", "recordatorio"] : Object.keys(QUE);
+  const opciones = tipo ? ["bloque", "evento", "recordatorio"] : Object.keys(QUE);
   const semanal = f.que === "bloque" || tipo || (f.repite && f.que !== "tarea");
   const conFin = f.que !== "recordatorio";
 
@@ -55,23 +56,27 @@ export default function CrearAqui({ en, tipo = false, hoy, estado, sombreros, ca
     if (f.inicio && !esHora(f.inicio)) return setError("La hora va como HH:MM.");
     if (conFin && f.inicio && f.fin && f.fin <= f.inicio) return setError("El final tiene que ser después del inicio.");
     const cuando = `${textoCorto(f.dia, hoy)}${f.inicio ? `, ${horaCorta(f.inicio)}` : ""}`;
-    // Lo que se repite cada semana vive en tu semana tipo (bloque, compromiso fijo, recordatorio fijo).
-    if (semanal && f.que !== "reunion") {
+    const clase = f.especial ? "especial" : f.personas ? "reunion" : "evento";
+    // Lo que se repite cada semana vive en tu semana tipo (bloque, evento fijo = compromiso, recordatorio fijo); una
+    // reunión o un especial que se repite sigue siendo un evento (con su aviso), pero se ve como rutina.
+    const aLaSemanaTipo = f.que === "bloque" || f.que === "recordatorio" || (f.que === "evento" && !f.personas && !f.especial);
+    if (semanal && aLaSemanaTipo) {
       if (!f.inicio) return setError("Ponle una hora: lo que se repite cada semana necesita hora.");
       if (!f.dias.length) return setError("Escoge al menos un día.");
       const err = aplicarAlRitmo(
-        { accion: "agregar", titulo, sombrero: f.sombrero, clase: f.que, dias: f.dias, inicio: f.inicio, fin: f.que === "recordatorio" ? undefined : f.fin || aHora(minutos(f.inicio) + 60), devocional: f.sombrero === "reino", ...(f.que === "recordatorio" ? { antes: 10 } : {}), ...(f.que === "compromiso" ? { avisar: false } : {}) },
+        { accion: "agregar", titulo, sombrero: f.sombrero, clase: f.que === "evento" ? "compromiso" : f.que, dias: f.dias, inicio: f.inicio, fin: f.que === "recordatorio" ? undefined : f.fin || aHora(minutos(f.inicio) + 60), devocional: f.sombrero === "reino", ...(f.que === "recordatorio" ? { antes: 10 } : {}), ...(f.que === "evento" ? { avisar: false } : {}) },
         (b) => `«${b.titulo}» en tu semana tipo.`,
       );
       if (err) return setError(err);
       return onCerrar();
     }
-    if (f.que === "reunion" || f.que === "compromiso") {
+    if (f.que === "evento") {
       const ev = normalizarEvento({
         id: nuevoId("e"),
         titulo,
         sombrero: f.sombrero,
-        clase: f.que === "reunion" ? "reunion" : "evento",
+        clase,
+        ...(f.especial && f.personas ? { conPersonas: true } : {}),
         protegido: false,
         fuente: "app",
         notas: "",
@@ -129,7 +134,7 @@ export default function CrearAqui({ en, tipo = false, hoy, estado, sombreros, ca
         <p className="nota" style={{ marginTop: "var(--sp-2)" }}>{QUE[f.que].nota}</p>
 
         <label className="etiqueta" htmlFor={`${id}-n`}>Nombre</label>
-        <input id={`${id}-n`} className="campo" autoFocus={!tactil} value={f.titulo} onChange={(e) => poner("titulo", e.target.value)} placeholder={f.que === "reunion" ? "Reunión con Dayano" : f.que === "bloque" ? "Trabajo, Hogar, Grabación…" : "¿Qué es?"} />
+        <input id={`${id}-n`} className="campo" autoFocus={!tactil} value={f.titulo} onChange={(e) => poner("titulo", e.target.value)} placeholder={f.que === "evento" ? "Reunión con Dayano, Evangelismo, Cita médica…" : f.que === "bloque" ? "Trabajo, Hogar, Grabación…" : "¿Qué es?"} />
 
         <p className="etiqueta" id={`${id}-s`}>Sombrero</p>
         <div className="filtro-sombreros" role="group" aria-labelledby={`${id}-s`}>
@@ -170,10 +175,22 @@ export default function CrearAqui({ en, tipo = false, hoy, estado, sombreros, ca
         </div>
         {!f.inicio && f.que === "tarea" && <p className="nota">Sin hora: queda para ese día, en «Del día».</p>}
 
+        {f.que === "evento" && !tipo && (
+          <>
+            <label className="casilla">
+              <input type="checkbox" checked={f.personas} onChange={(e) => poner("personas", e.target.checked)} />
+              <span>Es con otras personas (reunión o cita): te aviso media hora antes</span>
+            </label>
+            <label className="casilla">
+              <input type="checkbox" checked={f.especial} onChange={(e) => poner("especial", e.target.checked)} />
+              <span><Icon name="star" size={13} style={{ display: "inline", verticalAlign: "-2px" }} /> Especial: que no se me pase (sale arriba del día y en su hora, en color fuerte)</span>
+            </label>
+          </>
+        )}
         {!tipo && f.que !== "bloque" && f.que !== "tarea" && (
           <label className="casilla">
             <input type="checkbox" checked={f.repite} onChange={(e) => poner("repite", e.target.checked)} />
-            <span>Se repite cada semana{f.que !== "reunion" ? " (va a tu semana tipo)" : ""}</span>
+            <span>Se repite cada semana{f.que === "evento" && !f.personas && !f.especial ? " (va a tu semana tipo, en gris)" : f.que === "recordatorio" ? " (va a tu semana tipo)" : " (se verá en gris, como rutina)"}</span>
           </label>
         )}
 

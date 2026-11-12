@@ -232,9 +232,21 @@ export default function SemanaRejilla({ dias, hoy, hora, ajustes, sombreros, tip
                       </div>
                     );
                   }
+                  if (p.tipo === "evento" && !p.rutina) {
+                    // Lo que NO se repite (una reunión, una cita, un evento) va en color, para que no se te escape; lo
+                    // especial, relleno y con su estrella (también sale arriba del día).
+                    const icono = p.especial ? "star" : p.obj?.clase === "reunion" || p.obj?.conPersonas ? "users" : "calendar";
+                    return (
+                      <button key={p.clave} type="button" className={`rejilla-evento${p.especial ? " especial" : ""}${corta ? " corta" : ""}${encima ? " sobre-bloque" : ""}${movible(p) ? " movible" : ""}${arrastrando ? " arrastrando" : ""}`} style={estilo} onClick={() => abrirPieza(p, dia)} title={`${rangoCorto(p.inicio, p.fin)} ${p.titulo}`} {...puntero}>
+                        <strong><Icon name={icono} size={11} /> {p.titulo}</strong>
+                        <time>{rangoCorto(p.inicio, p.fin)}</time>
+                        {asa}
+                      </button>
+                    );
+                  }
                   if (p.tipo === "evento" || p.tipo === "compromiso") {
-                    // Un compromiso no es un bloque: sin caja, en gris y pequeño, como texto; una línea fina a la izquierda
-                    // dice cuánto dura.
+                    // La rutina (lo que se repite cada semana) no es un bloque: sin caja, en gris y pequeño, como texto; una
+                    // línea fina a la izquierda dice cuánto dura.
                     const icono = p.obj?.clase === "reunion" ? "users" : "calendar";
                     return (
                       <button key={p.clave} type="button" className={`rejilla-compromiso${corta ? " corta" : ""}${encima ? " sobre-bloque" : ""}${movible(p) ? " movible" : ""}${arrastrando ? " arrastrando" : ""}`} style={estilo} onClick={() => abrirPieza(p, dia)} title={`${rangoCorto(p.inicio, p.fin)} ${p.titulo}`} {...puntero}>
@@ -277,9 +289,9 @@ function DelDia({ dia, delDia, sombreros, onAbrir, onSoltar }) {
     <ul className={`rejilla-deldia-lista${encima ? " soltando" : ""}`} {...zonaDeSoltar((d) => onSoltar(d, { dia, hora: null, bloque: null }), setEncima)}>
       {delDia.slice(0, cabe).map((p) => (
         <li key={p.clave} style={p.obj?.fuente === "google" && p.color ? { "--s": p.color } : estiloDe(p.sombrero, sombreros)} draggable={p.tipo === "tarea" || undefined} onDragStart={p.tipo === "tarea" ? (e) => empezarArrastre(e, { tipo: "accion", id: p.obj.id, titulo: p.titulo }) : undefined}>
-          <button type="button" className={`rejilla-chip ${p.tipo}`} onClick={() => onAbrir(p, dia)} title={p.titulo}>
-            {p.tipo === "tarea" ? <span className="ley-tarea" aria-hidden="true" /> : <Icon name={p.tipo === "recordatorio" ? "bell" : "calendar"} size={11} />}
-            <span>{p.obj?.horaPorDefinir ? `${p.titulo} (hora por definir)` : p.titulo}</span>
+          <button type="button" className={`rejilla-chip ${p.tipo}${p.especial ? " especial" : ""}`} onClick={() => onAbrir(p, dia)} title={p.titulo}>
+            {p.tipo === "tarea" ? <span className="ley-tarea" aria-hidden="true" /> : <Icon name={p.tipo === "recordatorio" ? "bell" : p.especial ? "star" : "calendar"} size={11} />}
+            <span>{p.arriba ? `${horaCorta(p.inicio)} ${p.titulo}` : p.obj?.horaPorDefinir ? `${p.titulo} (hora por definir)` : p.titulo}</span>
           </button>
         </li>
       ))}

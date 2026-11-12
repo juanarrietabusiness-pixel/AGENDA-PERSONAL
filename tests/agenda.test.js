@@ -271,12 +271,14 @@ describe("cambiar QUÉ ES algo, a mano", () => {
     expect(r.obj.id).not.toBe(a.id);
   });
 
-  it("de reunión a recordatorio, y de recordatorio a evento especial de todo el día", () => {
+  it("de reunión a recordatorio, y de recordatorio a evento especial (con su hora, o de todo el día sin ella)", () => {
     const e = { id: "e1", titulo: "Pagar la luz", sombrero: "personal", clase: "reunion", fecha: "2026-11-12", inicio: "09:00", fin: "09:15" };
     const r = convertir(e, "evento", "recordatorio", HOY);
     expect(r).toMatchObject({ tipo: "accion", obj: { clase: "recordatorio", cuando: "2026-11-12", hora: "09:00", minutos: 15, lista: "siguientes" } });
     const esp = convertir(r.obj, "accion", "especial", HOY);
-    expect(esp.obj).toMatchObject({ clase: "especial", fecha: "2026-11-12", inicio: "00:00", fin: "23:59" });
+    expect(esp.obj).toMatchObject({ clase: "especial", fecha: "2026-11-12", inicio: "09:00", fin: "09:15" });
+    const sinHora = convertir({ ...r.obj, hora: null }, "accion", "especial", HOY);
+    expect(sinHora.obj).toMatchObject({ clase: "especial", fecha: "2026-11-12", inicio: "00:00", fin: "23:59" });
   });
 
   it("dentro del mismo tipo sólo cambia la clase; lo que se repite se sigue repitiendo", () => {

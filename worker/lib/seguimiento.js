@@ -123,7 +123,8 @@ export function queToca({ estado, ahora, hoy }) {
   // Media hora antes de cada reunión (las propias; las de Google ya avisan solas).
   if (seg.reuniones) {
     for (const e of eventosDelDia(estado.eventos ?? [], hoy)) {
-      if (e.clase !== "reunion" || e.protegido || e.horaPorDefinir || (e.inicio === "00:00" && e.fin === "23:59")) continue;
+      // Se avisa antes de una reunión y de un evento especial con hora (que no se te pase).
+      if ((e.clase !== "reunion" && e.clase !== "especial") || e.protegido || e.horaPorDefinir || !e.inicio || (e.inicio === "00:00" && e.fin === "23:59")) continue;
       const antes = aHora(Math.max(0, minutos(e.inicio) - 30));
       if (enVentana(ahora, antes, VENTANA.reunion)) out.push({ clave: `reunion:${e.id}:${hoy}`, texto: `En media hora: ${e.titulo} (${textoHora(e.inicio)}).${e.notas ? `\n${e.notas}` : ""}` });
     }

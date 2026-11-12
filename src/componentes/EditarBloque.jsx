@@ -66,12 +66,12 @@ export default function EditarBloque({ item, sombreros, onGuardar, onBorrar, onC
   return (
     <div className="capa" onClick={(e) => e.target === e.currentTarget && onCerrar()}>
       <form ref={ref} className="dialogo" role="dialog" aria-modal="true" aria-labelledby={`${id}-t`} onSubmit={guardar}>
-        <h2 id={`${id}-t`}>{nuevo ? (esCompromiso ? "Compromiso fijo nuevo" : esBloque ? "Bloque nuevo" : "Recordatorio nuevo") : f.titulo || "Tu semana"}</h2>
+        <h2 id={`${id}-t`}>{nuevo ? (esCompromiso ? "Evento fijo nuevo" : esBloque ? "Bloque nuevo" : "Recordatorio nuevo") : f.titulo || "Tu semana"}</h2>
 
         <p className="etiqueta" id={`${id}-q`}>¿Qué es?</p>
         <div className="opciones-clase" role="group" aria-labelledby={`${id}-q`}>
           <button type="button" className="chip-boton" aria-pressed={f.clase === "bloque"} onClick={() => poner("clase", "bloque")}>Bloque de tiempo</button>
-          <button type="button" className="chip-boton" aria-pressed={esCompromiso} onClick={() => poner("clase", "compromiso")}>Compromiso fijo</button>
+          <button type="button" className="chip-boton" aria-pressed={esCompromiso} onClick={() => poner("clase", "compromiso")}>Evento fijo (rutina)</button>
           <button type="button" className="chip-boton" aria-pressed={f.clase === "recordatorio"} onClick={() => poner("clase", "recordatorio")}>Recordatorio</button>
         </div>
         <p className="nota" style={{ marginTop: "var(--sp-2)" }}>

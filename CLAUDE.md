@@ -124,9 +124,8 @@ que ocupa cada cosa y los espacios libres, todo en la pantalla de la laptop»). 
 semana: cada pieza del alto de lo que dura (bloques con sus tareas dentro, compromisos y reuniones, tareas con hora), lo
 que se cruza lado a lado (`carriles`), «Del día» arriba (lo de todo el día y las tareas sin hora) y los HUECOS LIBRES
 (`huecos`, entre el despertar y el dormir de Ajustes; los recordatorios no ocupan) que se tocan para poner ahí algo nuevo,
-una reunión por agendar o una tarea sin fecha (`CrearAqui`: toma ese día y esa hora). Lo que no es un bloque (reuniones, rutinas, compromisos) va SIN caja, como texto gris y pequeño con su rango y una línea fina que dice cuánto dura (decisión de Juan: con fondo parecía un bloque); si cae encima de un bloque, va a su derecha sin partir el bloque. Los huecos de menos de una hora sólo se rotulan al pasar por encima. A la derecha, un panel fino: añadir
-(sin fecha), tus sombreros (una línea cada uno con prioridad, horas a la semana, abiertas y la siguiente; se abre para
-añadir y ver sus tareas; las horas por sombrero van ahí), lo por agendar y tus proyectos con fecha. Desde 940 px de contenido, a la
+una reunión por agendar o una tarea sin fecha (`CrearAqui`: toma ese día y esa hora). Lo que no es un bloque (reuniones, rutinas, compromisos) va SIN caja, como texto gris y pequeño con su rango y una línea fina que dice cuánto dura (decisión de Juan: con fondo parecía un bloque); si cae encima de un bloque, va a su derecha sin partir el bloque. Los huecos de menos de una hora sólo se rotulan al pasar por encima. A la derecha, un panel fino
+SÓLO del tiempo (ver «Plan sólo para el tiempo»). Desde 940 px de contenido, a la
 altura de la ventana (cada lado se desplaza por dentro). En el teléfono, un día a la vez como lista, con los rangos de
 hora y los huecos libres entre medias.
 
@@ -175,6 +174,33 @@ columna por sombrero (con «Sin sombrero» si hace falta), dentro las sueltas, c
 (también los que no tienen siguiente paso); filtros, buscar, «Completadas» plegado. Se arrastra para ordenar (`orden`, de
 10 en 10; lo que aún no se ordenó va arriba, por prioridad) o a otra columna para cambiar de sombrero (`soltarEnTablero`;
 sale del proyecto si es de otro sombrero); con el teclado, Alt + ↑/↓. En el teléfono, una columna a la vez.
+**Etiquetas** (`accion.etiquetas`, `limpiarEtiquetas` en metodo.js: sin #, en minúsculas, sin repetir, 8 como mucho): se
+escriben al añadir («Llamar a Pedro #llamadas», `leerEtiquetas`) o en Editar; la EMPRESA (`cliente`) cuenta como etiqueta
+sola (`tieneEtiqueta`, `etiquetasEnUso`). Una fila de chips filtra el tablero (`tablero(…, { etiqueta })`); con una etiqueta
+tuya filtrada, lo que se añade la lleva. **Pasos** (subtareas, `accion.pasos` = [{ id, texto, hecho }], `limpiarPasos`,
+`agregarPaso`/`alternarPaso`/`quitarPaso` en tablero.js): «2/4 pasos» debajo del título se despliega y se marcan sin abrir
+la tarea (`Pasos`, exportado de Editar.jsx, el mismo en el editor). **Los proyectos se pliegan** y llevan su barra de avance
+(`avance` del grupo: hechas sobre todas las del proyecto, aunque las hechas no salgan en la lista). **Los sombreros se editan
+aquí** (el lápiz de cada columna: `EditarSombrero`, prioridad, nombre, color, quitar; «+ Sombrero» arriba): ya no en Plan.
+No se quita un sombrero con cosas abiertas.
+
+**Qué es cada cosa y cómo se ve** (decisión de Juan: «el gris es sólo para lo que se repite cada semana»). Cuatro tipos
+al crear (`CrearAqui`) y al editar: **Bloque** (tiempo con tareas dentro, caja de color; sólo en la semana tipo),
+**Evento** (con casillas: «Es con otras personas» = `clase: "reunion"` → icono de personas y aviso por Telegram media hora
+antes; «★ Especial» = `clase: "especial"` → color fuerte, ARRIBA del día y además en su hora, y también avisa; «Se repite
+cada semana» → si no es con personas ni especial va a la semana tipo como compromiso), **Recordatorio** (campana) y
+**Tarea** (arriba del día). En el calendario, `esRutinario` (rejilla.js) decide el gris: lo que se repite cada semana o
+cada día (una serie de Google, un evento con FREQ=WEEKLY/DAILY, los compromisos del ritmo); lo de una vez va en color con
+el borde de su sombrero, y lo especial nunca es rutina. Un especial con hora sale dos veces: `piezasDelDia` lo mete en su
+hora y en «Del día» (`arriba: true`, otra clave), y lo de arriba va en orden: especial, eventos, recordatorios, tareas.
+En Semana, lo especial y lo de todo el día van ANTES de las tareas del día. `convertir` a especial conserva la hora (sin
+hora queda de todo el día). Un especial con otras personas lleva `conPersonas`. El especial avisa como una reunión
+(`seguimiento.js`).
+
+**Plan sólo para el tiempo** (decisión de Juan: Plan es la semana y lo que ocupa tiempo; las tareas viven en Tareas). El
+panel de la derecha: Lo que viene, «Añadir un evento o un recordatorio» (`CrearAqui` con `queInicial: "evento"`), Por
+agendar, Tareas sin día (`SinDia`: se arrastran a la semana; «Ver todas en Tareas»), Proyectos con fecha y las horas por
+sombrero en una barra (`HorasSombreros`). Sin las listas de tareas de cada sombrero.
 
 **Google Tasks: qué sombrero es cada lista** (`sombreroDeLista` en src/lib/sombreros.js, `ajustes.listas` de la cuenta:
 un sombrero o «no»): lo escogido manda; si no, el nombre parecido (`nombreParecido`: sin «el», «mis», en singular — «EL

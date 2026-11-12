@@ -1,13 +1,13 @@
 import { describe, it, expect } from "vitest";
 import { aplicarRitmo } from "../src/lib/ritmo.js";
 import { semanaDelDia, moverSiempre, claseDeRitmo, avisa, horasPorSombrero, rutinaDeGoogle, claseParaTraer, diaEnBloques } from "../src/lib/semana.js";
-import { piezasDelDia, semanasDelMes, aPaso, duracionCercana, huecos } from "../src/lib/rejilla.js";
-import { tablero, pasaFiltro, soltarEnTablero, moverUnPuesto, enOrden } from "../src/lib/tablero.js";
+import { piezasDelDia, semanasDelMes, aPaso, duracionCercana, huecos, esRutinario } from "../src/lib/rejilla.js";
+import { tablero, pasaFiltro, soltarEnTablero, moverUnPuesto, enOrden, leerEtiquetas, etiquetasEnUso, tieneEtiqueta, agregarPaso, alternarPaso, quitarPaso } from "../src/lib/tablero.js";
 import { nombreParecido, sombreroDeLista, sombrerosDe, REINO } from "../src/lib/sombreros.js";
 
 const CON_REINO = [REINO, ...sombrerosDe({})];
 import { listaParaSombrero } from "../worker/lib/google.js";
-import { nuevaAccion } from "../src/lib/metodo.js";
+import { nuevaAccion, limpiarEtiquetas, limpiarPasos } from "../src/lib/metodo.js";
 
 // Lunes 9 de noviembre de 2026 … domingo 15.
 const LUN = "2026-11-09";
@@ -236,5 +236,86 @@ describe("Plan: las tareas del día arriba", () => {
     const plan = diaEnBloques([trabajo], LUN, tareas, { soloAsignadas: true });
     expect(plan.bloques[0].tareas.map((a) => a.id)).toEqual(["x2"]);
     expect(plan.tareas.map((a) => a.id)).toEqual(["x1"]);
+  });
+});
+
+describe("cómo se ve cada cosa en Plan", () => {
+  it("gris sólo lo que se repite cada semana; lo de una vez y lo especial, en color", () => {
+    expect(esRutinario({ clase: "evento", repite: { regla: "FREQ=WEEKLY;BYDAY=MO" } })).toBe(true);
+    expect(esRutinario({ clase: "reunion", repite: { regla: "FREQ=DAILY" } })).toBe(true);
+    expect(esRutinario({ clase: "reunion" })).toBe(false);
+    expect(esRutinario({ clase: "evento", repite: { regla: "FREQ=MONTHLY;BYMONTHDAY=3" } })).toBe(false);
+    expect(esRutinario({ clase: "especial", repite: { regla: "FREQ=WEEKLY;BYDAY=SA" } })).toBe(false);
+    expect(esRutinario({ fuente: "google", serie: "abc" })).toBe(true);
+    expect(esRutinario({ fuente: "google" })).toBe(false);
+  });
+
+  it("un especial con hora sale arriba del día Y en su hora", () => {
+    const ev = { id: "ev", titulo: "Evangelismo", clase: "especial", sombrero: "iglesia", inicio: "16:00", fin: "18:00", fecha: MIE };
+    const { conHora, delDia } = piezasDelDia({ eventos: [ev] });
+    expect(conHora).toHaveLength(1);
+    expect(conHora[0]).toMatchObject({ especial: true, rutina: false, inicio: "16:00", fin: "18:00" });
+    expect(delDia).toHaveLength(1);
+    expect(delDia[0]).toMatchObject({ arriba: true, especial: true, inicio: "16:00" });
+    expect(delDia[0].clave).not.toBe(conHora[0].clave);
+  });
+
+  it("un evento normal con hora sólo va en su hora", () => {
+    const { conHora, delDia } = piezasDelDia({ eventos: [{ id: "c", titulo: "Cita", clase: "reunion", inicio: "10:00", fin: "11:00" }] });
+    expect(conHora).toHaveLength(1);
+    expect(delDia).toHaveLength(0);
+  });
+});
+
+describe("Tareas: etiquetas y pasos", () => {
+  it("lee las etiquetas que se escriben con #", () => {
+    expect(leerEtiquetas("Llamar a Pedro #llamadas #Iglesia")).toEqual({ titulo: "Llamar a Pedro", etiquetas: ["llamadas", "iglesia"] });
+    expect(leerEtiquetas("Comprar #compras pan")).toEqual({ titulo: "Comprar pan", etiquetas: ["compras"] });
+    expect(leerEtiquetas("Sin etiquetas")).toEqual({ titulo: "Sin etiquetas", etiquetas: [] });
+  });
+
+  it("limpia: sin #, en minúsculas, sin repetir y con tope", () => {
+    expect(limpiarEtiquetas(["#Llamadas", "llamadas", " compras ", ""])).toEqual(["llamadas", "compras"]);
+    expect(limpiarEtiquetas(Array.from({ length: 20 }, (_, i) => `e${i}`))).toHaveLength(8);
+    expect(limpiarEtiquetas("no es una lista")).toEqual([]);
+  });
+
+  it("la empresa cuenta como etiqueta y la lista sale con cuántas abiertas tiene", () => {
+    const a = nuevaAccion({ titulo: "Copys", sombrero: "trabajo", lista: "siguientes", cliente: "Baby Caleb", etiquetas: ["urgente"] }, LUN);
+    const b = nuevaAccion({ titulo: "Llamar", sombrero: "personal", lista: "siguientes", etiquetas: ["llamadas", "urgente"] }, LUN);
+    const c = { ...nuevaAccion({ titulo: "Hecha", sombrero: "personal", lista: "siguientes", etiquetas: ["llamadas"] }, LUN), estado: "hecha" };
+    expect(etiquetasEnUso([a, b, c])).toEqual([
+      { nombre: "llamadas", tipo: "propia", n: 1 },
+      { nombre: "urgente", tipo: "propia", n: 2 },
+      { nombre: "Baby Caleb", tipo: "empresa", n: 1 },
+    ]);
+    expect(tieneEtiqueta(a, "Baby Caleb")).toBe(true);
+    expect(tieneEtiqueta(b, "Baby Caleb")).toBe(false);
+    const cols = tablero([a, b], { sombreros: sombrerosDe({}), etiqueta: "urgente", hoy: LUN });
+    expect(cols.reduce((t, col) => t + col.total, 0)).toBe(2);
+    const soloLlamadas = tablero([a, b], { sombreros: sombrerosDe({}), etiqueta: "llamadas", hoy: LUN });
+    expect(soloLlamadas.reduce((t, col) => t + col.total, 0)).toBe(1);
+  });
+
+  it("los pasos se añaden, se marcan y se quitan", () => {
+    let a = nuevaAccion({ titulo: "Preparar el viaje", sombrero: "personal", lista: "siguientes" }, LUN);
+    expect(a.pasos).toEqual([]);
+    a = agregarPaso(agregarPaso(a, "Pasaporte"), "Maleta");
+    expect(agregarPaso(a, "   ")).toBe(a);
+    expect(a.pasos.map((p) => p.texto)).toEqual(["Pasaporte", "Maleta"]);
+    const [p1, p2] = a.pasos;
+    a = alternarPaso(a, p1.id);
+    expect(a.pasos.map((p) => p.hecho)).toEqual([true, false]);
+    a = quitarPaso(a, p2.id);
+    expect(a.pasos).toEqual([{ ...p1, hecho: true }]);
+    expect(limpiarPasos([{ texto: "  " }, { texto: "Uno", hecho: 1 }, "no"])).toEqual([expect.objectContaining({ texto: "Uno", hecho: true })]);
+  });
+
+  it("un proyecto trae su avance aunque sus hechas no estén en la lista", () => {
+    const proyectos = [{ id: "p1", nombre: "Viaje", sombrero: "personal", estado: "activo" }];
+    const uno = nuevaAccion({ titulo: "Boletos", sombrero: "personal", lista: "siguientes", proyectoId: "p1" }, LUN);
+    const dos = { ...nuevaAccion({ titulo: "Hotel", sombrero: "personal", lista: "siguientes", proyectoId: "p1" }, LUN), estado: "hecha" };
+    const col = tablero([uno, dos], { sombreros: sombrerosDe({}), proyectos, hoy: LUN }).find((c) => c.id === "personal");
+    expect(col.grupos.find((g) => g.tipo === "proyecto").avance).toEqual({ hechos: 1, total: 2 });
   });
 });

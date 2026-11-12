@@ -40,6 +40,26 @@ export const LISTAS = Object.freeze({
 export const IDS_LISTA = Object.freeze(Object.keys(LISTAS));
 export const ESTADOS = Object.freeze(["abierta", "hecha", "soltada"]);
 
+/** Etiquetas: sin «#», en minúsculas, sin repetir, como mucho 8 de 30 letras. */
+export function limpiarEtiquetas(lista) {
+  if (!Array.isArray(lista)) return [];
+  const out = [];
+  for (const e of lista) {
+    const t = String(e ?? "").replace(/^#+/, "").trim().toLowerCase().slice(0, 30);
+    if (t && !out.includes(t)) out.push(t);
+  }
+  return out.slice(0, 8);
+}
+
+/** Pasos de una tarea: { id, texto, hecho }, como mucho 30. */
+export function limpiarPasos(lista) {
+  if (!Array.isArray(lista)) return [];
+  return lista
+    .map((p, i) => ({ id: String(p?.id ?? `p${i}`), texto: String(p?.texto ?? "").trim().slice(0, 200), hecho: Boolean(p?.hecho) }))
+    .filter((p) => p.texto)
+    .slice(0, 30);
+}
+
 /** La regla de los dos minutos de GTD: si cuesta menos, se hace al aclararla. */
 export const DOS_MINUTOS = 2;
 /** Posponer tres veces cambia la pregunta: ¿sigue valiendo la pena? */
@@ -90,6 +110,10 @@ export function nuevaAccion(datos = {}, hoy = null) {
     origen: datos.origen ?? "app",
     // Lo que viene de Juancito Ads trae su cliente.
     cliente: datos.cliente ?? null,
+    // Etiquetas libres (#llamadas, #compras): se escriben con # al añadir. La empresa (cliente) cuenta como etiqueta sola.
+    etiquetas: limpiarEtiquetas(datos.etiquetas),
+    // Subtareas: los pasos de una tarea, que se marcan sin abrirla.
+    pasos: limpiarPasos(datos.pasos),
     // Dónde vive también: { id } en Juancito Ads; { cuenta, lista, id } en Google Tasks.
     juancito: datos.juancito ?? null,
     google: datos.google ?? null,

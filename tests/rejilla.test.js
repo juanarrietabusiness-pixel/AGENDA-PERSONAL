@@ -14,7 +14,8 @@ describe("la semana con horas", () => {
     expect(r.conHora.map((x) => [x.titulo, x.inicio, x.fin])).toEqual([
       ["Oración", "06:00", "07:00"], ["TRABAJO", "08:00", "12:00"], ["Proverbios", "12:00", "12:15"], ["Llamar", "15:00", "15:15"], ["Llamada", "18:00", "18:30"],
     ]);
-    expect(r.delDia.map((x) => x.titulo)).toEqual(["Pagar la luz", "Concierto"]);
+    // Arriba del día, los eventos antes que las tareas.
+    expect(r.delDia.map((x) => x.titulo)).toEqual(["Concierto", "Pagar la luz"]);
   });
 
   it("lo que se cruza va lado a lado; lo que no, a lo ancho", () => {

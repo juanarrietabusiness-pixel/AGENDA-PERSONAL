@@ -70,6 +70,7 @@ const paths = {
   clock: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
   file: <><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8Z" /><path d="M14 3v5h5" /><path d="M9 13h6" /><path d="M9 17h4" /></>,
   folder: <path d="M3 8a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2V18a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" />,
+  tag: <><path d="M3 12V5a2 2 0 0 1 2-2h7l9 9-9 9Z" /><path d="M7.5 7.5h.01" /></>,
   image: <><rect x="3" y="4" width="18" height="16" rx="2" /><circle cx="8.5" cy="9.5" r="1.5" /><path d="m21 16-5-5L8 20" /></>,
   terminal: <><rect x="3" y="4" width="18" height="16" rx="2" /><path d="m7 9 3 3-3 3" /><path d="M13 15h4" /></>,
   filter: <path d="M3 5h18l-7 8.5V20l-4-2v-4.5Z" />,
