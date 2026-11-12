@@ -224,3 +224,17 @@ describe("el mes chico del menú", () => {
     expect(m["2026-11-24"][0]).toMatchObject({ tipo: "reunion", titulo: "Reunión con Dayano" });
   });
 });
+
+describe("Plan: las tareas del día arriba", () => {
+  it("con soloAsignadas, una tarea sólo entra en el bloque que se le puso", () => {
+    const tareas = [
+      nuevaAccion({ id: "x1", titulo: "Propuesta", sombrero: "trabajo", lista: "siguientes", cuando: LUN }, LUN),
+      nuevaAccion({ id: "x2", titulo: "Informe", sombrero: "trabajo", lista: "siguientes", cuando: LUN, bloque: "trabajo" }, LUN),
+    ];
+    const normal = diaEnBloques([trabajo], LUN, tareas);
+    expect(normal.bloques[0].tareas.map((a) => a.id)).toEqual(["x1", "x2"]);
+    const plan = diaEnBloques([trabajo], LUN, tareas, { soloAsignadas: true });
+    expect(plan.bloques[0].tareas.map((a) => a.id)).toEqual(["x2"]);
+    expect(plan.tareas.map((a) => a.id)).toEqual(["x1"]);
+  });
+});

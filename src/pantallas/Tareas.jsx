@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import Icon from "../componentes/Icon.jsx";
 import Fila from "../componentes/Fila.jsx";
 import { sombrerosDe, estiloDe } from "../lib/sombreros.js";
@@ -16,10 +16,38 @@ export default function Tareas({ estado, hoy, cambiar, onHecha, onAbrir, onEnfoq
   const sombreros = sombrerosDe(estado.ajustes);
   const [filtro, setFiltro] = useState("todo");
   const [buscar, setBuscar] = useState("");
-  const [visto, setVisto] = useState(null);
+  const [visto, setVisto] = useState(undefined); // undefined: aún sin escoger (null es la columna «Sin sombrero»)
   const columnas = tablero(estado.acciones, { sombreros, proyectos: estado.proyectos, filtro, buscar, hoy });
   const vista = columnas.some((c) => c.id === visto) ? visto : (columnas.find((c) => c.total) ?? columnas[0])?.id ?? null;
   const total = columnas.reduce((t, c) => t + c.total, 0);
+  // En el teléfono las columnas se deslizan con el dedo (una por pantalla); los chips de arriba siguen a la que se ve.
+  const tablerito = useRef(null);
+  const cols = useRef({});
+  const chips = useRef({});
+  const clave = (cid) => cid ?? "sin";
+  const irA = (cid) => {
+    setVisto(cid);
+    cols.current[clave(cid)]?.scrollIntoView({ behavior: "smooth", inline: "start", block: "nearest" });
+  };
+  const alDeslizar = () => {
+    const t = tablerito.current;
+    if (!t || t.scrollWidth <= t.clientWidth + 4 || t.clientWidth >= 700) return;
+    // La columna que se ve: la que empieza más cerca de lo desplazado (las columnas se miden desde el tablero).
+    const cerca = columnas.reduce((m, c) => {
+      const d = Math.abs((cols.current[clave(c.id)]?.offsetLeft ?? 0) - t.scrollLeft);
+      return d < m.d ? { c, d } : m;
+    }, { c: null, d: Infinity }).c;
+    if (cerca && cerca.id !== vista) setVisto(cerca.id);
+  };
+  useEffect(() => {
+    chips.current[clave(vista)]?.scrollIntoView({ behavior: "smooth", inline: "nearest", block: "nearest" });
+  }, [vista]);
+  // Al abrir en el teléfono, se ve la columna escogida (la primera con algo), no la primera de todas.
+  useEffect(() => {
+    const t = tablerito.current;
+    if (t && t.clientWidth < 700) t.scrollLeft = cols.current[clave(vista)]?.offsetLeft ?? 0;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const soltar = (destino) => (d) => {
     if (d.tipo !== "accion") return;
@@ -39,7 +67,7 @@ export default function Tareas({ estado, hoy, cambiar, onHecha, onAbrir, onEnfoq
       <div className="tareas-cabeza">
         <div>
           <h1 className="titulo-pantalla">Tareas</h1>
-          <p className="subtitulo">{total} abierta{total === 1 ? "" : "s"} en tus sombreros. Arrastra para ordenar o para cambiarla de sombrero.</p>
+          <p className="subtitulo">{total} abierta{total === 1 ? "" : "s"} en tus sombreros. Arrastra para ordenarlas o pasarlas a otro sombrero; en el teléfono, desliza para cambiar de sombrero.</p>
         </div>
         <div className="tareas-controles">
           <label className="buscar">
@@ -57,17 +85,18 @@ export default function Tareas({ estado, hoy, cambiar, onHecha, onAbrir, onEnfoq
 
       <div className="tareas-sombreros" role="group" aria-label="Sombrero que ves">
         {columnas.map((c) => (
-          <button key={c.id ?? "sin"} type="button" className="chip-boton" style={estiloDe(c.id, sombreros)} aria-pressed={vista === c.id} onClick={() => setVisto(c.id)}>
+          <button key={c.id ?? "sin"} ref={(el) => (chips.current[clave(c.id)] = el)} type="button" className="chip-boton" style={estiloDe(c.id, sombreros)} aria-pressed={vista === c.id} onClick={() => irA(c.id)}>
             <span className="punto" /> {c.nombre} <small>{c.total}</small>
           </button>
         ))}
       </div>
 
-      <div className="tablero" aria-labelledby={`${id}-t`}>
+      <div className="tablero" ref={tablerito} onScroll={alDeslizar} aria-labelledby={`${id}-t`}>
         <h2 id={`${id}-t`} className="solo-lector">Tus tareas por sombrero</h2>
         {columnas.map((c) => (
           <Columna
             key={c.id ?? "sin"}
+            refCol={(el) => (cols.current[clave(c.id)] = el)}
             col={c}
             visto={vista === c.id}
             hoy={hoy}
@@ -87,7 +116,7 @@ export default function Tareas({ estado, hoy, cambiar, onHecha, onAbrir, onEnfoq
   );
 }
 
-function Columna({ col, visto, hoy, estado, sombreros, filtro, onAnadir, onSoltar, cambiar, onHecha, onAbrir, onEnfoque }) {
+function Columna({ col, refCol, visto, hoy, estado, sombreros, filtro, onAnadir, onSoltar, cambiar, onHecha, onAbrir, onEnfoque }) {
   const id = useId();
   const [nueva, setNueva] = useState("");
   const [encima, setEncima] = useState(false);
@@ -115,7 +144,7 @@ function Columna({ col, visto, hoy, estado, sombreros, filtro, onAnadir, onSolta
   );
 
   return (
-    <section className={`columna-tareas${visto ? " visto" : ""}${encima ? " soltando" : ""}`} style={estiloDe(col.id, sombreros)} aria-labelledby={`${id}-n`} {...zonaDeSoltar(onSoltar({ columna: col, grupo: sueltas }), setEncima)}>
+    <section ref={refCol} className={`columna-tareas${visto ? " visto" : ""}${encima ? " soltando" : ""}`} style={estiloDe(col.id, sombreros)} aria-labelledby={`${id}-n`} {...zonaDeSoltar(onSoltar({ columna: col, grupo: sueltas }), setEncima)}>
       <div className="columna-cabeza">
         <h2 id={`${id}-n`}><span className="punto" /> {col.nombre}</h2>
         <span className="somb-cuenta">{col.total}</span>

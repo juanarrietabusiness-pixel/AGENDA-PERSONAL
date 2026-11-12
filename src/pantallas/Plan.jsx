@@ -5,7 +5,7 @@ import { lunesDe, sumarDias, sumarMeses, DIAS, DIAS_CORTOS, MESES, partes, diaSe
 import { eventosDelDia } from "../lib/hoy.js";
 import { sombrerosDe, estiloDe, nombreDe, balance, descuidados, aplicarSombrero, COLORES } from "../lib/sombreros.js";
 import { cuadrante } from "../lib/prioridad.js";
-import { ordenarPor, claseDeGoogle, esTodoElDia, eventosPorAgendar, normalizarEvento, porAgendar } from "../lib/agenda.js";
+import { ordenarPor, claseDeGoogle, esTodoElDia, eventosPorAgendar, normalizarEvento, porAgendar, marcasDeDias } from "../lib/agenda.js";
 import { nuevaAccion } from "../lib/metodo.js";
 import { RITMO_BASE, aplicarRitmo } from "../lib/ritmo.js";
 import SemanaTipo from "../componentes/SemanaTipo.jsx";
@@ -116,7 +116,7 @@ export default function Plan({ estado, hoy, hora, cambiar, onHecha, onAbrir, avi
     }
     const propios = eventosDelDia(eventos, d).map((e) => ({ ...e, fuente: "agenda" }));
     const tareas = acciones.filter((a) => a.estado === "abierta" && (a.cuando === d || (!a.cuando && a.limite === d)));
-    const base = diaEnBloques(ritmo, d, tareas);
+    const base = diaEnBloques(ritmo, d, tareas, { soloAsignadas: true });
     const todos = [...propios, ...googleDelDia(d)];
     return { dia: d, eventos: todos, ...base, ...piezasDelDia({ ...base, eventos: todos }) };
   });
@@ -142,6 +142,11 @@ export default function Plan({ estado, hoy, hora, cambiar, onHecha, onAbrir, avi
   const totalMin = filas.reduce((t, f) => t + (f.minutos ?? 0), 0) + sinSombrero;
   const flojos = descuidados(filas);
   const bloquesSinSombrero = porRevisar(ritmo, sombreros).sinSombrero.length;
+
+  // Lo especial y las reuniones que no se repiten: un puntito en los días de la semana (teléfono) y «Lo que viene».
+  const marcas = marcasDeDias(estado, dias[0] < hoy ? dias[0] : hoy, sumarDias(hoy, 45));
+  const abrirMarca = (m) =>
+    m.de === "accion" ? onAbrir("accion", acciones.find((a) => a.id === m.obj.id) ?? m.obj) : m.de === "google" ? onAbrir("google", m.obj) : abrir("evento", m.obj);
 
   // Lo de Google que se repite y es sólo tuyo, todavía sin pasar a Kairos (allá no se mueve ni se edita igual).
   const deGoogle = rutinaDeGoogle(estado.externos ?? [], ritmo, { ajustes, todas: true });
@@ -320,9 +325,14 @@ export default function Plan({ estado, hoy, hora, cambiar, onHecha, onAbrir, avi
           <>
             <div className="semana-dias" role="group" aria-label="Día de la semana">
               {dias.map((d) => (
-                <button key={d} type="button" aria-pressed={visto === d} className={d === hoy && !tipo ? "es-hoy" : undefined} onClick={() => setVisto(d)}>
+                <button key={d} type="button" aria-pressed={visto === d} className={d === hoy && !tipo ? "es-hoy" : undefined} onClick={() => setVisto(d)} aria-label={`${textoLargo(d)}${!tipo && marcas[d] ? `: ${marcas[d].map((m) => m.titulo).join(", ")}` : ""}`}>
                   <span>{DIAS_CORTOS[diaSemana(d)]}</span>
                   <strong>{tipo ? "" : partes(d).dia}</strong>
+                  {!tipo && marcas[d] && (
+                    <span className="mini-puntos" aria-hidden="true">
+                      {marcas[d].slice(0, 3).map((m, i) => <span key={i} className="mini-punto" style={m.color ? { "--s": m.color } : estiloDe(m.sombrero, sombreros)} />)}
+                    </span>
+                  )}
                 </button>
               ))}
             </div>
@@ -349,6 +359,7 @@ export default function Plan({ estado, hoy, hora, cambiar, onHecha, onAbrir, avi
           <SemanaTipo estado={estado} sombreros={sombreros} cambiar={cambiar} avisar={avisar} servidor={servidor} recargar={recargar} abierta setAbierta={(v) => !v && setTipo(false)} />
         ) : (
           <>
+            <LoQueViene marcas={marcas} hoy={hoy} sombreros={sombreros} onAbrir={abrirMarca} onDia={(d) => { setLunes(lunesDe(d)); setVisto(d); }} onMes={() => { setMes(`${hoy.slice(0, 8)}01`); setVista("mes"); }} />
             <div className="plan-anadir">
               <AnadirRapido sombreros={sombreros} paraCuando="(sin fecha)" onAnadir={anadirSinFecha} />
             </div>
@@ -410,6 +421,49 @@ export default function Plan({ estado, hoy, hora, cambiar, onHecha, onAbrir, avi
       {crear && <CrearAqui en={crear} tipo={tipo} hoy={hoy} estado={estado} sombreros={sombreros} cambiar={cambiar} aplicarAlRitmo={aplicarAlRitmo} avisar={avisar} onCerrar={() => setCrear(null)} />}
       {alcance && <Alcance alcance={alcance} onSoloEste={() => aplicarAlcance(false)} onSiempre={() => aplicarAlcance(true)} onCerrar={() => setAlcance(null)} />}
     </div>
+  );
+}
+
+/**
+ * Lo que viene en las próximas semanas (lo especial, las reuniones y los compromisos que no se repiten), por día: para
+ * verlo de un vistazo, también en el teléfono. Tocar el día lleva a su semana; tocar algo, lo abre.
+ */
+function LoQueViene({ marcas, hoy, sombreros, onAbrir, onDia, onMes }) {
+  const [todo, setTodo] = useState(false);
+  const dias = Object.keys(marcas).filter((d) => d >= hoy).sort();
+  const visibles = todo ? dias : dias.slice(0, 5);
+  return (
+    <section className="seccion lo-que-viene" aria-label="Lo que viene">
+      <div className="seccion-cabeza">
+        <h2>Lo que viene</h2>
+        <button type="button" className="enlace nota" onClick={onMes}>Ver el mes</button>
+      </div>
+      {dias.length ? (
+        <ul className="lista-viene">
+          {visibles.map((d) => (
+            <li key={d}>
+              <button type="button" className="viene-dia" onClick={() => onDia(d)}>{d === hoy ? "Hoy" : textoCorto(d, hoy)}</button>
+              <ul>
+                {marcas[d].map((m, i) => (
+                  <li key={i} style={m.color ? { "--s": m.color } : estiloDe(m.sombrero, sombreros)}>
+                    <button type="button" onClick={() => onAbrir(m)}>
+                      <Icon name={m.tipo === "especial" ? "star" : m.tipo === "reunion" ? "users" : "calendar"} size={13} />
+                      {m.hora && <time>{horaCorta(m.hora)}</time>}
+                      <span>{m.titulo}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="vacio">Nada especial en las próximas semanas.</p>
+      )}
+      {dias.length > 5 && (
+        <button type="button" className="enlace nota" onClick={() => setTodo(!todo)}>{todo ? "Ver menos" : `Ver ${dias.length - 5} días más`}</button>
+      )}
+    </section>
   );
 }
 
@@ -483,6 +537,11 @@ function DiaPlan({ dia, hoy, hora, ajustes, tipo, visto, elegido = false, evento
         {dia === hoy && !tipo && <span className="chip acento">Hoy</span>}
         <button type="button" className="dia-mas" onClick={() => onCrear({ dia })} aria-label={`Añadir algo el ${tipo ? DIAS[diaSemana(dia)] : textoLargo(dia)}`}><Icon name="plus" size={15} /></button>
       </h3>
+      {tareas.length > 0 && (
+        <ul className="dia-tareas" aria-label="Tareas del día">
+          {tareas.map((a) => <Tarea key={a.id} a={a} sombreros={sombreros} onAbrir={onAbrir} />)}
+        </ul>
+      )}
       <ul className="dia-cosas">
         {todoElDia.map((e) => <Evento key={`t:${e.fuente}:${e.id}`} e={e} sombreros={sombreros} onAbrir={onAbrir} />)}
         {conHora.map((x) =>
@@ -522,14 +581,6 @@ function DiaPlan({ dia, hoy, hora, ajustes, tipo, visto, elegido = false, evento
           ),
         )}
       </ul>
-      {tareas.length > 0 && (
-        <>
-          <p className="pl-sub">Sin bloque</p>
-          <ul className="dia-cosas">
-            {tareas.map((a) => <Tarea key={a.id} a={a} sombreros={sombreros} onAbrir={onAbrir} />)}
-          </ul>
-        </>
-      )}
       {vacio && <p className="pl-libre">Libre</p>}
     </article>
   );

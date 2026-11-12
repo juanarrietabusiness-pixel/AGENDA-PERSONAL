@@ -86,12 +86,36 @@ export function useDialogo(onClose, { activo = true } = {}) {
 
     node.addEventListener("keydown", onKeyDown);
 
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
+    // Bloquear el fondo de verdad, también en el iPhone (donde `overflow: hidden` en el body no basta y la hoja se
+    // desliza con la página): el body se fija donde estaba y al cerrar vuelve a su sitio.
+    const body = document.body.style;
+    const antes = { overflow: body.overflow, position: body.position, top: body.top, width: body.width };
+    const y = window.scrollY;
+    Object.assign(body, { overflow: "hidden", position: "fixed", top: `-${y}px`, width: "100%" });
+
+    // Con el teclado abierto en el teléfono, la capa ocupa sólo lo que se ve: la hoja queda quieta encima del teclado.
+    const capa = node.parentElement?.classList.contains("capa") ? node.parentElement : null;
+    const vv = window.visualViewport;
+    const ajustar = () => {
+      if (!capa || !vv) return;
+      capa.style.top = `${vv.offsetTop}px`;
+      capa.style.height = `${vv.height}px`;
+      capa.style.bottom = "auto";
+    };
+    if (capa && vv) {
+      ajustar();
+      vv.addEventListener("resize", ajustar);
+      vv.addEventListener("scroll", ajustar);
+    }
 
     return () => {
       node.removeEventListener("keydown", onKeyDown);
-      document.body.style.overflow = prevOverflow;
+      if (capa && vv) {
+        vv.removeEventListener("resize", ajustar);
+        vv.removeEventListener("scroll", ajustar);
+      }
+      Object.assign(body, antes);
+      window.scrollTo(0, y);
       if (previouslyFocused instanceof HTMLElement) {
         previouslyFocused.focus({ preventScroll: true });
       }

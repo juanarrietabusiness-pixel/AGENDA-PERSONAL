@@ -152,6 +152,17 @@ izquierda se pliega a sólo iconos con el botón de la cabecera (`nav-plegada`) 
 un puntito de color el día con algo especial o una reunión que no se repite (`marcasDeDias` en agenda.js: lo de cada
 semana no, que marcaría todos los días); tocar un día abre su semana en Plan (`irA`) con el día subrayado.
 
+**Las tareas del día van ARRIBA del día en Plan** (como en Google Calendar): `diaEnBloques(…, { soloAsignadas: true })`
+sólo mete en un bloque las que se le pusieron (`accion.bloque`); las demás salen arriba (Semana) o en «Del día» (Horas,
+con «y N más» que despliega). **«Lo que viene»** (primero en el panel de Plan, también en el teléfono): lo especial y lo
+que no se repite de las próximas semanas (`marcasDeDias`, que ahora trae `obj` y `de` para abrirlo); los días de la
+semana del teléfono llevan su puntito. **La revisión semanal salió del menú** (decisión de Juan) pero `#revision` sigue
+abriéndola (`OCULTAS` en App.jsx: el aviso de Telegram lleva ahí). **En el teléfono**: un «+» junto al micrófono abre
+`CrearAqui` para cualquier día; las hojas no se mueven (`useDialogo` fija el body y ajusta la capa a `visualViewport` con
+el teclado) y el nombre no abre el teclado solo; en Tareas las columnas se deslizan con el dedo (scroll-snap) y los
+chips siguen a la que se ve. OJO: un `.solo-lector` (absoluto) dentro de algo que se desplaza a lo ancho necesita un
+ancestro con `position: relative`, o ensancha la página entera en el teléfono (`.tablero`, `.columna-tareas`, `.plan-lado`).
+
 **El compromiso fijo** (`clase: "compromiso"` en el ritmo): se repite y ocupa su tiempo (huecos, horas por sombrero) pero
 no es un bloque para meter tareas; se ve en gris, sin caja, y no avisa salvo que se pida. **Pasar a Kairos**
 (`rutinaDeGoogle(…, { todas: true })`, el aviso de Plan y el botón de la semana tipo): toda serie de Google que se repite y
@@ -159,7 +170,7 @@ es SÓLO suya (sin `conGente`) entra en la semana tipo, como bloque si lleva tar
 57DMC…) y si no como compromiso; desde ahí no se lee de Google (`seriesTraidas`, también en los avisos de reuniones) y se
 ofrece publicarla en «Kairos · Bloques». Lo de otras personas sigue viniendo de Google.
 
-**Tareas: el panorama completo** (`src/pantallas/Tareas.jsx`, `src/lib/tablero.js`; pestaña entre Plan y Revisión): una
+**Tareas: el panorama completo** (`src/pantallas/Tareas.jsx`, `src/lib/tablero.js`; pestaña después de Plan): una
 columna por sombrero (con «Sin sombrero» si hace falta), dentro las sueltas, cada empresa (`cliente`) y cada proyecto
 (también los que no tienen siguiente paso); filtros, buscar, «Completadas» plegado. Se arrastra para ordenar (`orden`, de
 10 en 10; lo que aún no se ordenó va arriba, por prioridad) o a otra columna para cambiar de sombrero (`soltarEnTablero`;

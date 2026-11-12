@@ -271,9 +271,11 @@ export default function SemanaRejilla({ dias, hoy, hora, ajustes, sombreros, tip
 /** «Del día» de una columna: lo de todo el día y las tareas sin hora; se suelta aquí una tarea para ese día, sin hora. */
 function DelDia({ dia, delDia, sombreros, onAbrir, onSoltar }) {
   const [encima, setEncima] = useState(false);
+  const [todo, setTodo] = useState(false);
+  const cabe = todo ? delDia.length : 4;
   return (
     <ul className={`rejilla-deldia-lista${encima ? " soltando" : ""}`} {...zonaDeSoltar((d) => onSoltar(d, { dia, hora: null, bloque: null }), setEncima)}>
-      {delDia.slice(0, 3).map((p) => (
+      {delDia.slice(0, cabe).map((p) => (
         <li key={p.clave} style={p.obj?.fuente === "google" && p.color ? { "--s": p.color } : estiloDe(p.sombrero, sombreros)} draggable={p.tipo === "tarea" || undefined} onDragStart={p.tipo === "tarea" ? (e) => empezarArrastre(e, { tipo: "accion", id: p.obj.id, titulo: p.titulo }) : undefined}>
           <button type="button" className={`rejilla-chip ${p.tipo}`} onClick={() => onAbrir(p, dia)} title={p.titulo}>
             {p.tipo === "tarea" ? <span className="ley-tarea" aria-hidden="true" /> : <Icon name={p.tipo === "recordatorio" ? "bell" : "calendar"} size={11} />}
@@ -281,7 +283,9 @@ function DelDia({ dia, delDia, sombreros, onAbrir, onSoltar }) {
           </button>
         </li>
       ))}
-      {delDia.length > 3 && <li className="rejilla-mas">y {delDia.length - 3} más</li>}
+      {delDia.length > 4 && (
+        <li><button type="button" className="rejilla-mas" onClick={() => setTodo(!todo)}>{todo ? "Ver menos" : `y ${delDia.length - 4} más`}</button></li>
+      )}
     </ul>
   );
 }

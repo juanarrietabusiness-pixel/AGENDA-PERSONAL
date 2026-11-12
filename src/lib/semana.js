@@ -143,7 +143,7 @@ const bloqueDeLaHora = (bloques, hora) => {
  * (las tareas y los recordatorios con hora). Una tarea va al bloque que se le asignó o, si no, al primero de su
  * sombrero ese día. Devuelve { bloques: [{ bloque, recordatorios, tareas }], recordatorios, tareas }.
  */
-export function diaEnBloques(ritmo, dia, tareas = [], { tipo = false } = {}) {
+export function diaEnBloques(ritmo, dia, tareas = [], { tipo = false, soloAsignadas = false } = {}) {
   const { bloques, recordatorios, compromisos } = semanaDelDia(ritmo, dia, { tipo });
   const dentro = new Map(bloques.map((b) => [b.id, { bloque: b, recordatorios: [], tareas: [] }]));
   const sueltos = { recordatorios: [], tareas: [] };
@@ -156,7 +156,8 @@ export function diaEnBloques(ritmo, dia, tareas = [], { tipo = false } = {}) {
     (b ? dentro.get(b.id).recordatorios : sueltos.recordatorios).push(r);
   }
   for (const a of tareas.filter((x) => (x.clase ?? "tarea") === "tarea")) {
-    const b = (a.bloque && dentro.has(a.bloque) && dentro.get(a.bloque).bloque) || (a.sombrero && bloques.find((x) => x.sombrero === a.sombrero)) || null;
+    // Con `soloAsignadas` (Plan) una tarea va dentro de un bloque sólo si se le puso; las demás, arriba del día.
+    const b = (a.bloque && dentro.has(a.bloque) && dentro.get(a.bloque).bloque) || (!soloAsignadas && a.sombrero && bloques.find((x) => x.sombrero === a.sombrero)) || null;
     (b ? dentro.get(b.id).tareas : sueltos.tareas).push(a);
   }
   return { bloques: [...dentro.values()], ...sueltos, compromisos };

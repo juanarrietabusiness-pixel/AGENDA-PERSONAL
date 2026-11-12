@@ -5,6 +5,7 @@ import Editar from "./componentes/Editar.jsx";
 import EventoGoogle from "./componentes/EventoGoogle.jsx";
 import Burbuja from "./componentes/Burbuja.jsx";
 import MiniMes from "./componentes/MiniMes.jsx";
+import CrearAqui from "./componentes/CrearAqui.jsx";
 import Hoy from "./pantallas/Hoy.jsx";
 import Plan from "./pantallas/Plan.jsx";
 import Revision from "./pantallas/Revision.jsx";
@@ -16,6 +17,7 @@ import Recuperar from "./pantallas/Recuperar.jsx";
 import { useAlmacen } from "./hooks/useAlmacen.js";
 import { hoyEn, horaEn, sumarDias, lunesDe, textoLargo } from "./lib/fechas.js";
 import { completar, posponer, soltar } from "./lib/metodo.js";
+import { RITMO_BASE, aplicarRitmo } from "./lib/ritmo.js";
 import { sombrerosDe } from "./lib/sombreros.js";
 import { claveDeGoogle, CLASES_GOOGLE, convertir, QUE_ES } from "./lib/agenda.js";
 import { tema as temaDe } from "./lib/temas.js";
@@ -25,8 +27,10 @@ const PANTALLAS = [
   { id: "hoy", nombre: "Hoy", icono: "sun" },
   { id: "plan", nombre: "Plan", icono: "calendar" },
   { id: "tareas", nombre: "Tareas", icono: "checkSquare" },
-  { id: "revision", nombre: "Revisión", icono: "clipboardCheck" },
 ];
+// La revisión semanal guiada ya no va en el menú (decisión de Juan: «por ahora sólo me estorba»), pero su dirección sigue
+// abriéndola: el aviso de Telegram del día de la revisión lleva ahí.
+const OCULTAS = ["revision"];
 // Las direcciones de antes siguen llevando a algún sitio.
 const ANTES = { semana: "plan", sombreros: "plan", asistente: "hoy", mentor: "revision" };
 
@@ -35,7 +39,7 @@ const mayuscula = (t) => t.charAt(0).toUpperCase() + t.slice(1);
 const pantallaDeLaDireccion = () => {
   const h = window.location.hash.replace("#", "").split("?")[0];
   if (ANTES[h]) return ANTES[h];
-  return [...PANTALLAS.map((p) => p.id), "ajustes"].includes(h) ? h : "hoy";
+  return [...PANTALLAS.map((p) => p.id), ...OCULTAS, "ajustes"].includes(h) ? h : "hoy";
 };
 
 function useReloj() {
@@ -67,6 +71,8 @@ export default function App() {
   });
   // Ir a un día desde el mes chico del menú: Plan lo abre en esa semana.
   const [irA, setIrA] = useState(null);
+  // «+» del teléfono: crear una tarea, reunión, compromiso o recordatorio desde cualquier pantalla.
+  const [creando, setCreando] = useState(null);
   // Al volver de dar un permiso (Juancito Ads, Google), el servidor dice qué pasó en ?aviso=…
   const [mensaje, setMensaje] = useState(() => {
     const aviso = new URLSearchParams(window.location.search).get("aviso");
@@ -212,6 +218,16 @@ export default function App() {
       return !v;
     });
   };
+  const aplicarAlRitmo = (cambio, aviso) => {
+    try {
+      const r = aplicarRitmo(estado.ritmo ?? RITMO_BASE, { hoy, ...cambio });
+      cambiar((e) => ({ ...e, ritmo: r.ritmo }));
+      if (aviso) avisar(aviso(r.bloque));
+      return null;
+    } catch (err) {
+      return err.message;
+    }
+  };
   const irAlDia = (dia) => {
     setIrA({ dia, n: Date.now() });
     if (pantalla !== "plan") window.location.hash = "plan";
@@ -255,6 +271,11 @@ export default function App() {
           )}
         </main>
       </div>
+
+      <button type="button" className="boton-crear" onClick={() => setCreando({ dia: hoy })} aria-label="Crear: una tarea, una reunión, un compromiso o un recordatorio">
+        <Icon name="plus" size={26} />
+      </button>
+      {creando && <CrearAqui en={creando} hoy={hoy} estado={estado} sombreros={sombreros} cambiar={cambiar} aplicarAlRitmo={aplicarAlRitmo} avisar={avisar} onCerrar={() => setCreando(null)} />}
 
       <Burbuja estado={estado} servidor={servidor} recargar={almacen.recargar} avisar={avisar} abierta={asistente} setAbierta={setAsistente} onPrototipo={enPrototipo} />
 

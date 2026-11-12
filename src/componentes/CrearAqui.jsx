@@ -27,6 +27,8 @@ export default function CrearAqui({ en, tipo = false, hoy, estado, sombreros, ca
   const ref = useDialogo(onCerrar);
   const id = useId();
   const ritmo = estado.ritmo ?? [];
+  // En el teléfono no se abre el teclado solo: movería la hoja antes de escoger qué es.
+  const tactil = typeof window !== "undefined" && window.matchMedia?.("(pointer: coarse)").matches;
   const bloqueAhi = en.inicio ? semanaDelDia(ritmo, en.dia).bloques.find((b) => b.inicio <= en.inicio && en.inicio < b.fin) : null;
   const [f, setF] = useState(() => ({
     que: tipo ? "bloque" : "tarea",
@@ -127,7 +129,7 @@ export default function CrearAqui({ en, tipo = false, hoy, estado, sombreros, ca
         <p className="nota" style={{ marginTop: "var(--sp-2)" }}>{QUE[f.que].nota}</p>
 
         <label className="etiqueta" htmlFor={`${id}-n`}>Nombre</label>
-        <input id={`${id}-n`} className="campo" autoFocus value={f.titulo} onChange={(e) => poner("titulo", e.target.value)} placeholder={f.que === "reunion" ? "Reunión con Dayano" : f.que === "bloque" ? "Trabajo, Hogar, Grabación…" : "¿Qué es?"} />
+        <input id={`${id}-n`} className="campo" autoFocus={!tactil} value={f.titulo} onChange={(e) => poner("titulo", e.target.value)} placeholder={f.que === "reunion" ? "Reunión con Dayano" : f.que === "bloque" ? "Trabajo, Hogar, Grabación…" : "¿Qué es?"} />
 
         <p className="etiqueta" id={`${id}-s`}>Sombrero</p>
         <div className="filtro-sombreros" role="group" aria-labelledby={`${id}-s`}>

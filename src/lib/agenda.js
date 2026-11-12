@@ -234,11 +234,11 @@ export function marcasDeDias({ acciones = [], eventos = [], externos = [], ajust
     if (dia && dia >= desde && dia <= hasta) (marcas[dia] ??= []).push(m);
   };
   for (let m = `${desde.slice(0, 8)}01`; m <= hasta; m = sumarMeses(m, 1)) {
-    for (const e of especialesDelMes(acciones, eventos, m, ext, ajustes)) poner(e.dia, { tipo: "especial", titulo: e.titulo, sombrero: e.sombrero ?? null, color: e.color ?? null });
+    for (const e of especialesDelMes(acciones, eventos, m, ext, ajustes)) poner(e.dia, { tipo: "especial", titulo: e.titulo, sombrero: e.sombrero ?? null, color: e.color ?? null, de: e.tipo === "accion" ? "accion" : e.fuente === "google" ? "google" : "evento", obj: e });
   }
   for (const r of reunionesDelPeriodo(eventos, ext, { desde, hasta }, ajustes)) {
     if (r.repite?.regla || r.serie) continue;
-    poner(r.dia ?? r.fecha, { tipo: r.clase === "reunion" ? "reunion" : "evento", titulo: r.titulo, sombrero: r.sombrero ?? null, color: r.color ?? null });
+    poner(r.dia ?? r.fecha, { tipo: r.clase === "reunion" ? "reunion" : "evento", titulo: r.titulo, sombrero: r.sombrero ?? null, color: r.color ?? null, de: r.fuente === "google" ? "google" : "evento", obj: r, hora: r.inicio && !esTodoElDia(r) && !r.horaPorDefinir ? r.inicio : null });
   }
   return marcas;
 }
