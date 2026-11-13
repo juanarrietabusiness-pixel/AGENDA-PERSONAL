@@ -6,7 +6,7 @@ import { estiloDe, nombreDe, sombreroDeLista } from "../lib/sombreros.js";
 const cuando = (iso) => (iso ? new Date(iso).toLocaleString("es-PA", { dateStyle: "short", timeStyle: "short", timeZone: "America/Panama" }) : "nunca");
 
 /** Ajustes → Conexiones: Juancito Ads, Google (una o varias cuentas) y Claude. */
-export default function Conexiones({ estado, sombreros, recargar, avisar }) {
+export default function Conexiones({ estado, cambiar, sombreros, recargar, avisar }) {
   const conexiones = estado.conexiones ?? [];
   const juancito = conexiones.find((c) => c.servicio === "juancito");
   const googles = conexiones.filter((c) => c.servicio.startsWith("google:"));
@@ -14,6 +14,7 @@ export default function Conexiones({ estado, sombreros, recargar, avisar }) {
     <>
       <Juancito c={juancito} recargar={recargar} avisar={avisar} />
       <Google cuentas={googles} configurado={estado.servicios?.google} sombreros={sombreros} recargar={recargar} avisar={avisar} />
+      {estado.servicios?.google && googles.length > 0 && cambiar && <KairosPrincipal cuentas={googles} cambiar={cambiar} recargar={recargar} avisar={avisar} />}
       <Claude avisar={avisar} />
     </>
   );
@@ -114,6 +115,143 @@ function Google({ cuentas, configurado, sombreros, recargar, avisar }) {
                 <button type="button" className="boton fantasma" onClick={() => irA(api.googleConectar, avisar)}><Icon name="plus" size={16} /> Conectar otra cuenta</button>
               </>
             )}
+          </div>
+        </>
+      )}
+    </section>
+  );
+}
+
+/**
+ * Kairos como principal y Google como copia, en tres pasos: (1) guardar en Kairos lo que hoy viene de Google, tal cual
+ * se ve; (2) Juan borra en Google con calma (lo que borre allá no se borra aquí); (3) copiar todo a Google. Después,
+ * los dos sentidos: lo que cambia en Google vuelve a Kairos.
+ */
+function KairosPrincipal({ cuentas, cambiar, recargar, avisar }) {
+  const id = useId();
+  // Lo que acaba de pasar aquí manda hasta que el servidor lo confirme (la relectura espera a que se guarde todo).
+  const [ya, setYa] = useState(null);
+  const momento = ya ?? cuentas.find((c) => c.principal)?.principal ?? null;
+  const [plan, setPlan] = useState(null);
+  const [ocupado, setOcupado] = useState("");
+  const [progreso, setProgreso] = useState(null);
+
+  const traer = async () => {
+    setOcupado("traer");
+    const r = await api.googleTraer().catch(() => null);
+    setOcupado("");
+    if (!r?.ok) return avisar(r?.error ?? "No pude leer Google.");
+    setPlan(r);
+  };
+  const guardar = async () => {
+    const n = plan.ritmo.length + plan.eventos.length;
+    cambiar((e) => ({
+      ...e,
+      ritmo: [...(e.ritmo ?? []), ...plan.ritmo.filter((x) => !(e.ritmo ?? []).some((y) => y.google === x.google))],
+      eventos: [...e.eventos, ...plan.eventos.filter((x) => !e.eventos.some((y) => y.google?.id === x.google.id))],
+    }));
+    setPlan(null);
+    const r = await api.googlePrincipal("traspaso").catch(() => null);
+    if (!r?.ok) return avisar(r?.error ?? "Se guardó en Kairos, pero no pude pasar al paso 2. Vuelve a intentarlo.");
+    setYa("traspaso");
+    avisar(n ? `Listo: ${n} cosa${n === 1 ? "" : "s"} de Google ahora viven en Kairos. Sigue con el paso 2.` : "Ya estaba todo en Kairos. Sigue con el paso 2.");
+    await recargar();
+  };
+  const copiar = async () => {
+    setOcupado("copiar");
+    let desde = 0;
+    let creados = 0;
+    for (let vuelta = 0; vuelta < 200; vuelta++) {
+      const r = await api.googleCopiar(desde).catch(() => null);
+      if (!r?.ok) {
+        avisar(r?.error ?? "No pude copiar a Google. Vuelve a intentarlo: sigue donde se quedó.");
+        break;
+      }
+      creados += r.creados ?? 0;
+      desde = r.siguiente;
+      setProgreso({ hechos: r.siguiente, total: r.total });
+      if (!r.quedan) {
+        setYa("dos");
+        avisar(`Listo: Google quedó como copia de Kairos${creados ? ` (${creados} creada${creados === 1 ? "" : "s"} allá)` : ""}. Ya van en los dos sentidos.`);
+        break;
+      }
+    }
+    setOcupado("");
+    setProgreso(null);
+    await recargar();
+  };
+
+  return (
+    <section className="tarjeta seccion kairos-principal" aria-labelledby={`${id}-t`}>
+      <div className="seccion-cabeza">
+        <h2 id={`${id}-t`}><Icon name="star" size={14} /> Kairos como principal</h2>
+        <span className="nota">{momento === "dos" ? "Listo" : momento === "traspaso" ? "Paso 2 de 3" : "Paso 1 de 3"}</span>
+      </div>
+
+      {momento === "dos" ? (
+        <>
+          <p className="kp-texto">
+            Kairos es tu calendario oficial y Google es su copia. Lo que cambias aquí va a Google al momento; lo que cambias o borras en Google vuelve a Kairos en unos 2 minutos, y lo que creas tú allá sin invitados pasa a Kairos. Tu rutina (la semana tipo) se cambia sólo aquí. Las invitaciones de otras personas siguen llegando por Google.
+          </p>
+          <div className="botones">
+            <button type="button" className="boton fantasma" disabled={Boolean(ocupado)} onClick={copiar}>
+              <Icon name="refresh" size={16} /> {ocupado === "copiar" ? (progreso ? `Revisando… ${progreso.hechos} de ${progreso.total}` : "Revisando…") : "Copiar todo a Google otra vez"}
+            </button>
+          </div>
+        </>
+      ) : momento === "traspaso" ? (
+        <ol className="kp-pasos">
+          <li className="hecho"><strong>Guardado en Kairos.</strong> Lo que venía de Google ya vive aquí.</li>
+          <li>
+            <strong>Borra en Google con calma</strong> tus eventos y lo que se repite. Mientras tanto, lo que borres allá <em>no</em> se borra aquí.
+            <span className="kp-ojo">No borres: las invitaciones de otras personas, los calendarios que otros te comparten ni el calendario «Kairos · Bloques».</span>
+          </li>
+          <li>
+            <strong>Cuando termines,</strong> copia todo a Google: tu rutina va a «Kairos · Bloques», tus eventos al calendario de su sombrero y tus tareas a Google Tasks.
+            <div className="botones">
+              <button type="button" className="boton primario" disabled={Boolean(ocupado)} onClick={copiar}>
+                <Icon name="refresh" size={16} /> {ocupado === "copiar" ? (progreso ? `Copiando… ${progreso.hechos} de ${progreso.total}` : "Copiando…") : "Copiar todo a Google"}
+              </button>
+            </div>
+          </li>
+        </ol>
+      ) : plan ? (
+        <div className="kp-plan" role="status">
+          <p className="kp-texto">
+            {plan.ritmo.length + plan.eventos.length === 0 ? (
+              "Todo lo tuyo ya está en Kairos."
+            ) : (
+              <>
+                Pasan a Kairos, tal cual se ven: <strong>{plan.ritmo.length}</strong> de tu rutina (a tu semana tipo, en gris) y <strong>{plan.eventos.length}</strong> evento{plan.eventos.length === 1 ? "" : "s"} tuyo{plan.eventos.length === 1 ? "" : "s"}.
+              </>
+            )}{" "}
+            Se quedan en Google: {plan.fuera.conGente} con otras personas, {plan.fuera.ajenos} de calendarios de otros
+            {plan.fuera.otros ? ` y ${plan.fuera.otros} especiales de Google (cumpleaños de contactos, fuera de la oficina…)` : ""}.
+          </p>
+          {plan.ritmo.length + plan.eventos.length > 0 && (
+            <details className="kp-lista">
+              <summary>Ver la lista</summary>
+              <ul>
+                {plan.ritmo.map((x) => <li key={x.id}><Icon name="refresh" size={12} /> {x.titulo} <small>cada semana, {x.inicio}</small></li>)}
+                {plan.eventos.map((x) => <li key={x.id}><Icon name={x.clase === "especial" ? "star" : "calendar"} size={12} /> {x.titulo} <small>{x.fecha ?? "se repite"}{x.inicio && x.inicio !== "00:00" ? `, ${x.inicio}` : ""}</small></li>)}
+              </ul>
+            </details>
+          )}
+          {plan.fallos?.length > 0 && <p className="nota">No pude leer: {plan.fallos.join("; ")}</p>}
+          <div className="botones">
+            <button type="button" className="boton primario" onClick={guardar}>{plan.ritmo.length + plan.eventos.length ? "Guardarlos en Kairos" : "Seguir al paso 2"}</button>
+            <button type="button" className="boton fantasma" onClick={() => setPlan(null)}>Cancelar</button>
+          </div>
+        </div>
+      ) : (
+        <>
+          <p className="kp-texto">
+            Para que Kairos sea tu calendario oficial y Google su copia: primero guarda en Kairos lo que hoy ves y viene de Google (de aquí a un año), tal cual se ve. Lo que es con otras personas y los calendarios de otros se quedan en Google. No se borra nada.
+          </p>
+          <div className="botones">
+            <button type="button" className="boton primario" disabled={Boolean(ocupado)} onClick={traer}>
+              <Icon name="download" size={16} /> {ocupado === "traer" ? "Leyendo un año de Google…" : "Guardar en Kairos lo que viene de Google"}
+            </button>
           </div>
         </>
       )}

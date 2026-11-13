@@ -40,6 +40,8 @@ export async function reflejar(env, almacen, cambios, { hoy, ajustes }) {
   const sombreros = sombrerosDe(ajustes);
 
   for (const { tipo, antes, despues } of cambios) {
+    // Lo que llega YA ligado a Google sin existir antes aquí acaba de venir de allá (se trajo): no hay nada que subir.
+    if (!antes && despues?.google?.id) continue;
     try {
       if (tipo === "accion") {
         const a = despues ?? antes;

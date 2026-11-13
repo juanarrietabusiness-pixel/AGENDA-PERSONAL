@@ -98,9 +98,15 @@ export function crearAlmacen(db, ownerId) {
       salida.bandeja = (bandeja.results ?? []).map((c) => ({ ...c }));
       if (extra) {
         const [cerebro, conversacion, conexiones, externos] = extra;
-        Object.assign(salida, { cerebro, conversacion, conexiones: conexiones.map(({ servicio, sincronizado, error, datos }) => ({ servicio, sincronizado, error, conectada: Boolean(datos?.conectada || datos?.renovacion), cuenta: datos?.cuenta ?? null, ajustes: datos?.ajustes ?? {}, calendarios: (datos?.lista ?? []).filter((k) => k.id !== datos?.semana?.calendario), listasTareas: datos?.listasTareas ?? [], semana: Boolean(datos?.semana?.calendario) })), externos });
+        Object.assign(salida, { cerebro, conversacion, conexiones: conexiones.map(({ servicio, sincronizado, error, datos }) => ({ servicio, sincronizado, error, conectada: Boolean(datos?.conectada || datos?.renovacion), cuenta: datos?.cuenta ?? null, ajustes: datos?.ajustes ?? {}, calendarios: (datos?.lista ?? []).filter((k) => k.id !== datos?.semana?.calendario), listasTareas: datos?.listasTareas ?? [], semana: Boolean(datos?.semana?.calendario), principal: datos?.principal?.estado ?? null })), externos });
       }
       return salida;
+    },
+
+    /** Cuándo se guardó por última vez cada elemento de un tipo (Map id → fecha): quién cambió último, Kairos o Google. */
+    async vigencias(tipo) {
+      const r = await db.prepare("select id, actualizado from elementos where owner_id = ? and tipo = ?").bind(ownerId, tipo).all();
+      return new Map((r.results ?? []).map((x) => [x.id, x.actualizado]));
     },
 
     async elemento(tipo, id) {

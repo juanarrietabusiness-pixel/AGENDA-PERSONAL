@@ -182,6 +182,9 @@ export const CLASES_GOOGLE = Object.freeze({ reunion: "Reunión o cita", rutina:
 const PALABRAS_REUNION = /\b(reuni|mentor|cita|llamad|junta|entrevista|visita|consulta|meet|zoom|almuerzo con|cena con|cafe con|discipulado)/;
 const sinTildes = (t) => String(t ?? "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
+/** ¿El título dice que es con alguien? (reunión, cita, mentoría, llamada…) */
+export const pareceReunion = (titulo) => PALABRAS_REUNION.test(sinTildes(titulo));
+
 /** La clave con la que se recuerda lo que Juan decidió de un evento: la serie entera si se repite. */
 export const claveDeGoogle = (x) => x.serie ?? x.id;
 

@@ -37,6 +37,8 @@ export { sombreroDeLista };
 import { clasificar } from "./clasificar.js";
 import { ocurrencias } from "../../src/lib/recurrencia.js";
 import { claseDeRitmo } from "../../src/lib/semana.js";
+import { planDeTraspaso, candidatosACopiar, vueltaDeEventos, vueltaDeTareas, eventoDeGoogle, esSuyo, googleMasNuevo, aplicarDeGoogle } from "./principal.js";
+import { sombreroDeJuancito } from "./juancito.js";
 
 export const ALCANCES = ["openid", "email", "https://www.googleapis.com/auth/calendar", "https://www.googleapis.com/auth/tasks"];
 const AUTH = "https://accounts.google.com/o/oauth2/v2/auth";
@@ -44,7 +46,8 @@ const TOKEN = "https://oauth2.googleapis.com/token";
 const CAL = "https://www.googleapis.com/calendar/v3";
 const TASKS = "https://tasks.googleapis.com/tasks/v1";
 export const PREFIJO = "google:";
-export const MINUTOS_SYNC = 10;
+// Cada 2 minutos: con Kairos como principal, lo que se cambia en Google vuelve pronto.
+export const MINUTOS_SYNC = 2;
 
 export class ErrorGoogle extends Error {}
 
@@ -134,13 +137,16 @@ async function token(env, almacen, servicio) {
   }
 }
 
-async function api(env, almacen, servicio, url, { method = "GET", body } = {}) {
+async function api(env, almacen, servicio, url, { method = "GET", body, faltaEsNull = false } = {}) {
   const acceso = await token(env, almacen, servicio);
   const res = await fetch(url, { method, headers: { authorization: `Bearer ${acceso}`, ...(body ? { "content-type": "application/json" } : {}) }, body: body ? JSON.stringify(body) : undefined });
   if (res.status === 204 || (method === "DELETE" && (res.ok || res.status === 410 || res.status === 404))) return null;
+  // Lo que ya no existe allá (borrado o movido), cuando se pregunta justo eso.
+  if (faltaEsNull && (res.status === 404 || res.status === 410)) return null;
   const j = await res.json().catch(() => null);
   if (!res.ok) throw new ErrorGoogle(`Google (${res.status}): ${j?.error?.message ?? "no se pudo"}`);
-  return j;
+  // Salió bien aunque no traiga cuerpo: no es lo mismo que «ya no existe» (null).
+  return j ?? {};
 }
 
 // ── De Google a la agenda (puro) ──
@@ -170,6 +176,12 @@ export function deEventoGoogle(e, { cuenta, calendario, calendarioNombre = null,
     conGente: Array.isArray(e.attendees) && e.attendees.length > 1,
     // De qué serie es (si se repite): lo que Juan decida de una vez vale para todas.
     serie: e.recurringEventId ?? null,
+    // Para Kairos como principal: cuándo cambió allá, si es suyo (lo creó él y no es una invitación), qué clase de
+    // evento es para Google (cumpleaños de contactos, fuera de la oficina…) y, si lo creó Kairos, de qué evento.
+    actualizado: e.updated ?? null,
+    propio: Boolean(e.organizer?.self !== false && (e.creator?.self || e.organizer?.self)),
+    tipoGoogle: e.eventType ?? "default",
+    kairos: e.extendedProperties?.private?.kairos ?? null,
   };
 }
 
@@ -187,6 +199,8 @@ export function aEventoGoogle(e, zona = ZONA, { parche = false } = {}) {
     end: todoElDia ? { date: sumarDias(dia, 1), ...(parche ? { dateTime: null, timeZone: null } : {}) } : { dateTime: `${dia}T${e.fin}:00`, timeZone: zona, ...(parche ? { date: null } : {}) },
   };
   if (!e.fecha && e.repite?.regla) cuerpo.recurrence = [`RRULE:${e.repite.regla}`];
+  // Qué evento de Kairos es: así un borrado que no llegó allá se reconoce y se termina.
+  if (e.id) cuerpo.extendedProperties = { private: { kairos: String(e.id) } };
   return cuerpo;
 }
 
@@ -208,6 +222,8 @@ export function deCalendarioGoogle(c) {
     nombre: String(c.summaryOverride || c.summary || c.id).slice(0, 80),
     principal: Boolean(c.primary),
     escribir: c.accessRole === "owner" || c.accessRole === "writer",
+    // Suyo de verdad (no compartido por otro): de aquí se puede traer lo que es sólo suyo.
+    propio: c.accessRole === "owner",
     visible: c.selected !== false && !c.hidden,
     color: /^#[0-9a-fA-F]{6}$/.test(c.backgroundColor ?? "") ? c.backgroundColor : null,
   };
@@ -267,7 +283,8 @@ const cuentaPara = (lista, sombrero, que) => lista.find((c) => (c.datos.ajustes?
 
 // ── Escribir allá ──
 export async function crearEvento(env, almacen, evento, lista) {
-  const c = cuentaPara(lista, evento.sombrero, "eventosDe");
+  // Sin sombrero también va a Google (a la primera cuenta): con Kairos de principal, Google tiene que tenerlo todo.
+  const c = cuentaPara(lista, evento.sombrero, "eventosDe") ?? (evento.sombrero ? null : lista[0] ?? null);
   if (!c) return null;
   const cal = calendarioParaGuardar(c.datos, evento.sombrero);
   const r = await api(env, almacen, c.servicio, `${CAL}/calendars/${encodeURIComponent(cal)}/events`, { method: "POST", body: aEventoGoogle(evento) });
@@ -279,7 +296,7 @@ export const borrarEvento = (env, almacen, evento) =>
   api(env, almacen, evento.google.servicio, `${CAL}/calendars/${encodeURIComponent(evento.google.calendario ?? "primary")}/events/${encodeURIComponent(evento.google.id)}`, { method: "DELETE" });
 
 export async function crearTarea(env, almacen, accion, cuentasG) {
-  const c = cuentaPara(cuentasG, accion.sombrero, "tareasDe");
+  const c = cuentaPara(cuentasG, accion.sombrero, "tareasDe") ?? (accion.sombrero ? null : cuentasG[0] ?? null);
   if (!c) return null;
   const perfil = await almacen.perfil();
   const lista = listaParaSombrero(c.datos.listasTareas, accion.sombrero, sombrerosDe(perfil?.ajustes), c.datos.ajustes?.listas);
@@ -336,12 +353,13 @@ export async function publicarSemana(env, almacen, { ritmo = [], ajustes = {} } 
   const sombreros = sombrerosDe(ajustes);
   const vivos = (ritmo ?? []).filter((e) => e.id && e.repite?.regla && e.inicio && e.fin);
   let cambios = 0;
-  for (const e of vivos.slice(0, 40)) {
+  for (const e of vivos.slice(0, 120)) {
     const h = huellaBloque(e);
     const prev = eventos[e.id];
     if (prev?.huella === h) continue;
-    if (prev?.id) await api(env, almacen, c.servicio, `${CAL}/calendars/${cal}/events/${encodeURIComponent(prev.id)}`, { method: "PUT", body: aEventoBloque(e, sombreros) });
-    else {
+    // Si se borró a mano allá, se vuelve a crear.
+    const puesto = prev?.id ? await api(env, almacen, c.servicio, `${CAL}/calendars/${cal}/events/${encodeURIComponent(prev.id)}`, { method: "PUT", body: aEventoBloque(e, sombreros), faltaEsNull: true }) : null;
+    if (!puesto) {
       const r = await api(env, almacen, c.servicio, `${CAL}/calendars/${cal}/events`, { method: "POST", body: aEventoBloque(e, sombreros) });
       eventos[e.id] = { id: r.id };
     }
@@ -427,6 +445,7 @@ export async function sincronizar(env, almacen, { hoy, forzar = false } = {}) {
       } catch {
         /* sin la lista se lee el principal, como antes */
       }
+      const leidosCal = new Set();
       for (const cal of calendariosALeer(datos.lista, datos.ajustes).filter((id) => id !== datos.semana?.calendario).slice(0, 15)) {
         const info = datos.lista?.find((x) => x.id === cal);
         const nombre = info?.nombre ?? null;
@@ -436,8 +455,10 @@ export async function sincronizar(env, almacen, { hoy, forzar = false } = {}) {
           for (const e of r?.items ?? []) {
             if (e.status === "cancelled") continue;
             const x = deEventoGoogle(e, { cuenta: datos.cuenta, calendario: cal, calendarioNombre: nombre, color: info?.color ?? null });
-            if (x) filas.push(x);
+            if (x) filas.push({ ...x, servicio: c.servicio, calPropio: info ? Boolean(info.propio) : cal === "primary" });
           }
+          // Con 250 o más, la ventana pudo quedar cortada: entonces no se da nada por borrado en ese calendario.
+          if ((r?.items ?? []).length < 250) leidosCal.add(`${c.servicio}|${cal}`);
         } catch (e) {
           // Un calendario que falla (compartido y retirado) no tumba los demás.
           fallos.push(`${nombre ?? cal}: ${e.message}`);
@@ -445,19 +466,44 @@ export async function sincronizar(env, almacen, { hoy, forzar = false } = {}) {
       }
       // La copia se repone ENTERA: lo de un calendario que se dejó de ver (o de fuera de la ventana) no se queda.
       await almacen.reemplazarExternos(c.servicio, { desde: "0000-01-01", hasta: "9999-12-31" }, filas);
+      const dos = datos.principal?.estado === "dos";
+      // Kairos es el principal: lo que se cambió o borró en Google vuelve; lo nuevo y suyo de allá pasa a Kairos.
+      if (dos) {
+        try {
+          total += await eventosEnDosSentidos(env, almacen, { datos, filas, leidosCal, desde, hasta, hoy });
+        } catch (e) {
+          fallos.push(`la vuelta de los eventos: ${e.message}`);
+        }
+      }
       c = { ...c, datos };
       if ((c.datos.ajustes?.tareasDe ?? []).length) {
         const estado = await almacen.estado();
         const sombreros = sombrerosDe(estado.ajustes);
-        const q = new URLSearchParams({ showCompleted: "true", showHidden: "true", maxResults: "100" });
+        // En los dos sentidos se piden también las borradas: borrar allá borra aquí.
+        const q = new URLSearchParams({ showCompleted: "true", showHidden: "true", maxResults: "100", ...(dos ? { showDeleted: "true" } : {}) });
         const enlaces = c.datos.ajustes?.listas ?? {};
         const listas = (c.datos.listasTareas?.length ? c.datos.listasTareas : [{ id: "@default", nombre: "" }]).filter((l) => enlaces[l.id] !== "no").slice(0, 10);
         let cambios = [];
+        const borrar = [];
+        const subir = [];
+        const vigencias = dos ? await almacen.vigencias("accion") : new Map();
+        const ligadas = new Set(estado.acciones.map((a) => a.google?.id).filter(Boolean));
         for (const l of listas) {
           const r = await api(env, almacen, c.servicio, `${TASKS}/lists/${encodeURIComponent(l.id)}/tasks?${q}`);
+          const items = r?.items ?? [];
           const ya = [...estado.acciones, ...cambios];
-          cambios = [...cambios, ...cambiosDesdeGoogle(r?.items ?? [], ya, { hoy, cuenta: c.datos.cuenta, servicio: c.servicio, sombrero: sombreroDeLista(l, sombreros, enlaces), lista: l.id })];
+          if (dos) {
+            const v = vueltaDeTareas({ tareas: items, acciones: estado.acciones, vigencias, hoy });
+            cambios = [...cambios, ...v.actualizar];
+            borrar.push(...v.borrar);
+            subir.push(...v.subir);
+          }
+          const nuevas = dos ? items.filter((t) => !ligadas.has(t.id)) : items;
+          cambios = [...cambios, ...cambiosDesdeGoogle(nuevas, ya, { hoy, cuenta: c.datos.cuenta, servicio: c.servicio, sombrero: sombreroDeLista(l, sombreros, enlaces), lista: l.id })];
         }
+        for (const a of subir.slice(0, 10)) await actualizarTarea(env, almacen, a).catch(() => null);
+        if (borrar.length) await almacen.lote(borrar.map((id) => almacen.sentenciaBorrar("accion", id)));
+        total += borrar.length;
         // Lo nuevo sin sombrero (escrito en «Mis tareas»): que lo ponga la IA. Una vez, también lo que entró antes en el
         // primer sombrero por defecto (así salían en Artístico).
         const antes = !c.datos.reclasificado
@@ -480,4 +526,198 @@ export async function sincronizar(env, almacen, { hoy, forzar = false } = {}) {
     }
   }
   return { ok: true, cambios: total };
+}
+
+// ── Kairos como principal: traer, copiar y los dos sentidos ──
+
+const DIAS_TRAER = 366;
+const TANDA_COPIAR = 25;
+
+/** Un calendario en un rango, con todas sus páginas (hasta `paginas`). */
+async function leerCalendario(env, almacen, servicio, cal, desde, hasta, { paginas = 4 } = {}) {
+  const items = [];
+  let pagina = null;
+  for (let i = 0; i < paginas; i++) {
+    const q = new URLSearchParams({ timeMin: `${desde}T00:00:00-05:00`, timeMax: `${hasta}T23:59:59-05:00`, singleEvents: "true", orderBy: "startTime", maxResults: "2500", ...(pagina ? { pageToken: pagina } : {}) });
+    const r = await api(env, almacen, servicio, `${CAL}/calendars/${encodeURIComponent(cal)}/events?${q}`);
+    items.push(...(r?.items ?? []));
+    pagina = r?.nextPageToken;
+    if (!pagina) break;
+  }
+  return items;
+}
+
+/** El evento principal de una serie → { regla, fecha, inicio, fin, todoElDia, titulo }. Puro. */
+export function maestroDeGoogle(m, zona = ZONA) {
+  const regla = (m?.recurrence ?? []).find((r) => /^RRULE:/i.test(r))?.replace(/^RRULE:/i, "") ?? null;
+  const todo = Boolean(m?.start?.date);
+  const ini = todo ? null : new Date(m?.start?.dateTime);
+  const fin = todo ? null : new Date(m?.end?.dateTime);
+  return {
+    regla,
+    todoElDia: todo,
+    fecha: todo ? m.start.date : hoyEn(zona, ini),
+    inicio: todo ? null : horaEn(zona, ini),
+    fin: todo ? null : horaEn(zona, fin),
+    titulo: m?.summary ? String(m.summary).slice(0, 200) : null,
+  };
+}
+
+/**
+ * «Guardar en Kairos lo que viene de Google»: lee un año de todos los calendarios y la regla de cada serie suya, y
+ * dice qué pasaría a Kairos. NO guarda nada (la pantalla lo pone, y su semana tipo no se pisa con una copia vieja).
+ */
+export async function traerDeGoogle(env, almacen, { hoy }) {
+  if (!hayGoogle(env)) throw new ErrorGoogle("Falta configurar Google.");
+  const lista = await cuentas(almacen);
+  if (!lista.length) throw new ErrorGoogle("Conecta tu cuenta de Google primero.");
+  const estado = await almacen.estado();
+  const desde = sumarDias(hoy, -7);
+  const hasta = sumarDias(hoy, DIAS_TRAER);
+  const instancias = [];
+  const maestros = new Map();
+  const fallos = [];
+  const guardarEn = {};
+  for (const c of lista) {
+    let datos = c.datos;
+    try {
+      datos = await conLista(env, almacen, c, true);
+    } catch {
+      /* sin la lista, el principal */
+    }
+    guardarEn[c.servicio] = datos.ajustes?.guardarEn ?? {};
+    for (const cal of calendariosALeer(datos.lista, datos.ajustes).filter((id) => id !== datos.semana?.calendario).slice(0, 15)) {
+      const info = datos.lista?.find((x) => x.id === cal);
+      try {
+        for (const e of await leerCalendario(env, almacen, c.servicio, cal, desde, hasta)) {
+          if (e.status === "cancelled") continue;
+          const x = deEventoGoogle(e, { cuenta: datos.cuenta, calendario: cal, calendarioNombre: info?.nombre ?? null, color: info?.color ?? null });
+          if (x) instancias.push({ ...x, servicio: c.servicio, calPropio: info ? Boolean(info.propio) : cal === "primary" });
+        }
+      } catch (e) {
+        fallos.push(`${info?.nombre ?? cal}: ${e.message}`);
+      }
+    }
+  }
+  // La regla de cada serie suya: una llamada por serie (con un tope).
+  const enRitmo = new Set((estado.ritmo ?? []).map((e) => e.google).filter(Boolean));
+  const ligados = new Set(estado.eventos.map((e) => e.google?.id).filter(Boolean));
+  const series = new Map();
+  for (const x of instancias) if (x.serie && esSuyo(x) && !enRitmo.has(x.serie) && !ligados.has(x.serie) && !series.has(x.serie)) series.set(x.serie, x);
+  for (const [serie, x] of [...series].slice(0, 60)) {
+    try {
+      const m = await api(env, almacen, x.servicio, `${CAL}/calendars/${encodeURIComponent(x.calendario)}/events/${encodeURIComponent(serie)}`, { faltaEsNull: true });
+      if (m) maestros.set(serie, maestroDeGoogle(m));
+    } catch (e) {
+      fallos.push(`${x.titulo}: ${e.message}`);
+    }
+  }
+  const plan = planDeTraspaso({ instancias, maestros, eventos: estado.eventos, ritmo: estado.ritmo, ajustes: estado.ajustes, guardarEnDe: (s) => guardarEn[s] ?? {} });
+  return { ok: true, ...plan, fallos: fallos.slice(0, 5) };
+}
+
+/** En qué momento va Kairos con Google, en todas las cuentas: null (como siempre), «traspaso» o «dos» (los dos sentidos). */
+export async function ponerPrincipal(almacen, estado) {
+  for (const c of await cuentas(almacen)) {
+    const fresca = (await almacen.conexion(c.servicio))?.datos ?? c.datos;
+    const { principal: _, ...resto } = fresca;
+    await almacen.guardarConexion(c.servicio, estado ? { ...resto, principal: { estado, desde: new Date().toISOString() } } : resto);
+  }
+  return { ok: true, estado: estado ?? null };
+}
+
+/**
+ * «Copiar todo a Google», por tandas (la pantalla repite con `desde` hasta que no quede nada): la semana tipo en
+ * «Kairos · Bloques» (se crea otra vez si se borró) y cada evento y tarea abierta de Kairos que allá no exista. Al
+ * terminar, Kairos y Google quedan en los dos sentidos.
+ */
+export async function copiarAGoogle(env, almacen, { hoy, desde = 0 }) {
+  if (!hayGoogle(env)) throw new ErrorGoogle("Falta configurar Google.");
+  const lista = await cuentas(almacen);
+  if (!lista.length) throw new ErrorGoogle("Conecta tu cuenta de Google primero.");
+  const estado = await almacen.estado();
+  let semana = null;
+  if (!desde) {
+    const c = lista.find((x) => x.datos.semana?.calendario);
+    if (c) {
+      const existe = await api(env, almacen, c.servicio, `${CAL}/calendars/${encodeURIComponent(c.datos.semana.calendario)}`, { faltaEsNull: true }).catch(() => true);
+      if (!existe) {
+        const fresca = (await almacen.conexion(c.servicio))?.datos ?? c.datos;
+        const { semana: _, ...resto } = fresca;
+        await almacen.guardarConexion(c.servicio, resto);
+      }
+    }
+    semana = await empezarAPublicar(env, almacen, { ajustes: estado.ajustes, ritmo: estado.ritmo });
+  }
+  const candidatos = candidatosACopiar({ eventos: estado.eventos, acciones: estado.acciones, hoy, sombreroJuancito: sombreroDeJuancito(estado.ajustes) });
+  const tanda = candidatos.slice(desde, desde + TANDA_COPIAR);
+  const evPorId = new Map(estado.eventos.map((e) => [e.id, e]));
+  const acPorId = new Map(estado.acciones.map((a) => [a.id, a]));
+  const listasLeidas = new Map();
+  const idsDeLista = async (g) => {
+    const clave = `${g.servicio}|${g.lista ?? "@default"}`;
+    if (!listasLeidas.has(clave)) {
+      const ids = new Set();
+      let pagina = null;
+      for (let i = 0; i < 5; i++) {
+        const q = new URLSearchParams({ showCompleted: "true", showHidden: "true", maxResults: "100", ...(pagina ? { pageToken: pagina } : {}) });
+        const r = await api(env, almacen, g.servicio, `${TASKS}/lists/${encodeURIComponent(g.lista ?? "@default")}/tasks?${q}`, { faltaEsNull: true });
+        for (const t of r?.items ?? []) if (!t.deleted) ids.add(t.id);
+        pagina = r?.nextPageToken;
+        if (!pagina) break;
+      }
+      listasLeidas.set(clave, ids);
+    }
+    return listasLeidas.get(clave);
+  };
+  const guardar = [];
+  const fallos = [];
+  for (const it of tanda) {
+    try {
+      if (it.tipo === "evento") {
+        const k = evPorId.get(it.id);
+        if (k.google?.id) {
+          const g = await api(env, almacen, k.google.servicio, `${CAL}/calendars/${encodeURIComponent(k.google.calendario ?? "primary")}/events/${encodeURIComponent(k.google.id)}`, { faltaEsNull: true });
+          if (g && g.status !== "cancelled") continue;
+        }
+        const g = await crearEvento(env, almacen, k, lista);
+        if (g) guardar.push(almacen.sentenciaElemento("evento", { ...k, google: g }));
+      } else {
+        const k = acPorId.get(it.id);
+        if (k.google?.id && (await idsDeLista(k.google)).has(k.google.id)) continue;
+        const g = await crearTarea(env, almacen, k, lista);
+        if (g) guardar.push(almacen.sentenciaElemento("accion", { ...k, google: g }));
+      }
+    } catch (e) {
+      fallos.push(e.message);
+    }
+  }
+  if (guardar.length) await almacen.lote(guardar);
+  const siguiente = desde + tanda.length;
+  const quedan = Math.max(0, candidatos.length - siguiente);
+  if (!quedan) await ponerPrincipal(almacen, "dos");
+  return { ok: true, total: candidatos.length, siguiente, quedan, creados: guardar.length, fallos: fallos.slice(0, 5), semana };
+}
+
+/** Los eventos en los dos sentidos (una cuenta, en la vuelta del cron). Devuelve cuántas cosas cambiaron aquí. */
+async function eventosEnDosSentidos(env, almacen, { datos, filas, leidosCal, desde, hasta, hoy }) {
+  const estado = await almacen.estado();
+  const vigencias = await almacen.vigencias("evento");
+  const r = vueltaDeEventos({ leidos: filas, leidosCal, eventos: estado.eventos, vigencias, desde, hasta, hoy });
+  const sentencias = r.actualizar.map((k) => almacen.sentenciaElemento("evento", k));
+  // Lo que no apareció: ¿se borró allá, o se movió fuera de la ventana? Se pregunta (con tope).
+  for (const k of r.verificar.slice(0, 8)) {
+    const g = await api(env, almacen, k.google.servicio, `${CAL}/calendars/${encodeURIComponent(k.google.calendario ?? "primary")}/events/${encodeURIComponent(k.google.id)}`, { faltaEsNull: true });
+    if (!g || g.status === "cancelled") sentencias.push(almacen.sentenciaBorrar("evento", k.id));
+    else if (!k.repite?.regla) {
+      const x = deEventoGoogle(g, { cuenta: k.google.cuenta, calendario: k.google.calendario });
+      if (x && googleMasNuevo(x.actualizado, vigencias.get(k.id))) sentencias.push(almacen.sentenciaElemento("evento", aplicarDeGoogle(k, x)));
+    }
+  }
+  for (const k of r.subir.slice(0, 10)) await actualizarEvento(env, almacen, k).catch(() => null);
+  for (const x of r.borrarEnGoogle.slice(0, 5)) await api(env, almacen, x.servicio, `${CAL}/calendars/${encodeURIComponent(x.calendario ?? "primary")}/events/${encodeURIComponent(x.id)}`, { method: "DELETE" }).catch(() => null);
+  const sombreros = sombrerosDe(estado.ajustes);
+  for (const x of r.adoptar.slice(0, 20)) sentencias.push(almacen.sentenciaElemento("evento", eventoDeGoogle(x, { servicio: x.servicio, sombreros, ajustes: estado.ajustes, guardarEn: datos.ajustes?.guardarEn ?? {} })));
+  if (sentencias.length) await almacen.lote(sentencias);
+  return sentencias.length;
 }

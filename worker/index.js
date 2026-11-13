@@ -25,6 +25,7 @@
 //   GET    /api/telegram · POST conectar · POST desconectar
 //   POST   /api/juancito/conectar · GET vuelta · POST sincronizar · PUT ajustes · POST desconectar
 //   POST   /api/google/conectar · GET vuelta · POST sincronizar · PUT :cuenta · DELETE :cuenta
+//   POST   /api/google/traer · POST principal · POST copiar   (Kairos como principal)
 //   GET    /api/mcp/cliente · POST /api/mcp/autorizar · GET /api/mcp/conexiones · POST /api/mcp/desconectar
 //   ── sin sesión, firmado ──
 //   POST   /api/telegram/webhook         lo que manda Telegram (con su secreto)
@@ -389,12 +390,27 @@ async function api(req, env, ctx) {
         const p = await perfil();
         return json(await google.sincronizar(env, almacen, { hoy: hoyDe(p.ajustes), forzar: true }));
       }
+      // Kairos como principal: traer lo de Google (sólo dice qué), en qué momento va y copiar todo allá (por tandas).
+      if (a === "traer" && req.method === "POST") {
+        const p = await perfil();
+        return json(await google.traerDeGoogle(env, almacen, { hoy: hoyDe(p.ajustes) }));
+      }
+      if (a === "principal" && req.method === "POST") {
+        const { estado: momento } = (await cuerpo(req)) ?? {};
+        if (![null, "traspaso", "dos"].includes(momento ?? null)) return error("No sé en qué momento poner a Google.");
+        return json(await google.ponerPrincipal(almacen, momento ?? null));
+      }
+      if (a === "copiar" && req.method === "POST") {
+        const p = await perfil();
+        const { desde } = (await cuerpo(req)) ?? {};
+        return json(await google.copiarAGoogle(env, almacen, { hoy: hoyDe(p.ajustes), desde: Number.isInteger(desde) && desde > 0 ? desde : 0 }));
+      }
       // Tu semana de Kairos en un calendario aparte de Google («Kairos · Bloques»).
       if (a === "semana" && req.method === "POST") {
         const { publicar } = (await cuerpo(req)) ?? {};
         return json(publicar === false ? await google.dejarDePublicar(env, almacen) : await google.empezarAPublicar(env, almacen, await perfil()));
       }
-      if (a && a !== "conectar" && a !== "vuelta" && a !== "sincronizar" && a !== "semana") {
+      if (a && !["conectar", "vuelta", "sincronizar", "semana", "traer", "principal", "copiar"].includes(a)) {
         const servicio = `${google.PREFIJO}${decodeURIComponent(a).toLowerCase()}`;
         const c = await almacen.conexion(servicio);
         if (!c) return noEncontrado("Esa cuenta");

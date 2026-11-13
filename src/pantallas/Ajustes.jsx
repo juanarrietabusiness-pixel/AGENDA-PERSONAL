@@ -71,7 +71,7 @@ export default function Ajustes({ estado, cambiar, reiniciar, salir, servidor = 
 
       <Cerebro cerebro={estado.cerebro ?? []} sombreros={sombrerosDe(estado.ajustes)} servidor={servidor} recargar={recargar} avisar={avisar} />
       {servidor && <Telegram />}
-      {servidor && <Conexiones estado={estado} sombreros={sombrerosDe(ajustes)} recargar={recargar} avisar={avisar} />}
+      {servidor && <Conexiones estado={estado} cambiar={cambiar} sombreros={sombrerosDe(ajustes)} recargar={recargar} avisar={avisar} />}
 
       <section className="tarjeta seccion" aria-labelledby={`${id}-ia`}>
         <div className="seccion-cabeza"><h2 id={`${id}-ia`}>Quién piensa: Claude o Meta</h2></div>

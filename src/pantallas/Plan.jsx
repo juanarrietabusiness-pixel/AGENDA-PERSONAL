@@ -595,7 +595,7 @@ function Evento({ e, sombreros, onAbrir }) {
   return (
     <li
       className={`pl-evento${rutina ? " es-rutina" : " es-evento"}${especial ? " es-especial" : ""}`}
-      style={e.fuente === "google" ? (e.color ? { "--s": e.color } : undefined) : estiloDe(e.sombrero, sombreros)}
+      style={e.fuente === "google" ? (e.color ? { "--s": e.color } : undefined) : !e.sombrero && e.color ? { "--s": e.color } : estiloDe(e.sombrero, sombreros)}
       draggable={arrastrable || undefined}
       onDragStart={arrastrable ? (ev) => empezarArrastre(ev, { tipo: "evento", id: e.id, titulo: e.titulo }) : undefined}
     >

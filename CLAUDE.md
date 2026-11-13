@@ -220,11 +220,38 @@ con lo especial primero y luego por hora.
 un sombrero o «no»): lo escogido manda; si no, el nombre parecido (`nombreParecido`: sin «el», «mis», en singular — «EL
 REINO» es Reino, «PERSONALES» es Personal). `listaParaSombrero` usa lo mismo al revés. Se escoge en Ajustes → Google.
 
+**Kairos como PRINCIPAL y Google como copia** (decisión de Juan; `worker/lib/principal.js` puro, las llamadas en
+google.js; Ajustes → «Kairos como principal», `KairosPrincipal` en Conexiones.jsx). Tres pasos, con el momento guardado en
+la conexión de Google (`datos.principal.estado`: nada, «traspaso» o «dos»; lo escribe sólo el servidor, la pantalla no lo
+pisa): (1) **«Guardar en Kairos lo que viene de Google»** (`POST /api/google/traer`, `planDeTraspaso`): lee un AÑO de
+todos sus calendarios y la regla de cada serie (su evento principal, `maestroDeGoogle`) y dice qué pasaría, SIN guardar:
+lo que se repite cada semana sin saltos ni fin (`esSemanalSimple`) y es sólo suyo va a la semana tipo como fijo en gris
+(`ritmoDeSerie`, `google` = la serie); lo demás que es suyo (de una vez, o mensual, o de todo el día) pasa a ser un evento
+de Kairos LIGADO a su original (`eventoDeGoogle`, `google.id` = el de allá: no se duplica), con el sombrero del
+calendario donde se guarda ese sombrero o por el título, y sin sombrero conserva el color del calendario. Se queda en
+Google: lo que es con otras personas (`conGente`, o una invitación: `propio` falso), lo de calendarios ajenos
+(`calPropio` = accessRole owner) y lo especial de Google (`eventType` ≠ default: cumpleaños de contactos, fuera de la
+oficina). La PANTALLA lo pone con `cambiar` (así la semana tipo no se pisa con una copia vieja) y `reflejar` no sube lo que
+llega ya ligado sin existir antes (`!antes && despues.google.id`). Pasa a «traspaso». (2) Juan borra en Google con calma:
+mientras dura el traspaso no hay vuelta (lo borrado allá no se borra aquí). (3) **«Copiar todo a Google»** (`POST
+/api/google/copiar`, por tandas de 25 con `desde`, `candidatosACopiar`): la semana tipo a «Kairos · Bloques» (si se borró
+el calendario, se crea otra vez; un bloque borrado a mano se vuelve a crear), y cada evento con día (de una semana atrás) o
+que se repite y cada tarea abierta que allá no exista se crea (un evento sin sombrero va a la primera cuenta). Al
+terminar, «dos». **Los DOS SENTIDOS** (la vuelta del cron, ahora cada 2 minutos, `MINUTOS_SYNC`): `vueltaDeEventos` y
+`vueltaDeTareas` deciden quién cambió último con la fecha de Google (`updated`) y la de la FILA de Kairos
+(`elementos.actualizado`, `almacen.vigencias`: la pone el servidor en cada guardado y el navegador no la puede pisar); si
+están a menos de 2 s (`MARGEN_MS`), gana Kairos. Lo cambiado allá vuelve; lo cambiado aquí que no llegó se sube; lo que no
+aparece se PREGUNTA a Google antes de borrarlo aquí (sólo si su calendario se leyó entero, <250, y como mucho 8 por vuelta);
+lo nuevo y suyo de una vez (de hoy en adelante) pasa a Kairos; lo que Kairos creó allá (`extendedProperties.private.kairos`
+= su id, en `aEventoGoogle`) y aquí ya no existe se borra allá (un borrado que no llegó). Las tareas se piden con las
+borradas (`showDeleted`). Lo que se repite sólo se mira por si se borró: la RUTINA y las series se cambian en Kairos. Las
+invitaciones de otros siguen viniendo de Google.
+
 **Reflejar** (`worker/lib/reflejar.js`): UN sitio para que un cambio (pantalla, asistente, Telegram, Claude) vaya a
 Juancito Ads y a Google. Lo que falla fuera NO deshace lo de aquí: la agenda es la verdad y la vuelta reintenta.
 
 **La vuelta del cron** (`worker/lib/seguimiento.js`, cada minuto): sincroniza Juancito Ads (cada 3 min) y Google (cada
-10) y manda por Telegram lo que toca según `ajustes.seguimiento` (`queToca` es puro). Cada mensaje se RESERVA antes de
+2) y manda por Telegram lo que toca según `ajustes.seguimiento` (`queToca` es puro). Cada mensaje se RESERVA antes de
 mandarlo (`avisos_enviados`, clave única): dos vueltas no mandan lo mismo, y si Telegram falla se suelta.
 
 **Claude** (`worker/lib/mcp.js`): la agenda también es un servidor MCP (`/mcp`, `/oauth/*`, `/.well-known/*`, con su

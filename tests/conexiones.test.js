@@ -315,7 +315,7 @@ describe("Google con UNA cuenta: todos sus calendarios", () => {
 
   it("lee los que se ven en Google Calendar; guarda en el escogido sólo si se puede escribir en él", () => {
     const lista = LISTA.map(deCalendarioGoogle);
-    expect(lista[1]).toEqual({ id: "juan@gmail.com", nombre: "Personal", principal: false, escribir: true, visible: true, color: "#43c07a" });
+    expect(lista[1]).toEqual({ id: "juan@gmail.com", nombre: "Personal", principal: false, escribir: true, propio: false, visible: true, color: "#43c07a" });
     expect(calendariosALeer(lista, {})).toEqual(["juan@agencia.com", "juan@gmail.com", "es.pa#holiday@group.v.calendar.google.com"]);
     expect(calendariosALeer(lista, { leer: ["juan@gmail.com", "no-existe"] })).toEqual(["juan@gmail.com"]);
     expect(calendariosALeer([], {})).toEqual(["primary"]);

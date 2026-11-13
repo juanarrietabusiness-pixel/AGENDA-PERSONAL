@@ -53,6 +53,9 @@ export const googleConectar = () => pedir("google/conectar", { metodo: "POST", d
 export const googleSincronizar = () => pedir("google/sincronizar", { metodo: "POST", datos: {} });
 export const googleAjustes = (cuenta, datos) => pedir(`google/${encodeURIComponent(cuenta)}`, { metodo: "PUT", datos });
 export const googleSemana = (publicar) => pedir("google/semana", { metodo: "POST", datos: { publicar } });
+export const googleTraer = () => pedir("google/traer", { metodo: "POST", datos: {} });
+export const googlePrincipal = (estado) => pedir("google/principal", { metodo: "POST", datos: { estado } });
+export const googleCopiar = (desde = 0) => pedir("google/copiar", { metodo: "POST", datos: { desde } });
 export const googleDesconectar = (cuenta) => pedir(`google/${encodeURIComponent(cuenta)}`, { metodo: "DELETE" });
 export const mcpCliente = (clientId, redirectUri) => pedir(`mcp/cliente?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}`);
 export const mcpAutorizar = (datos) => pedir("mcp/autorizar", { metodo: "POST", datos });

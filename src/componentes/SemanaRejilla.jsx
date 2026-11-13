@@ -186,7 +186,7 @@ export default function SemanaRejilla({ dias, hoy, hora, ajustes, sombreros, tip
                   const encima = sobreBloque(p);
                   const [x0, ancho] = encima ? [45, 55] : [0, 100];
                   const estilo = {
-                    ...(p.obj?.fuente === "google" && p.color ? { "--s": p.color } : estiloDe(p.sombrero, sombreros)),
+                    ...((p.obj?.fuente === "google" || !p.sombrero) && p.color ? { "--s": p.color } : estiloDe(p.sombrero, sombreros)),
                     top: pos(p.inicio),
                     height: alto(p.inicio, p.fin),
                     left: `calc(${x0 + (l.carril / l.de) * ancho}% + 2px)`,
@@ -288,7 +288,7 @@ function DelDia({ dia, delDia, sombreros, onAbrir, onSoltar }) {
   return (
     <ul className={`rejilla-deldia-lista${encima ? " soltando" : ""}`} {...zonaDeSoltar((d) => onSoltar(d, { dia, hora: null, bloque: null }), setEncima)}>
       {delDia.slice(0, cabe).map((p) => (
-        <li key={p.clave} style={p.obj?.fuente === "google" && p.color ? { "--s": p.color } : estiloDe(p.sombrero, sombreros)} draggable={p.tipo === "tarea" || undefined} onDragStart={p.tipo === "tarea" ? (e) => empezarArrastre(e, { tipo: "accion", id: p.obj.id, titulo: p.titulo }) : undefined}>
+        <li key={p.clave} style={(p.obj?.fuente === "google" || !p.sombrero) && p.color ? { "--s": p.color } : estiloDe(p.sombrero, sombreros)} draggable={p.tipo === "tarea" || undefined} onDragStart={p.tipo === "tarea" ? (e) => empezarArrastre(e, { tipo: "accion", id: p.obj.id, titulo: p.titulo }) : undefined}>
           <button type="button" className={`rejilla-chip ${p.tipo}${p.especial ? " especial" : ""}`} onClick={() => onAbrir(p, dia)} title={p.titulo}>
             {p.tipo === "tarea" ? <span className="ley-tarea" aria-hidden="true" /> : <Icon name={p.tipo === "recordatorio" ? "bell" : p.especial ? "star" : "calendar"} size={11} />}
             <span>{p.arriba ? `${horaCorta(p.inicio)} ${p.titulo}` : p.obj?.horaPorDefinir ? `${p.titulo} (hora por definir)` : p.titulo}</span>
