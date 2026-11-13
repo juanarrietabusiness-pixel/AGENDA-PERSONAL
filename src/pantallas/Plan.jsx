@@ -15,9 +15,8 @@ import CrearAqui from "../componentes/CrearAqui.jsx";
 import { useDialogo } from "../hooks/useDialogo.js";
 import { useMedia } from "../hooks/useMedia.js";
 import { piezasDelDia, huecos, ventanaDelDia, duracionCercana, esRutinario } from "../lib/rejilla.js";
-import { seriesTraidas, horasPorSombrero, semanaDelDia, diaEnBloques, minutosSinSombrero, porRevisar, textoHoras, rutinaDeGoogle, moverSiempre } from "../lib/semana.js";
+import { seriesTraidas, horasPorSombrero, semanaDelDia, diaEnBloques, minutosSinSombrero, porRevisar, textoHoras, moverSiempre } from "../lib/semana.js";
 import { zonaDeSoltar, empezarArrastre } from "../lib/arrastre.js";
-import * as api from "../lib/api.js";
 
 const EN_BLOQUE = 3; // tareas que se ven dentro de un bloque; las demás, al tocarlo
 const VISTAS = { semana: "Semana", horas: "Horas", mes: "Mes" };
@@ -148,11 +147,6 @@ export default function Plan({ estado, hoy, hora, cambiar, onHecha, onAbrir, avi
   const abrirMarca = (m) =>
     m.de === "accion" ? onAbrir("accion", acciones.find((a) => a.id === m.obj.id) ?? m.obj) : m.de === "google" ? onAbrir("google", m.obj) : abrir("evento", m.obj);
 
-  // Lo de Google que se repite y es sólo tuyo, todavía sin pasar a Kairos (allá no se mueve ni se edita igual).
-  const deGoogle = rutinaDeGoogle(estado.externos ?? [], ritmo, { ajustes, todas: true });
-  const google = (estado.conexiones ?? []).filter((c) => c.servicio?.startsWith("google:"));
-  const publicada = google.some((c) => c.semana);
-
   const aplicarAlRitmo = (cambio, aviso) => {
     try {
       const r = aplicarRitmo(ritmo, { hoy, ...cambio });
@@ -229,23 +223,6 @@ export default function Plan({ estado, hoy, hora, cambiar, onHecha, onAbrir, avi
     avisar(`«${e.titulo}»: ${textoCorto(dia, hoy)}${ini ? `, ${horaCorta(ini)}` : ""}.`);
   };
 
-  const pasarAKairos = () => {
-    const { nuevos, quitar } = deGoogle;
-    cambiar((e) => ({ ...e, ritmo: [...(e.ritmo ?? RITMO_BASE).filter((x) => !quitar.includes(x.id)), ...nuevos] }));
-    const ofrecer = servidor && google.length > 0 && !publicada;
-    avisar(
-      `Pasé ${nuevos.length} a tu semana tipo: ahora se mueven y se editan aquí.${ofrecer ? " ¿La publico en tu Google Calendar (en «Kairos · Bloques»)?" : ""}`,
-      ofrecer
-        ? {
-            accion: "Publicar",
-            alPulsar: async () => {
-              await api.googleSemana(true).catch(() => null);
-              await recargar?.();
-            },
-          }
-        : {},
-    );
-  };
 
 
   const navegar = (n) => (vista === "mes" && !tipo ? setMes(sumarMeses(mes, n)) : setLunes(sumarDias(lunes, 7 * n)));
@@ -308,12 +285,6 @@ export default function Plan({ estado, hoy, hora, cambiar, onHecha, onAbrir, avi
             <li><Icon name="calendar" size={13} /> Compromiso</li>
             <li><Icon name="bell" size={13} /> Recordatorio</li>
           </ul>
-        )}
-        {!tipo && deGoogle.nuevos.length > 0 && (
-          <p className="aviso-google">
-            <Icon name="calendar" size={14} /> {deGoogle.nuevos.length} cosa{deGoogle.nuevos.length === 1 ? "" : "s"} fija{deGoogle.nuevos.length === 1 ? "" : "s"} de tu Google Calendar no se pueden mover aquí.
-            <button type="button" className="enlace" onClick={pasarAKairos}>Pasarlas a Kairos</button>
-          </p>
         )}
       </div>
 

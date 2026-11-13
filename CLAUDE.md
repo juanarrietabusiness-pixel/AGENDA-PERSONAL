@@ -167,7 +167,9 @@ no es un bloque para meter tareas; se ve en gris, sin caja, y no avisa salvo que
 (`rutinaDeGoogle(…, { todas: true })`, el aviso de Plan y el botón de la semana tipo): toda serie de Google que se repite y
 es SÓLO suya (sin `conGente`) entra en la semana tipo, como bloque si lleva tareas (`claseParaTraer`: trabajo, task,
 57DMC…) y si no como compromiso; desde ahí no se lee de Google (`seriesTraidas`, también en los avisos de reuniones) y se
-ofrece publicarla en «Kairos · Bloques». Lo de otras personas sigue viniendo de Google.
+ofrece publicarla en «Kairos · Bloques». Lo de otras personas sigue viniendo de Google. Se hace desde la Semana tipo
+(«Pasar N de Google Calendar a Kairos»): el aviso que salía arriba de Plan se quitó (decisión de Juan: Kairos es el
+principal y Google se va desplazando; no hace falta recordárselo en cada visita).
 
 **Tareas: el panorama completo** (`src/pantallas/Tareas.jsx`, `src/lib/tablero.js`; pestaña después de Plan): una
 columna por sombrero (con «Sin sombrero» si hace falta), dentro las sueltas, cada empresa (`cliente`) y cada proyecto
