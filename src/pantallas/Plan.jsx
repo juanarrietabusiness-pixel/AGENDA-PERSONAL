@@ -13,6 +13,7 @@ import SemanaRejilla from "../componentes/SemanaRejilla.jsx";
 import MesVista from "../componentes/MesVista.jsx";
 import CrearAqui from "../componentes/CrearAqui.jsx";
 import { useDialogo } from "../hooks/useDialogo.js";
+import { useMedia } from "../hooks/useMedia.js";
 import { piezasDelDia, huecos, ventanaDelDia, duracionCercana, esRutinario } from "../lib/rejilla.js";
 import { seriesTraidas, horasPorSombrero, semanaDelDia, diaEnBloques, minutosSinSombrero, porRevisar, textoHoras, rutinaDeGoogle, moverSiempre } from "../lib/semana.js";
 import { zonaDeSoltar, empezarArrastre } from "../lib/arrastre.js";
@@ -140,6 +141,10 @@ export default function Plan({ estado, hoy, hora, cambiar, onHecha, onAbrir, avi
 
   // Lo especial y las reuniones que no se repiten: un puntito en los días de la semana (teléfono) y «Lo que viene».
   const marcas = marcasDeDias(estado, dias[0] < hoy ? dias[0] : hoy, sumarDias(hoy, 45));
+  // «Lo que viene» lleva además los recordatorios de una sola vez: es lo que hay que recordar.
+  const viene = marcasDeDias(estado, hoy, sumarDias(hoy, 45), { recordatorios: true });
+  // En el teléfono, lo que viene y lo pendiente van ARRIBA (lo principal) y tu día, en pequeño, debajo (decisión de Juan).
+  const telefono = useMedia("(max-width: 899px)");
   const abrirMarca = (m) =>
     m.de === "accion" ? onAbrir("accion", acciones.find((a) => a.id === m.obj.id) ?? m.obj) : m.de === "google" ? onAbrir("google", m.obj) : abrir("evento", m.obj);
 
@@ -252,6 +257,19 @@ export default function Plan({ estado, hoy, hora, cambiar, onHecha, onAbrir, avi
       ? `${partes(dias[0]).dia} al ${partes(dias[6]).dia} de ${MESES[partes(dias[6]).mes - 1]}`
       : `${partes(dias[0]).dia} de ${MESES[partes(dias[0]).mes - 1]} al ${partes(dias[6]).dia} de ${MESES[partes(dias[6]).mes - 1]}`;
 
+  // Lo primero del panel: lo que viene, añadir, por agendar y las tareas sin día. En el teléfono sube encima de tu día.
+  const primeroArriba = telefono && !tipo && verVista !== "mes";
+  const primero = (
+    <>
+      <LoQueViene marcas={viene} hoy={hoy} sombreros={sombreros} onAbrir={abrirMarca} onDia={(d) => { setLunes(lunesDe(d)); setVisto(d); }} onMes={() => { setMes(`${hoy.slice(0, 8)}01`); setVista("mes"); }} />
+      <button type="button" className="boton plan-nuevo" onClick={() => setCrear({ dia: visto >= hoy ? visto : hoy, queInicial: "evento" })}>
+        <Icon name="plus" size={16} /> Añadir un evento o un recordatorio
+      </button>
+      <PorAgendar eventos={eventos} sombreros={sombreros} onAbrir={(e) => abrir("evento", e)} />
+      <SinDia acciones={acciones} hoy={hoy} proyectos={estado.proyectos} sombreros={sombreros} onAbrir={(a) => onAbrir("accion", a)} />
+    </>
+  );
+
   return (
     <div className={`plan${tipo ? " editando-tipo" : ""}${lado.abierto ? (lado.fijo ? "" : " lado-flotante") : " lado-cerrado"}`}>
       <div className="plan-cabeza">
@@ -299,8 +317,10 @@ export default function Plan({ estado, hoy, hora, cambiar, onHecha, onAbrir, avi
         )}
       </div>
 
+      {primeroArriba && <div className="plan-primero">{primero}</div>}
+
       <section className={`plan-semana vista-${verVista}`} aria-labelledby={`${id}-dias`}>
-        <h2 id={`${id}-dias`} className="solo-lector">{tipo ? "Tu semana tipo" : vista === "mes" ? "El mes" : "Tu semana"}</h2>
+        <h2 id={`${id}-dias`} className={primeroArriba ? "plan-tu-dia" : "solo-lector"}>{tipo ? "Tu semana tipo" : vista === "mes" ? "El mes" : primeroArriba ? "Tu día" : "Tu semana"}</h2>
         {verVista === "mes" ? (
           <MesVista
             primero={mes}
@@ -350,12 +370,7 @@ export default function Plan({ estado, hoy, hora, cambiar, onHecha, onAbrir, avi
           <SemanaTipo estado={estado} sombreros={sombreros} cambiar={cambiar} avisar={avisar} servidor={servidor} recargar={recargar} abierta setAbierta={(v) => !v && setTipo(false)} />
         ) : (
           <>
-            <LoQueViene marcas={marcas} hoy={hoy} sombreros={sombreros} onAbrir={abrirMarca} onDia={(d) => { setLunes(lunesDe(d)); setVisto(d); }} onMes={() => { setMes(`${hoy.slice(0, 8)}01`); setVista("mes"); }} />
-            <button type="button" className="boton plan-nuevo" onClick={() => setCrear({ dia: visto >= hoy ? visto : hoy, queInicial: "evento" })}>
-              <Icon name="plus" size={16} /> Añadir un evento o un recordatorio
-            </button>
-            <PorAgendar eventos={eventos} sombreros={sombreros} onAbrir={(e) => abrir("evento", e)} />
-            <SinDia acciones={acciones} hoy={hoy} proyectos={estado.proyectos} sombreros={sombreros} onAbrir={(a) => onAbrir("accion", a)} />
+            {!primeroArriba && primero}
             <ProyectosConFecha estado={estado} hoy={hoy} sombreros={sombreros} cambiar={cambiar} onHecha={onHecha} onAbrir={onAbrir} avisar={avisar} />
             <HorasSombreros sombreros={sombreros} resumen={{ filas, hayBloques, sinSombrero, totalMin, flojos, bloquesSinSombrero, abrirSemanaTipo: () => setTipo(true) }} />
           </>
@@ -430,7 +445,7 @@ function LoQueViene({ marcas, hoy, sombreros, onAbrir, onDia, onMes }) {
                 {marcas[d].map((m, i) => (
                   <li key={i} style={m.color ? { "--s": m.color } : estiloDe(m.sombrero, sombreros)}>
                     <button type="button" onClick={() => onAbrir(m)}>
-                      <Icon name={m.tipo === "especial" ? "star" : m.tipo === "reunion" ? "users" : "calendar"} size={13} />
+                      <Icon name={m.tipo === "especial" ? "star" : m.tipo === "reunion" ? "users" : m.tipo === "recordatorio" ? "bell" : "calendar"} size={13} />
                       {m.hora && <time>{horaCorta(m.hora)}</time>}
                       <span>{m.titulo}</span>
                     </button>

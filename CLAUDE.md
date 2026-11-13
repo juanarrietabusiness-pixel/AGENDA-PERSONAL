@@ -202,6 +202,17 @@ panel de la derecha: Lo que viene, «Añadir un evento o un recordatorio» (`Cre
 agendar, Tareas sin día (`SinDia`: se arrastran a la semana; «Ver todas en Tareas»), Proyectos con fecha y las horas por
 sombrero en una barra (`HorasSombreros`). Sin las listas de tareas de cada sombrero.
 
+**El teléfono, quieto y por gestos** (decisión de Juan). En Hoy las pestañas (Tareas, Reuniones, Recordatorios,
+Especiales) también se pasan DESLIZANDO con el dedo (`hooks/useDeslizar.js`: el panel sigue un poco al dedo, pasa del
+umbral y cambia; lo vertical sigue siendo de la página por `touch-action: pan-y`; no toma lo que empieza en algo que ya se
+desplaza de lado, como los chips, ni en un campo). «Crear» (`CrearAqui`) en el teléfono es una PANTALLA ENTERA, no una
+hoja: la barra con cerrar y «Crear» queda fija arriba (`.crear-barra`) y sólo se desplaza lo de abajo (`.crear-cuerpo`),
+sin moverse de lado (los campos de fecha y hora del iPhone llevan `min-width: 0` y `appearance: none`; ningún `.dialogo`
+se desliza de lado). En Plan del teléfono (`useMedia("(max-width: 899px)")`), «Lo que viene» y lo pendiente van ARRIBA
+(`.plan-primero`) y «Tu día» (la tira de días y el día escogido) debajo, más pequeño: una línea por cosa. «Lo que viene»
+lleva además los recordatorios de una sola vez (`marcasDeDias(…, { recordatorios: true })`; el mes chico, no) y cada día va
+con lo especial primero y luego por hora.
+
 **Google Tasks: qué sombrero es cada lista** (`sombreroDeLista` en src/lib/sombreros.js, `ajustes.listas` de la cuenta:
 un sombrero o «no»): lo escogido manda; si no, el nombre parecido (`nombreParecido`: sin «el», «mis», en singular — «EL
 REINO» es Reino, «PERSONALES» es Personal). `listaParaSombrero` usa lo mismo al revés. Se escoge en Ajustes → Google.

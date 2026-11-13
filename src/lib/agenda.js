@@ -226,7 +226,7 @@ export function reunionesDelPeriodo(eventos, externos, r, ajustes = {}) {
  * todo el día) y las reuniones y compromisos que NO se repiten; lo de cada semana no, que marcaría todos los días. Lo que
  * ya se pasó a Kairos no se cuenta dos veces. Devuelve { [día]: [{ tipo, titulo, sombrero, color }] }.
  */
-export function marcasDeDias({ acciones = [], eventos = [], externos = [], ajustes = {}, ritmo = [] } = {}, desde, hasta) {
+export function marcasDeDias({ acciones = [], eventos = [], externos = [], ajustes = {}, ritmo = [] } = {}, desde, hasta, { recordatorios = false } = {}) {
   const traidas = new Set((ritmo ?? []).map((e) => e.google).filter(Boolean));
   const ext = (externos ?? []).filter((x) => !traidas.has(x.serie));
   const marcas = {};
@@ -240,6 +240,16 @@ export function marcasDeDias({ acciones = [], eventos = [], externos = [], ajust
     if (r.repite?.regla || r.serie) continue;
     poner(r.dia ?? r.fecha, { tipo: r.clase === "reunion" ? "reunion" : "evento", titulo: r.titulo, sombrero: r.sombrero ?? null, color: r.color ?? null, de: r.fuente === "google" ? "google" : "evento", obj: r, hora: r.inicio && !esTodoElDia(r) && !r.horaPorDefinir ? r.inicio : null });
   }
+  // «Lo que viene» lleva además los recordatorios de una sola vez (lo que hay que recordar); el mes chico, no.
+  if (recordatorios) {
+    for (const a of acciones) {
+      if (a.clase !== "recordatorio" || a.estado !== "abierta" || a.repite?.regla || !a.cuando) continue;
+      poner(a.cuando, { tipo: "recordatorio", titulo: a.titulo, sombrero: a.sombrero ?? null, color: null, de: "accion", obj: a, hora: a.hora ?? null });
+    }
+  }
+  // En cada día: lo especial primero y luego por hora (lo que no tiene hora, al final).
+  const rango = (m) => (m.tipo === "especial" ? 0 : 1);
+  for (const d of Object.keys(marcas)) marcas[d].sort((a, b) => rango(a) - rango(b) || (a.hora ?? "99").localeCompare(b.hora ?? "99"));
   return marcas;
 }
 

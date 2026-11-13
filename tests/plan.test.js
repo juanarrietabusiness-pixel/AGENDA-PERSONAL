@@ -223,6 +223,28 @@ describe("el mes chico del menú", () => {
     expect(Object.keys(m).sort()).toEqual(["2026-11-20", "2026-11-24", "2026-11-27"]);
     expect(m["2026-11-24"][0]).toMatchObject({ tipo: "reunion", titulo: "Reunión con Dayano" });
   });
+
+  it("«Lo que viene» suma los recordatorios de una sola vez, ordenados por hora con lo especial primero", async () => {
+    const { marcasDeDias } = await import("../src/lib/agenda.js");
+    const rec = (titulo, cuando, hora, extra = {}) => ({ ...nuevaAccion({ titulo, clase: "recordatorio", lista: "siguientes" }, MIE), cuando, hora, ...extra });
+    const estado = {
+      acciones: [
+        rec("Pagar el seguro", "2026-11-14", "09:00"),
+        rec("Tomar la vitamina", "2026-11-14", "07:00", { repite: { regla: "FREQ=DAILY", inicio: "2026-11-01" } }),
+        { ...rec("Ya hecho", "2026-11-14", "08:00"), estado: "hecha" },
+      ],
+      eventos: [
+        { id: "e1", titulo: "Reunión con Adolfo", clase: "reunion", fecha: "2026-11-14", inicio: "10:00", fin: "11:00" },
+        { id: "e2", titulo: "Evangelismo", clase: "especial", fecha: "2026-11-14", inicio: "16:00", fin: "18:00" },
+      ],
+    };
+    expect(marcasDeDias(estado, "2026-11-09", "2026-11-20")["2026-11-14"].map((m) => m.titulo)).toEqual(["Evangelismo", "Reunión con Adolfo"]);
+    expect(marcasDeDias(estado, "2026-11-09", "2026-11-20", { recordatorios: true })["2026-11-14"].map((m) => [m.tipo, m.titulo])).toEqual([
+      ["especial", "Evangelismo"],
+      ["recordatorio", "Pagar el seguro"],
+      ["reunion", "Reunión con Adolfo"],
+    ]);
+  });
 });
 
 describe("Plan: las tareas del día arriba", () => {

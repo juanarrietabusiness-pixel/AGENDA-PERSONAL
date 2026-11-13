@@ -121,7 +121,13 @@ export default function CrearAqui({ en, tipo = false, queInicial = null, hoy, es
   return (
     <div className="capa" onClick={(e) => e.target === e.currentTarget && onCerrar()}>
       <form ref={ref} className="dialogo crear-aqui" role="dialog" aria-modal="true" aria-labelledby={`${id}-t`} onSubmit={crear}>
-        <h2 id={`${id}-t`}>{tipo ? `Tu semana tipo · ${DIAS[diaSemana(en.dia)]}` : textoLargo(en.dia)}{en.inicio ? ` · ${rangoCorto(en.inicio, en.fin ?? finHueco)}` : ""}</h2>
+        {/* En el teléfono es una pantalla entera y quieta: arriba, siempre a la vista, cerrar y «Crear». */}
+        <div className="crear-barra">
+          <button type="button" className="boton fantasma icono" onClick={onCerrar} aria-label="Cancelar"><Icon name="close" size={20} /></button>
+          <h2 id={`${id}-t`}>{tipo ? `Tu semana tipo · ${DIAS[diaSemana(en.dia)]}` : textoLargo(en.dia)}{en.inicio ? ` · ${rangoCorto(en.inicio, en.fin ?? finHueco)}` : ""}</h2>
+          <button type="submit" className="boton primario crear-barra-ok">Crear</button>
+        </div>
+        <div className="crear-cuerpo">
 
         <p className="etiqueta" id={`${id}-q`}>¿Qué es?</p>
         <div className="opciones-clase" role="group" aria-labelledby={`${id}-q`}>
@@ -196,7 +202,7 @@ export default function CrearAqui({ en, tipo = false, queInicial = null, hoy, es
 
         {error && <p role="alert" className="aviso rojo" style={{ marginTop: "var(--sp-3)" }}>{error}</p>}
 
-        <div className="botones" style={{ marginTop: "var(--sp-4)", justifyContent: "flex-end" }}>
+        <div className="botones crear-pie" style={{ marginTop: "var(--sp-4)", justifyContent: "flex-end" }}>
           <button type="button" className="boton fantasma" onClick={onCerrar}>Cancelar</button>
           <button type="submit" className="boton primario">Crear</button>
         </div>
@@ -232,6 +238,7 @@ export default function CrearAqui({ en, tipo = false, queInicial = null, hoy, es
             )}
           </details>
         )}
+        </div>
       </form>
     </div>
   );

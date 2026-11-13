@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Icon from "../componentes/Icon.jsx";
 import Fila from "../componentes/Fila.jsx";
 import AnadirRapido from "../componentes/AnadirRapido.jsx";
 import ModoEnfoque from "../componentes/ModoEnfoque.jsx";
+import { useDeslizar } from "../hooks/useDeslizar.js";
 import { textoCorto, textoHora, sumarDias, rangoCorto, horaCorta, minutos, aHora } from "../lib/fechas.js";
 import { sombrerosDe, estiloDe, nombreDe } from "../lib/sombreros.js";
 import { variante } from "../lib/mensajes.js";
@@ -52,6 +53,28 @@ export default function Hoy({ estado, hoy, hora, onHecha, onAbrir, onDecidir, on
   const [filtro, setFiltro] = useState(null);
   const [verFiltros, setVerFiltros] = useState(false);
   const [seccion, setSeccion] = useState("tareas");
+  // En el teléfono las pestañas (Tareas, Reuniones, Recordatorios, Especiales) también se pasan deslizando con el dedo.
+  const [entra, setEntra] = useState(0);
+  const pestanas = useRef(null);
+  const elegir = (id, paso = 0) => {
+    setSeccion(id);
+    setEntra(paso);
+    const lista = pestanas.current;
+    const boton = lista?.querySelector(`#pestana-${id}`);
+    if (lista && boton) {
+      const r = boton.getBoundingClientRect();
+      const l = lista.getBoundingClientRect();
+      if (r.left < l.left) lista.scrollLeft -= l.left - r.left + 8;
+      else if (r.right > l.right) lista.scrollLeft += r.right - l.right + 8;
+    }
+  };
+  const deslizar = useDeslizar(
+    (paso) => {
+      const j = SECCIONES.findIndex((s) => s.id === seccion) + paso;
+      if (j >= 0 && j < SECCIONES.length) elegir(SECCIONES[j].id, paso);
+    },
+    () => Boolean(pestanas.current?.offsetParent),
+  );
   const [verHechas, setVerHechas] = useState(false);
   const [verSinFecha, setVerSinFecha] = useState(false);
   const [verRutina, setVerRutina] = useState(false);
@@ -178,7 +201,7 @@ export default function Hoy({ estado, hoy, hora, onHecha, onAbrir, onDecidir, on
     ponerPeriodo("dia");
     setDia(hoy);
     setFiltro(ahora?.sombrero ?? null);
-    setSeccion("tareas");
+    elegir("tareas");
     requestAnimationFrame(() => document.querySelector(".hoy-pestanas, .hoy-tareas")?.scrollIntoView({ behavior: "smooth", block: "nearest" }));
   };
 
@@ -297,7 +320,7 @@ export default function Hoy({ estado, hoy, hora, onHecha, onAbrir, onDecidir, on
   const filtrosActivos = Boolean(filtro) || orden !== "prioridad";
 
   return (
-    <div className="hoy">
+    <div className="hoy" data-entra={entra || undefined}>
       {enfocado && <ModoEnfoque tareas={paraEnfocar} bloque={ahora} hasta={hastaEnfoque} hora={hora} sombreros={sombreros} onHecha={(id) => onHecha(id, { fijar: true })} onSalir={salirDelEnfoque} />}
       <div className="hoy-saludo">
         <h1 className="titulo-pantalla">{saludo(hora, hoy)}, {ajustes.nombre}.</h1>
@@ -419,21 +442,21 @@ export default function Hoy({ estado, hoy, hora, onHecha, onAbrir, onDecidir, on
         )}
       </section>
 
-      <div className="hoy-pestanas pestanas-columnas" role="tablist" aria-label="Qué ver">
+      <div ref={pestanas} className="hoy-pestanas pestanas-columnas" role="tablist" aria-label="Qué ver (también deslizando con el dedo)">
         {SECCIONES.map((s) => (
-          <button key={s.id} type="button" role="tab" id={`pestana-${s.id}`} aria-controls={`panel-${s.id}`} aria-selected={seccion === s.id} onClick={() => setSeccion(s.id)}>
+          <button key={s.id} type="button" role="tab" id={`pestana-${s.id}`} aria-controls={`panel-${s.id}`} aria-selected={seccion === s.id} onClick={() => elegir(s.id)}>
             <Icon name={s.icono} size={16} /> {s.nombre} <span className="cuenta">{cuenta[s.id]}</span>
           </button>
         ))}
       </div>
 
-      <section className="hoy-tareas hoy-col" id="panel-tareas" role="tabpanel" aria-labelledby="hoy-tareas" data-activa={seccion === "tareas"}>
+      <section className="hoy-tareas hoy-col" id="panel-tareas" role="tabpanel" aria-labelledby="hoy-tareas" data-activa={seccion === "tareas"} {...deslizar}>
         {cabezaSeccion(SECCIONES[0])}
         {anadirTarea("solo-escritorio")}
         {contenido.tareas}
       </section>
 
-      <div className="hoy-agenda hoy-col">
+      <div className="hoy-agenda hoy-col" {...deslizar}>
         {SECCIONES.slice(1).map((s) => (
           <section key={s.id} className="hoy-agenda-seccion" id={`panel-${s.id}`} role="tabpanel" aria-labelledby={`hoy-${s.id}`} data-activa={seccion === s.id}>
             {cabezaSeccion(s, s.id === "especiales" ? "del mes" : undefined)}
