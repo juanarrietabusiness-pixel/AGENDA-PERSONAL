@@ -208,7 +208,8 @@ umbral y cambia; lo vertical sigue siendo de la página por `touch-action: pan-y
 desplaza de lado, como los chips, ni en un campo). «Crear» (`CrearAqui`) en el teléfono es una PANTALLA ENTERA, no una
 hoja: la barra con cerrar y «Crear» queda fija arriba (`.crear-barra`) y sólo se desplaza lo de abajo (`.crear-cuerpo`),
 sin moverse de lado (los campos de fecha y hora del iPhone llevan `min-width: 0` y `appearance: none`; ningún `.dialogo`
-se desliza de lado). En Plan del teléfono (`useMedia("(max-width: 899px)")`), «Lo que viene» y lo pendiente van ARRIBA
+se desliza de lado). Dentro de esa pantalla, deslizar a los lados cambia el tipo (tarea → evento → recordatorio → bloque,
+el mismo `useDeslizar` sobre `.crear-cuerpo`, sólo a pantalla entera); la fila de chips sigue al escogido. En Plan del teléfono (`useMedia("(max-width: 899px)")`), «Lo que viene» y lo pendiente van ARRIBA
 (`.plan-primero`) y «Tu día» (la tira de días y el día escogido) debajo, más pequeño: una línea por cosa. «Lo que viene»
 lleva además los recordatorios de una sola vez (`marcasDeDias(…, { recordatorios: true })`; el mes chico, no) y cada día va
 con lo especial primero y luego por hora.

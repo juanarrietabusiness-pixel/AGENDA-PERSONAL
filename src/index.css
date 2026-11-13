@@ -1158,6 +1158,7 @@ button.rejilla-mas { cursor: pointer; text-decoration: underline; }
 .crear-barra h2 { flex: 1; min-width: 0; margin: 0; }
 .crear-barra .icono, .crear-barra-ok { display: none; }
 .crear-cuerpo { margin-top: var(--sp-2); }
+.crear-desliza { display: none; }
 /* En el teléfono es una PANTALLA ENTERA y quieta (como «Evento nuevo» de Google Calendar): la barra con cerrar y
    «Crear» queda fija arriba y sólo se desplaza lo de abajo, sin moverse de lado ni rebotar con la página. */
 @media (max-width: 699px) {
@@ -1168,7 +1169,8 @@ button.rejilla-mas { cursor: pointer; text-decoration: underline; }
   .crear-barra .icono { display: inline-grid; }
   .crear-barra-ok { display: inline-flex; min-height: 40px; }
   .crear-pie { display: none !important; }
-  .crear-cuerpo { flex: 1; min-height: 0; margin: 0; padding: var(--sp-2) var(--sp-4) calc(var(--sp-6) + env(safe-area-inset-bottom)); overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+  .crear-cuerpo { flex: 1; min-height: 0; margin: 0; padding: var(--sp-2) var(--sp-4) calc(var(--sp-6) + env(safe-area-inset-bottom)); overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; touch-action: pan-y; }
+  .crear-desliza { display: inline; margin-left: 6px; font-weight: 400; }
   .crear-aqui .opciones-clase, .crear-aqui .filtro-sombreros { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
   .crear-aqui .opciones-clase .chip-boton, .crear-aqui .filtro-sombreros .chip-boton { flex-shrink: 0; }
   .crear-aqui .etiqueta { margin-top: var(--sp-3); }

@@ -1,6 +1,8 @@
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 import Icon from "./Icon.jsx";
 import { useDialogo } from "../hooks/useDialogo.js";
+import { useDeslizar } from "../hooks/useDeslizar.js";
+import { useMedia } from "../hooks/useMedia.js";
 import { ordenarPor, eventosPorAgendar, normalizarEvento } from "../lib/agenda.js";
 import { nuevaAccion, nuevoId } from "../lib/metodo.js";
 import { estiloDe } from "../lib/sombreros.js";
@@ -46,6 +48,25 @@ export default function CrearAqui({ en, tipo = false, queInicial = null, hoy, es
   const opciones = tipo ? ["bloque", "evento", "recordatorio"] : Object.keys(QUE);
   const semanal = f.que === "bloque" || tipo || (f.repite && f.que !== "tarea");
   const conFin = f.que !== "recordatorio";
+
+  // En el teléfono (pantalla entera) se cambia de tipo deslizando a los lados: a la izquierda, el siguiente.
+  const pantallaEntera = useMedia("(max-width: 699px)");
+  const cuerpo = useRef(null);
+  const chips = useRef(null);
+  const deslizar = useDeslizar(
+    (paso) => {
+      const j = opciones.indexOf(f.que) + paso;
+      if (j < 0 || j >= opciones.length) return;
+      poner("que", opciones[j]);
+      const fila = chips.current;
+      const chip = fila?.children[j];
+      if (fila && chip) fila.scrollTo({ left: fila.scrollLeft + chip.getBoundingClientRect().left - fila.getBoundingClientRect().left - (fila.clientWidth - chip.clientWidth) / 2, behavior: "smooth" });
+      if (!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+        cuerpo.current?.animate?.([{ transform: `translateX(${paso * 32}px)`, opacity: 0.3 }, { transform: "none", opacity: 1 }], { duration: 200, easing: "ease-out" });
+      }
+    },
+    () => pantallaEntera,
+  );
 
   const regla = (dias) => `FREQ=WEEKLY;BYDAY=${[...new Set(dias)].sort((a, b) => ((a + 6) % 7) - ((b + 6) % 7)).map((d) => CODIGOS[d]).join(",")}`;
 
@@ -127,10 +148,10 @@ export default function CrearAqui({ en, tipo = false, queInicial = null, hoy, es
           <h2 id={`${id}-t`}>{tipo ? `Tu semana tipo · ${DIAS[diaSemana(en.dia)]}` : textoLargo(en.dia)}{en.inicio ? ` · ${rangoCorto(en.inicio, en.fin ?? finHueco)}` : ""}</h2>
           <button type="submit" className="boton primario crear-barra-ok">Crear</button>
         </div>
-        <div className="crear-cuerpo">
+        <div ref={cuerpo} className="crear-cuerpo" {...deslizar}>
 
-        <p className="etiqueta" id={`${id}-q`}>¿Qué es?</p>
-        <div className="opciones-clase" role="group" aria-labelledby={`${id}-q`}>
+        <p className="etiqueta" id={`${id}-q`}>¿Qué es? <span className="nota crear-desliza">Desliza a los lados para cambiar</span></p>
+        <div ref={chips} className="opciones-clase" role="group" aria-labelledby={`${id}-q`}>
           {opciones.map((k) => (
             <button key={k} type="button" className="chip-boton" aria-pressed={f.que === k} onClick={() => poner("que", k)}>
               <Icon name={QUE[k].icono} size={14} /> {QUE[k].nombre}
