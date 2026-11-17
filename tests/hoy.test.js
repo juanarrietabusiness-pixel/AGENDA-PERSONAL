@@ -129,3 +129,57 @@ describe("prepara tu día", () => {
     expect(b.fuera.map((x) => x.id)).toEqual(["s1"]);
   });
 });
+
+describe("Hoy: la agenda en orden de hora y las tareas por bloque", () => {
+  const D = "2026-11-17"; // martes
+  const trabajo = { id: "tb", titulo: "Trabajo", sombrero: "trabajo", inicio: "08:00", fin: "12:00", repite: { regla: "FREQ=WEEKLY;BYDAY=TU", inicio: "2026-01-06" } };
+  const dmc = { id: "dmc", titulo: "57DMC", sombrero: "artistico", inicio: "13:00", fin: "17:00", repite: { regla: "FREQ=WEEKLY;BYDAY=TU", inicio: "2026-01-06" } };
+  const prov = { id: "pv", titulo: "Proverbios", clase: "recordatorio", inicio: "11:45", fin: "11:45", repite: { regla: "FREQ=WEEKLY;BYDAY=TU", inicio: "2026-01-06" } };
+  const t = (datos) => ({ ...nuevaAccion({ lista: "siguientes", ...datos }, D), ...datos });
+
+  it("la agenda: lo de todo el día aparte, lo demás en su hora, lo que pasó apagado y la raya de ahora en su sitio", async () => {
+    const { agendaDelDia, indiceAhora } = await import("../src/lib/vistaHoy.js");
+    const eventos = [
+      { id: "e1", titulo: "Reunión con Dcasa", clase: "reunion", fecha: D, inicio: "10:00", fin: "11:00", sombrero: "trabajo" },
+      { id: "e2", titulo: "Cita por definir", clase: "reunion", fecha: D, inicio: "00:00", fin: "23:59", horaPorDefinir: true },
+    ];
+    const acciones = [t({ id: "r1", titulo: "Llamar al banco", clase: "recordatorio", cuando: D, hora: "15:00" }), t({ id: "r2", titulo: "Llevar la tarjeta", clase: "recordatorio", cuando: D })];
+    const a = agendaDelDia({ dia: D, hoy: D, hora: "11:30", ritmo: [trabajo, dmc, prov], eventos, acciones });
+    expect(a.linea.map((x) => [x.inicio, x.tipo, x.titulo])).toEqual([
+      ["08:00", "bloque", "Trabajo"],
+      ["10:00", "reunion", "Reunión con Dcasa"],
+      ["11:45", "fijo", "Proverbios"],
+      ["13:00", "bloque", "57DMC"],
+      ["15:00", "recordatorio", "Llamar al banco"],
+    ]);
+    expect(a.linea.filter((x) => x.pasado).map((x) => x.titulo)).toEqual(["Reunión con Dcasa"]);
+    expect(a.sinHora.map((x) => x.titulo).sort()).toEqual(["Cita por definir", "Llevar la tarjeta"]);
+    expect(indiceAhora(a.linea, { dia: D, hoy: D, hora: "11:30" })).toBe(2);
+    expect(indiceAhora(a.linea, { dia: "2026-11-18", hoy: D, hora: "10:30" })).toBeNull();
+  });
+
+  it("las tareas: lo que quedó primero, luego cada bloque en su hora, lo suelto al final; sin lo que va en el centro", async () => {
+    const { gruposDeTareas } = await import("../src/lib/vistaHoy.js");
+    const tareas = [
+      t({ id: "q", titulo: "Quedó", sombrero: "trabajo", cuando: "2026-11-16" }),
+      t({ id: "a", titulo: "Propuesta", sombrero: "trabajo", cuando: D }),
+      t({ id: "b", titulo: "Letra 57DMC", sombrero: "artistico", etiquetas: ["57dmc"], cuando: D }),
+      t({ id: "c", titulo: "Pagar la luz", sombrero: "personal", cuando: D }),
+      t({ id: "x", titulo: "Va en el centro", sombrero: "trabajo", cuando: D }),
+    ];
+    const g = gruposDeTareas(tareas, [trabajo, dmc], D, { hoy: D, fuera: new Set(["x"]) });
+    expect(g.map((x) => [x.tipo, x.bloque?.id ?? null, x.tareas.map((a) => a.id)])).toEqual([
+      ["decidir", null, ["q"]],
+      ["bloque", "tb", ["a"]],
+      ["bloque", "dmc", ["b"]],
+      ["suelta", null, ["c"]],
+    ]);
+  });
+
+  it("cuánto del bloque pasó y cuánto queda", async () => {
+    const { avanceDelBloque } = await import("../src/lib/vistaHoy.js");
+    expect(avanceDelBloque(trabajo, "09:00")).toEqual({ parte: 0.25, quedan: 180 });
+    expect(avanceDelBloque(trabajo, "07:00")).toEqual({ parte: 0, quedan: 240 });
+    expect(avanceDelBloque(trabajo, "13:00")).toEqual({ parte: 1, quedan: 0 });
+  });
+});

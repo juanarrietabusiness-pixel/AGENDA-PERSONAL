@@ -105,22 +105,25 @@ demás (secundarias). En la agenda de Hoy, Especiales va ANTES que Recordatorios
 vez al día en la vuelta, con la reserva `purga:<día>`), sólo de la agenda.
 
 **Menos ruido, más foco** (decisión de Juan: «que promueva el enfoque, que sea fácil de entender»). En Hoy, «Ahora» y «Tus
-3» van en UNA tarjeta corta (`.foco`): el bloque en una línea con «Ver sus N tareas» (filtra la lista) y Tus 3 como filas
-compactas (`Fila compacta`: sin tarjeta, sólo lo urgente; ★ fija, ✕ es «Hoy no»). Añadir es una línea; el sombrero sale
-como chips AL ESCRIBIR (propone el filtrado o el del bloque de ahora) y los recordatorios se añaden en su pestaña, con
-hora. En Plan cada día tiene jerarquía (`diaEnBloques`): el BLOQUE es una franja con sus recordatorios y sus tareas
+3» van en UNA tarjeta (`.foco`, en el centro): el bloque con su lista y Tus 3 como filas compactas (`Fila compacta`: sin
+tarjeta, sólo lo urgente; ★ fija, ✕ es «Hoy no»). Añadir es una línea; el sombrero sale como chips AL ESCRIBIR (propone el
+filtrado o el del bloque de ahora) y los recordatorios se añaden en la agenda, con hora. En Plan cada día tiene jerarquía (`diaEnBloques`): el BLOQUE es una franja con sus recordatorios y sus tareas
 DENTRO, lo demás aparte, con una leyenda; en el teléfono, un día a la vez. La semana tipo y los sombreros van plegados, y
 «Por revisar» (`porRevisar`: sin sombrero, los que se cruzan, lo de ejemplo) se arregla en un toque. Lo que no hace
 falta ver siempre, plegado.
 
-**Hoy: el teléfono primero, el tablero en la computadora** (decisión de Juan: «lo primero es ver mis tareas y poder
-agregar»; «en la computadora no quiero deslizar»). Un solo marcado con `grid-template-areas`, decidido por el ancho del
-CONTENIDO (`@container contenido`, no la ventana: con el asistente abierto al lado se estrecha). Teléfono: saludo corto,
-añadir, Ahora + Tus 3, y las listas por pestañas. Desde 760 px de contenido, dos columnas; desde 940, tres (foco, tareas,
-agenda) y, en pantallas de 900 px o más, a la altura de la ventana: cada columna se desplaza por dentro y la página no. El
-versículo ya no está en Hoy: va en el resumen de la mañana por Telegram y en la barra lateral de la computadora. **La
-burbuja es un micrófono** (si el navegador dicta): tocarla escucha al momento, se ve lo dicho y se envía con otro toque;
-«Escribir» abre el chat. **Reuniones y eventos nunca se vuelven tarea**: sin hora, «hora por definir» (de todo el día,
+**Hoy: el bloque de ahora en el CENTRO** (decisión de Juan: «que se priorice ese bloque de hoy, el enfoque y las tareas
+del día»; `src/lib/vistaHoy.js`, puro). En la computadora, tres columnas: a la IZQUIERDA las demás tareas del día por el
+bloque en que caen (`gruposDeTareas`: primero «Quedaron de antes» con sus botones de decidir, luego cada bloque en su hora y
+al final «Sin bloque»; sin lo que va en el centro), en el CENTRO la tarjeta del foco (el bloque de ahora con su tiempo
+—`avanceDelBloque`—, su lista y «Añadir a …»; debajo, tus 3 que no van en ese bloque) y a la DERECHA la agenda del día en
+orden de hora (`agendaDelDia`: lo especial arriba, lo sin hora, y la línea con bloques y compromisos en gris, reuniones y
+recordatorios en color, lo pasado apagado y una raya roja en «ahora», `indiceAhora`). Mirando otro día, el centro enseña
+sus 3 (o «Preparar este día»). Se decide por el ancho del CONTENIDO (`@container contenido`): desde 760 px, dos columnas;
+desde 940, tres; en pantallas de 900 px o más, a la altura de la ventana (cada columna se desplaza por dentro). En el
+teléfono: saludo, avisos, añadir, la tarjeta del foco y dos pestañas (Tareas | Agenda) que se deslizan. El versículo va en
+el resumen de la mañana por Telegram y en la barra lateral de la computadora. **La burbuja es un micrófono** (si el
+navegador dicta): tocarla escucha al momento, se ve lo dicho y se envía con otro toque; «Escribir» abre el chat. **Reuniones y eventos nunca se vuelven tarea**: sin hora, «hora por definir» (de todo el día,
 `horaPorDefinir`); sin día, «por agendar» (`porAgendar`, sin fecha ni repetición, no va a Google hasta tener día);
 `normalizarEvento` lo deja bien al editar o convertir. Reino no lleva reuniones con gente (`sombreroDeEvento`).
 
@@ -138,11 +141,12 @@ pasos, acciones con `proyectoId`. El asistente los devuelve con el mismo «proye
 el ensayo que se repite se corta el día antes (`hastaElEvento`, UNTIL). La tarjeta dice cuánto falta, cuántos pasos llevas,
 el siguiente y el próximo ensayo. La purga no borra los pasos hechos de un proyecto con fecha que sigue activo (son su
 progreso). **Telegram con botones por tarea** (`botonesDeVarias`): el aviso de cada bloque y Tus 3 del resumen llevan
-«✓ tarea» y «Mañana»; al pulsar se quita sólo esa fila. **Modo enfoque** (`componentes/ModoEnfoque.jsx`, «Enfocarme» en Tus 3 o en el bloque de ahora; decisión de Juan): se
-OCULTA TODO —menú, crear, asistente, las demás listas (`.app.en-enfoque`, y App sólo pinta Hoy)— y queda el bloque de
-ahora con su lista (tus 3 primero, la de arriba destacada, lo hecho se va, «Añadir a este bloque»). Vive en
-`ajustes.enfoque = { dia, hasta, bloque, ids }` (sobrevive a recargar y se acaba solo con el bloque; al salir, todo vuelve)
-y calla los avisos de la escalera y los de inicio de bloque (`enEnfoque`), no los recordatorios fijos ni las reuniones. **La app se instala**
+«✓ tarea» y «Mañana»; al pulsar se quita sólo esa fila. **Modo enfoque** («Enfocarme» en la tarjeta del centro de Hoy; decisión de Juan: «más fino, no exagerado»): NO cambia de
+pantalla. La tarjeta se queda donde está, con un borde de su color, y su lista pasa a ser tus 3 y lo del bloque (la de
+arriba un poco más presente, lo hecho se va, «Añadir a …»); lo demás —el menú y las otras columnas— queda BORROSO y quieto
+(`.hoy.enfocado`, `.app.en-enfoque`, y `inert`); crear y el asistente se apartan. Escape o «Salir del enfoque» lo quita.
+Vive en `ajustes.enfoque = { dia, hasta, bloque, ids }` (sobrevive a recargar y se acaba solo con el bloque) y calla los
+avisos de la escalera y los de inicio de bloque (`enEnfoque`), no los recordatorios fijos ni las reuniones. **La app se instala**
 (`public/manifest.webmanifest` con íconos) y el ícono tiene dos atajos: «Hablar» (`/?hablar=1`, el micrófono listo; si el
 navegador no deja escuchar sin un toque, queda el botón «Hablar») y «Añadir» (`/?anadir=1`, el campo con el foco).
 
@@ -235,8 +239,8 @@ panel de la derecha: Lo que viene, «Añadir un evento o un recordatorio» (`Cre
 agendar, Tareas sin día (`SinDia`: se arrastran a la semana; «Ver todas en Tareas»), Proyectos con fecha y las horas por
 sombrero en una barra (`HorasSombreros`). Sin las listas de tareas de cada sombrero.
 
-**El teléfono, quieto y por gestos** (decisión de Juan). En Hoy las pestañas (Tareas, Reuniones, Recordatorios,
-Especiales) también se pasan DESLIZANDO con el dedo (`hooks/useDeslizar.js`: el panel sigue un poco al dedo, pasa del
+**El teléfono, quieto y por gestos** (decisión de Juan). En Hoy las pestañas (Tareas y Agenda) también se pasan
+DESLIZANDO con el dedo (`hooks/useDeslizar.js`: el panel sigue un poco al dedo, pasa del
 umbral y cambia; lo vertical sigue siendo de la página por `touch-action: pan-y`; no toma lo que empieza en algo que ya se
 desplaza de lado, como los chips, ni en un campo). «Crear» (`CrearAqui`) en el teléfono es una PANTALLA ENTERA, no una
 hoja: la barra con cerrar y «Crear» queda fija arriba (`.crear-barra`) y sólo se desplaza lo de abajo (`.crear-cuerpo`),

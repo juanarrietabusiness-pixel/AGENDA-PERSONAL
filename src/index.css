@@ -506,23 +506,45 @@ button.dia-item { width: 100%; background: none; border: 0; text-align: left; fo
 .accion > div:not(.fila-botones) { min-width: 0; }
 .accion-meta .chip { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
 
-/* ---------- Hoy: tu foco (ahora + tus 3), en una tarjeta corta ---------- */
-.foco { margin-top: var(--sp-4); padding: 0; overflow: hidden; }
-.ahora-tira { padding: var(--sp-3) var(--sp-4); border-left: 4px solid var(--s, var(--acento)); background: color-mix(in srgb, var(--s, var(--acento)) 9%, var(--surface)); }
-.ahora-linea { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px var(--sp-2); margin: 0; }
-.ahora-etiqueta { display: inline-flex; align-items: center; gap: 4px; align-self: center; font-size: var(--fs-3xs); font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--texto-2); }
-.ahora-linea strong { font-size: var(--fs-md); }
-.ahora-linea .nota { font-size: var(--fs-xs); color: var(--texto-3); }
-.ahora-nota { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 4px 0 0; font-size: var(--fs-sm); color: var(--texto-2); }
-.ahora-tira .ahora-despues { margin: 4px 0 0; font-size: var(--fs-xs); color: var(--texto-3); }
-.foco-tres { padding: var(--sp-3) var(--sp-4) var(--sp-3); }
-.ahora-tira + .foco-tres { border-top: 1px solid var(--borde); }
-.foco-cabeza { display: flex; justify-content: space-between; align-items: baseline; gap: var(--sp-2); }
-.foco-cabeza h2 { display: inline-flex; align-items: center; gap: 6px; margin: 0; font-size: var(--fs-sm); font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--texto-2); }
-.foco-cabeza .nota { font-size: var(--fs-xs); color: var(--texto-3); }
+/* ---------- Hoy: el bloque de ahora y tus 3, en la tarjeta del centro ---------- */
+.foco { padding: 0; overflow: hidden; border-top: 3px solid var(--s, var(--acento)); transition: box-shadow 0.25s ease; }
+.foco-ahora { padding: var(--sp-3) var(--sp-4) var(--sp-3); background: color-mix(in srgb, var(--s, var(--acento)) 7%, var(--surface)); }
+.foco-ahora-cabeza { display: flex; justify-content: space-between; align-items: center; gap: var(--sp-2); min-height: 32px; }
+.ahora-etiqueta { display: inline-flex; align-items: center; gap: 5px; margin: 0; font-size: var(--fs-3xs); font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--s, var(--texto-2)); }
+.foco-bloque { margin: 2px 0 0; font-size: var(--fs-xl); line-height: 1.2; letter-spacing: -0.01em; overflow-wrap: anywhere; }
+.foco-meta { margin: 2px 0 0; font-size: var(--fs-sm); color: var(--texto-2); }
+.foco-tiempo { height: 4px; margin-top: var(--sp-2); border-radius: var(--radius-pill); background: color-mix(in srgb, var(--s, var(--acento)) 16%, var(--surface-2)); overflow: hidden; }
+.foco-tiempo span { display: block; height: 100%; border-radius: inherit; background: var(--s, var(--acento)); transition: width 0.4s ease; }
+.foco-nota { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: var(--sp-2) 0 0; font-size: var(--fs-sm); color: var(--texto-2); }
+.foco-reino { margin: 0; padding: var(--sp-3) var(--sp-4); }
+.foco-lista { padding: var(--sp-1) var(--sp-4) var(--sp-2); }
+.foco-lista .vacio { margin: var(--sp-2) 0; }
+/* La primera de la lista es la que sigue: un poco más presente, sin gritar. */
+.foco-lista .con-siguiente > .accion:first-child .accion-titulo { font-size: var(--fs-md); font-weight: 600; }
+.foco-anadir { display: flex; align-items: center; gap: var(--sp-2); margin-top: var(--sp-1); padding: 0 2px; border-radius: var(--radius-sm); color: var(--texto-3); }
+.foco-anadir:focus-within { background: var(--surface-2); color: var(--s, var(--acento)); }
+.foco-anadir .anadir-campo { min-height: 36px; font-size: var(--fs-sm); }
+@media (max-width: 899px) { .foco-anadir .anadir-campo { font-size: 16px; } }
+.foco-tres { padding: var(--sp-3) var(--sp-4); border-top: 1px solid var(--borde); }
+.foco-cabeza { display: flex; align-items: center; gap: var(--sp-2); }
+.foco-cabeza h3 { display: inline-flex; align-items: center; gap: 6px; margin: 0; font-size: var(--fs-2xs); font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--texto-2); white-space: nowrap; }
+.foco-cabeza h3 svg { color: var(--acento); }
 .foco-ayuda { margin: var(--sp-1) 0 0; font-size: var(--fs-2xs); color: var(--texto-3); }
 .foco .plegable { margin-top: var(--sp-1); }
 .foco .enfoque-logro { margin: var(--sp-2) 0 0; }
+.foco-pie { display: flex; align-items: center; gap: 6px; margin: 0; padding: var(--sp-2) var(--sp-4) var(--sp-3); border-top: 1px solid var(--borde); font-size: var(--fs-xs); color: var(--texto-3); }
+.foco-preparar { margin-top: var(--sp-2); }
+.boton-enfocarme, .boton-salir { min-height: 32px; padding: 0 var(--sp-3); font-size: var(--fs-xs); }
+.boton-enfocarme { border-color: color-mix(in srgb, var(--s, var(--acento)) 50%, var(--borde)); color: var(--texto); }
+.boton-enfocarme svg { color: var(--s, var(--acento)); }
+
+/* Modo enfoque (decisión de Juan: «más fino, que no se vea exagerado»): no cambia de pantalla. La tarjeta del centro se
+   queda donde está, con un borde de su color; lo demás —el menú y las otras columnas— queda borroso y no responde
+   (`inert`). Al salir (o al acabar el bloque) se aclara. */
+.foco-activo { box-shadow: 0 0 0 2px var(--s, var(--acento)), 0 18px 48px -20px color-mix(in srgb, var(--s, var(--acento)) 55%, transparent); }
+.hoy > :not(.hoy-foco):not(.capa), .hoy-foco-anadir, .app .nav, .app .cabecera { transition: filter 0.3s ease, opacity 0.3s ease; }
+.hoy.enfocado > :not(.hoy-foco):not(.capa), .hoy.enfocado .hoy-foco-anadir, .app.en-enfoque .nav, .app.en-enfoque .cabecera { filter: blur(3px) saturate(0.6); opacity: 0.35; pointer-events: none; user-select: none; }
+@media (prefers-reduced-motion: reduce) { .hoy > *, .app .nav, .app .cabecera, .foco { transition: none !important; } }
 
 /* Una fila compacta: sin tarjeta, una línea; el color del círculo dice el sombrero. */
 .lista.lista-compacta { gap: 0; margin-top: var(--sp-1); }
@@ -633,65 +655,104 @@ button.dia-item { width: 100%; background: none; border: 0; text-align: left; fo
 .sombreros { gap: var(--sp-2); }
 
 /* ============================================================
-   Hoy: en el teléfono, lo que se hace primero; en la computadora, un tablero que cabe sin desplazar.
+   Hoy (decisión de Juan: «que se priorice el bloque de hoy»): el foco en el CENTRO, las demás tareas a un lado y la
+   agenda del día al otro. En el teléfono, el foco arriba y debajo dos pestañas (Tareas, Agenda) que se deslizan.
    Se decide por el ancho del contenido (no de la ventana): con el asistente abierto al lado, el tablero se estrecha.
    ============================================================ */
 .contenido { container: contenido / inline-size; }
 .contenido:has(> .hoy) { max-width: 1480px; }
-.hoy { display: grid; gap: var(--sp-3); grid-template-columns: minmax(0, 1fr); grid-template-areas: "saludo" "aviso" "foco" "controles" "filtros" "pestanas" "tareas" "agenda"; }
+.hoy { display: grid; gap: var(--sp-3); grid-template-columns: minmax(0, 1fr); grid-template-areas: "saludo" "avisos" "foco" "controles" "filtros" "pestanas" "tareas" "agenda"; }
 .hoy-saludo { grid-area: saludo; }
 .hoy-saludo .titulo-pantalla { font-size: var(--fs-xl); margin: var(--sp-1) 0 0; }
 .hoy-saludo .subtitulo { margin: 2px 0 0; font-size: var(--fs-sm); }
-.hoy-aviso { grid-area: aviso; width: 100%; text-align: left; padding: var(--sp-2) var(--sp-3); font-size: var(--fs-sm); }
+.hoy-avisos { grid-area: avisos; display: grid; gap: var(--sp-2); }
+.hoy-avisos .prep-aviso { margin: 0; }
+.hoy-aviso { width: 100%; text-align: left; padding: var(--sp-2) var(--sp-3); font-size: var(--fs-sm); }
 .hoy-foco { grid-area: foco; display: grid; gap: var(--sp-3); align-content: start; }
-.hoy-foco .foco { margin-top: 0; }
+.hoy-foco-anadir:empty { display: none; }
 .hoy-foco .anadir { margin-bottom: 0; }
 .hoy-controles { grid-area: controles; display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); }
-.hoy-controles .segmentado button { padding: 0 var(--sp-3); }
 .boton-filtrar.activo { color: var(--acento); }
 .hoy-filtros { grid-area: filtros; display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); }
 .hoy-filtros .filtro-sombreros { margin-top: 0; flex: 1 1 260px; }
 .hoy-filtros .orden { margin-left: 0; }
 .hoy .hoy-pestanas { grid-area: pestanas; display: flex; margin-top: 0; }
 .hoy-tareas { grid-area: tareas; }
-.hoy-agenda { grid-area: agenda; display: grid; gap: var(--sp-4); align-content: start; }
+.hoy-agenda { grid-area: agenda; }
 .hoy-seccion-cabeza { display: none; }
 .hoy-seccion-cabeza h2 { display: inline-flex; align-items: center; gap: 6px; }
-.hoy-tareas[data-activa="false"], .hoy-agenda-seccion[data-activa="false"] { display: none; }
+.hoy-col[data-activa="false"] { display: none; }
 /* En el teléfono se pasa de pestaña deslizando (useDeslizar): lo vertical es de la página; la nueva entra por su lado. */
-.hoy-tareas, .hoy-agenda { touch-action: pan-y; }
+.hoy-col { touch-action: pan-y; }
 @keyframes entra-derecha { from { transform: translateX(32px); opacity: 0.3; } to { transform: none; opacity: 1; } }
 @keyframes entra-izquierda { from { transform: translateX(-32px); opacity: 0.3; } to { transform: none; opacity: 1; } }
-.hoy[data-entra="1"] :is(.hoy-tareas, .hoy-agenda-seccion)[data-activa="true"] { animation: entra-derecha 0.22s ease-out; }
-.hoy[data-entra="-1"] :is(.hoy-tareas, .hoy-agenda-seccion)[data-activa="true"] { animation: entra-izquierda 0.22s ease-out; }
-@media (prefers-reduced-motion: reduce) { .hoy[data-entra] :is(.hoy-tareas, .hoy-agenda-seccion) { animation: none !important; } }
+.hoy[data-entra="1"] .hoy-col[data-activa="true"] { animation: entra-derecha 0.22s ease-out; }
+.hoy[data-entra="-1"] .hoy-col[data-activa="true"] { animation: entra-izquierda 0.22s ease-out; }
+@media (prefers-reduced-motion: reduce) { .hoy[data-entra] .hoy-col { animation: none !important; } }
 .solo-escritorio { display: none; }
 .sub-seccion { margin: var(--sp-4) 0 var(--sp-2); font-size: var(--fs-2xs); font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--texto-3); }
-.hoy-pie { margin: 0; }
+.hoy-pie { margin: var(--sp-3) 0 0; }
 
-/* Dos columnas: el foco y la agenda a un lado, las tareas al otro. */
+/* Las demás tareas del día, por el bloque en que caen. */
+.grupo-hoy + .grupo-hoy { margin-top: var(--sp-3); }
+.grupo-tareas-h { display: flex; align-items: center; gap: 6px; margin: 0 0 var(--sp-1); font-size: var(--fs-2xs); font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--texto-3); }
+.grupo-tareas-h .punto { background: var(--s, var(--texto-3)); }
+.grupo-tareas-h small { font-weight: 400; text-transform: none; letter-spacing: 0; }
+.grupo-tareas-h.decidir { color: var(--ambar); }
+.hoy-tareas .botones.decidir { flex-wrap: wrap; gap: 4px; }
+.hoy-tareas .botones.decidir .boton { min-height: 30px; padding: 0 10px; font-size: var(--fs-2xs); }
+
+/* La agenda del día en orden de hora: lo que es tuyo (bloques, compromisos) en gris; reuniones y recordatorios, en
+   color; lo que pasó, apagado; una raya roja en «ahora». */
+.agenda-especiales { list-style: none; display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 var(--sp-2); padding: 0; }
+.agenda-especiales li { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: var(--radius-pill); background: color-mix(in srgb, var(--s, var(--acento)) 14%, var(--surface)); font-size: var(--fs-xs); }
+.agenda-especiales svg { color: var(--s, var(--acento)); }
+.agenda-especiales .enlace { color: var(--texto); font-weight: 600; text-decoration: none; text-align: left; }
+.linea { list-style: none; margin: 0; padding: 0; display: grid; }
+.linea.sin-hora { margin-bottom: var(--sp-2); }
+.linea-item { display: grid; grid-template-columns: 4.4rem 12px minmax(0, 1fr) auto; align-items: start; gap: var(--sp-2); padding: 5px 4px; border-radius: var(--radius-sm); font-size: var(--fs-sm); }
+.linea-item time { padding-top: 2px; font-size: var(--fs-xs); font-variant-numeric: tabular-nums; text-align: right; color: var(--texto-3); white-space: nowrap; }
+.linea-punto { justify-self: center; width: 9px; height: 9px; margin-top: 5px; border-radius: 50%; background: var(--s, var(--texto-3)); }
+.linea-texto { display: grid; min-width: 0; }
+.linea-texto .enlace { display: inline-flex; align-items: baseline; gap: 5px; text-align: left; color: var(--texto); font-weight: 600; text-decoration: none; overflow-wrap: anywhere; }
+.linea-texto .enlace svg { flex-shrink: 0; color: var(--s, var(--texto-3)); }
+.linea-texto small { font-size: var(--fs-3xs); color: var(--texto-3); }
+.t-bloque .linea-punto { width: 8px; height: 15px; margin-top: 3px; border-radius: 3px; }
+.t-bloque .linea-texto .enlace, .t-compromiso .linea-texto .enlace, .t-rutina .linea-texto .enlace, .t-fijo .linea-texto .enlace { font-weight: 500; color: var(--texto-2); }
+.t-compromiso .linea-punto, .t-rutina .linea-punto { background: transparent; border: 2px solid var(--texto-3); }
+.t-fijo .linea-punto, .t-recordatorio .linea-punto { background: transparent; border: 2px solid var(--s, var(--acento)); }
+.linea-item.pasado { opacity: 0.45; }
+.linea-item.es-ahora { background: color-mix(in srgb, var(--s, var(--acento)) 9%, transparent); }
+.linea-ahora { display: grid; grid-template-columns: 4.4rem minmax(0, 1fr); align-items: center; gap: var(--sp-2); padding: 2px 4px; color: var(--rojo); font-size: var(--fs-3xs); font-weight: 700; }
+.linea-ahora span { text-align: right; }
+.linea-ahora::after { content: ""; height: 2px; border-radius: 2px; background: var(--rojo); }
+.linea-marcar { width: 22px; height: 22px; margin: 0; }
+.agenda-anadir { margin-top: var(--sp-3); }
+.agenda-anadir .anadir { margin-bottom: 0; }
+
+/* Dos columnas: el foco y las tareas a un lado, la agenda al otro. */
 @container contenido (min-width: 760px) {
   .hoy {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
-    grid-template-areas: "saludo controles" "filtros filtros" "aviso aviso" "foco tareas" "agenda tareas";
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+    grid-template-areas: "saludo controles" "filtros filtros" "avisos avisos" "foco agenda" "tareas agenda";
     column-gap: var(--sp-4);
   }
   .hoy-controles { justify-content: flex-end; align-self: center; }
   .hoy .hoy-pestanas { display: none; }
-  .hoy-tareas[data-activa], .hoy-agenda-seccion[data-activa] { display: block; }
+  .hoy-col[data-activa] { display: block; }
   .hoy-seccion-cabeza { display: flex; }
   .solo-movil { display: none; }
   .solo-escritorio { display: block; }
   .hoy-tareas, .hoy-agenda { background: var(--surface); border: 1px solid var(--borde); border-radius: var(--radius-lg); padding: var(--sp-4); box-shadow: var(--elev-1); }
   .hoy-tareas .anadir { margin-bottom: var(--sp-3); }
-  .hoy-agenda-seccion + .hoy-agenda-seccion { border-top: 1px solid var(--borde); padding-top: var(--sp-3); }
 }
-/* Tres columnas: foco, tareas y agenda. */
+/* Tres columnas: tareas, el foco EN EL CENTRO y la agenda. */
 @container contenido (min-width: 940px) {
   .hoy {
-    grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.25fr) minmax(0, 1fr);
-    grid-template-areas: "saludo controles controles" "filtros filtros filtros" "aviso aviso aviso" "foco tareas agenda";
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.22fr) minmax(0, 1fr);
+    grid-template-areas: "saludo controles controles" "filtros filtros filtros" "avisos avisos avisos" "tareas foco agenda";
   }
+  .hoy-avisos { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
 }
 /* En la computadora, el tablero ocupa la ventana y cada columna se desplaza por dentro: la página no se mueve. */
 @media (min-width: 900px) and (min-height: 560px) {
@@ -699,8 +760,8 @@ button.dia-item { width: 100%; background: none; border: 0; text-align: left; fo
   @container contenido (min-width: 760px) {
     .hoy { height: calc(100dvh - 61px - var(--sp-5) - var(--sp-4)); grid-template-rows: auto auto auto minmax(0, 1.3fr) minmax(0, 1fr); }
     .hoy-foco, .hoy-tareas, .hoy-agenda { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
-    /* Que lo último de la agenda pueda subir por encima del micrófono. */
-    .hoy-agenda { padding-bottom: 84px; }
+    /* Que lo último de cada columna pueda subir por encima del micrófono. */
+    .hoy-agenda, .hoy-tareas { padding-bottom: 84px; }
   }
   @container contenido (min-width: 940px) {
     .hoy { grid-template-rows: auto auto auto minmax(0, 1fr); }
@@ -760,35 +821,6 @@ button.dia-item { width: 100%; background: none; border: 0; text-align: left; fo
 .proyecto-siguiente-paso small { color: var(--texto-3); }
 
 /* Modo enfoque: una tarea, a pantalla completa */
-/* Modo enfoque: la pantalla de Hoy con sólo el bloque de ahora y su lista; el menú, el asistente y lo demás se ocultan
-   (`.app.en-enfoque`) y vuelven al salir o al acabar el bloque. */
-.app.en-enfoque .cabecera, .app.en-enfoque .nav, .app.en-enfoque .boton-crear, .app.en-enfoque .burbuja, .app.en-enfoque .burbuja-boton { display: none !important; }
-.app.en-enfoque .cuerpo { display: block; }
-.app.en-enfoque .contenido { max-width: 760px; padding-top: calc(var(--sp-5) + env(safe-area-inset-top)); padding-bottom: calc(var(--sp-6) + env(safe-area-inset-bottom)); }
-.hoy.hoy-enfocado { display: block; height: auto !important; }
-.enfoque { display: grid; gap: var(--sp-4); padding: var(--sp-5); border-radius: var(--radius-lg); border: 1px solid var(--borde); border-top: 5px solid var(--s, var(--acento)); background: var(--surface); }
-.enfoque-cabeza { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: var(--sp-3); }
-.enfoque-cabeza h1 { margin: 2px 0; font-size: var(--fs-2xl, 28px); line-height: 1.15; }
-.enfoque-cabeza .nota { margin: 0; color: var(--texto-2); }
-.enfoque-etiqueta { display: inline-flex; align-items: center; gap: 6px; margin: 0; font-size: var(--fs-xs); font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--s, var(--acento)); }
-.enfoque-actual { display: grid; grid-template-columns: auto 1fr; gap: var(--sp-4); align-items: start; padding: var(--sp-4); border-radius: var(--radius); background: var(--surface-2); }
-.enfoque-actual.vacio-enfoque { grid-template-columns: 1fr; text-align: center; }
-.marcar.grande { width: 40px; height: 40px; }
-.enfoque-ahora { margin: 0 0 2px; font-size: var(--fs-2xs); font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--texto-3); }
-.enfoque-titulo { display: block; font-size: clamp(20px, 4.5vw, 28px); font-weight: 700; line-height: 1.25; text-align: left; }
-.vacio-enfoque .enfoque-titulo { text-align: center; }
-.enfoque-notas { margin: var(--sp-1) 0 0; color: var(--texto-2); white-space: pre-wrap; }
-.enfoque-sub { margin: 0; font-size: var(--fs-xs); font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--texto-3); }
-.enfoque-lista { list-style: none; margin: 0; padding: 0; display: grid; }
-.enfoque-lista li { display: flex; align-items: center; gap: var(--sp-3); min-height: var(--tap); border-bottom: 1px solid var(--borde); }
-.enfoque-lista li:last-child { border-bottom: 0; }
-.enfoque-lista .marcar { width: 24px; height: 24px; margin: 0; }
-.enfoque-lista .enlace { flex: 1; min-width: 0; text-align: left; font-weight: 500; }
-.enfoque-tres { color: var(--acento); flex-shrink: 0; }
-.enfoque-anadir { margin: 0; }
-.enfoque-pie { display: flex; align-items: center; gap: 6px; margin: 0; font-size: var(--fs-xs); color: var(--texto-3); }
-@media (max-width: 699px) { .enfoque { padding: var(--sp-4); border-radius: var(--radius); } }
-
 /* «Prepara tu día»: tus 3, lo demás en orden y lo que se puede sumar. Es una pantalla entera en el teléfono (como Crear). */
 .prep-aviso { display: flex; align-items: center; gap: var(--sp-2); width: 100%; min-height: var(--tap); margin-bottom: var(--sp-2); padding: 0 var(--sp-3); border: 1px dashed var(--acento); border-radius: var(--radius); background: color-mix(in srgb, var(--acento) 8%, var(--surface)); color: var(--texto); font: inherit; font-size: var(--fs-sm); text-align: left; cursor: pointer; }
 .prep-aviso span { flex: 1; }
@@ -814,15 +846,10 @@ button.dia-item { width: 100%; background: none; border: 0; text-align: left; fo
 .prep-carga li { display: flex; align-items: center; gap: 6px; }
 .prep-carga .punto { background: var(--s, var(--texto-3)); }
 .prep-carga li.lleno { color: var(--rojo, #d33); }
-.foco-solo-boton { justify-content: flex-start; padding-top: var(--sp-2); }
-.foco-proximos { margin: 0; }
-.foco-cabeza .boton-enfocarme { margin-left: auto; min-height: 32px; padding: 0 var(--sp-3); font-size: var(--fs-xs); }
-.foco-cabeza .nota { margin-left: var(--sp-2); }
 /* Cuántas de tus 3 llevas: un punto por cada una, lleno al hacerla (la hecha ya no ocupa sitio en la lista). */
 .foco-avance { display: inline-flex; gap: 4px; margin-left: var(--sp-2); align-self: center; }
 .foco-avance span { width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid var(--acento); }
 .foco-avance span.lleno { background: var(--acento); }
-.foco-cabeza h2 { white-space: nowrap; }
 /* «Otras tareas» de Hoy: más filas a la vista, menos aire en cada una. */
 .hoy-tareas .lista { gap: 6px; }
 .hoy-tareas .accion:not(.compacta) { padding: var(--sp-2) var(--sp-3); gap: var(--sp-2); }

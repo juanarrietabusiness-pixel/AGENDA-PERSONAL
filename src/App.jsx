@@ -233,12 +233,13 @@ export default function App() {
     if (pantalla !== "plan") window.location.hash = "plan";
   };
 
-  // Modo enfoque: sólo Hoy con el bloque de ahora; lo demás (menú, crear, asistente) se oculta hasta salir o acabar.
+  // Modo enfoque: sólo Hoy, con la tarjeta del bloque de ahora resaltada; el menú queda borroso y quieto, y crear y el
+  // asistente se apartan hasta salir o acabar el bloque.
   const enEnfoque = estado.ajustes?.enfoque?.dia === hoy && Boolean(estado.ajustes.enfoque.hasta) && hora < estado.ajustes.enfoque.hasta;
 
   return (
     <div className={`app${asistente && !enEnfoque ? " con-asistente" : ""}${navPlegada ? " nav-plegada" : ""}${enEnfoque ? " en-enfoque" : ""}`}>
-      <header className="cabecera">
+      <header className="cabecera" inert={enEnfoque}>
         <button type="button" className="boton-menu" onClick={plegarNav} aria-expanded={!navPlegada} aria-controls="nav-principal" aria-label={navPlegada ? "Desplegar el menú" : "Plegar el menú"} title={navPlegada ? "Desplegar el menú" : "Plegar el menú"}>
           <Icon name="menu" size={20} />
         </button>
@@ -247,7 +248,7 @@ export default function App() {
         <span className="cabecera-fecha">{mayuscula(textoLargo(hoy))}</span>
       </header>
       <div className="cuerpo">
-        <nav className="nav" id="nav-principal" aria-label="Secciones">
+        <nav className="nav" id="nav-principal" aria-label="Secciones" inert={enEnfoque}>
           {PANTALLAS.map((p) => (
             <a key={p.id} href={`#${p.id}`} aria-current={pantalla === p.id ? "page" : undefined} aria-label={p.nombre} title={navPlegada ? p.nombre : undefined}>
               <Icon name={p.icono} size={22} />
