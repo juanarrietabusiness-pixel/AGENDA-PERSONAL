@@ -394,7 +394,9 @@ export const RESERVA = 2;
  */
 export function enfoqueDelDia(acciones, { hoy, proyectos = [], sombreros = [] }) {
   const ctx = { hoy, proyectos, sombreros };
-  const fijadas = acciones.filter((a) => a.enfoque === hoy && (a.estado === "abierta" || (a.estado === "hecha" && a.hechaEl === hoy)));
+  // En el orden que preparaste (`planDia`), si lo preparaste.
+  const enSuOrden = (a) => (a.planDia?.dia === hoy ? a.planDia.n : Infinity);
+  const fijadas = acciones.filter((a) => a.enfoque === hoy && (a.estado === "abierta" || (a.estado === "hecha" && a.hechaEl === hoy))).sort((a, b) => enSuOrden(a) - enSuOrden(b));
   const ids = new Set(fijadas.map((a) => a.id));
   const candidatas = acciones.filter(
     (a) =>

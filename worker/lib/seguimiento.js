@@ -27,11 +27,12 @@ import * as google from "./google.js";
 import { hoyEn, horaEn, diaSemana, minutos, aHora, textoHora, sumarDias } from "../../src/lib/fechas.js";
 import { planDelDia, deHoy, eventosDelDia } from "../../src/lib/hoy.js";
 import { planDeAvisos, avisosDelDia, horaDelCierre, preguntasDeHoy, preguntada } from "../../src/lib/avisos.js";
-import { resumenDeLaManana, cierreDelDia, textoDeAviso, preguntaCompletaste, bloqueVersiculo } from "../../src/lib/mensajes.js";
+import { resumenDeLaManana, cierreDelDia, textoDeAviso, preguntaCompletaste, bloqueVersiculo, textoDeRodadas } from "../../src/lib/mensajes.js";
 import { elegirVersiculo } from "../../src/lib/versiculos.js";
 import { seguimientoDe, diasParaBorrar } from "../../src/lib/ajustes.js";
 import { reunionesDelPeriodo, enfoqueDelDia, ordenarPor } from "../../src/lib/agenda.js";
-import { semanaDelDia, tareasDelBloque, avisa } from "../../src/lib/semana.js";
+import { semanaDelDia, tareasDelBloque, avisa, rodarPendientes } from "../../src/lib/semana.js";
+import { reflejar } from "./reflejar.js";
 import { sombrerosDe } from "../../src/lib/sombreros.js";
 import { RITMO_BASE } from "../../src/lib/ritmo.js";
 
@@ -71,7 +72,7 @@ const enviar = (env, chat, texto, botones) =>
  * Qué toca mandar ahora a una persona. Puro: devuelve [{ clave, texto, botones?, marcar? }] (lo que hay que reservar y
  * mandar) sin mandar nada. `marcar` son acciones que se apuntan como preguntadas.
  */
-export function queToca({ estado, ahora, hoy }) {
+export function queToca({ estado, ahora, hoy, rodadas = null }) {
   const aj = estado.ajustes;
   const seg = seguimientoDe(aj);
   if (!seg.activo) return [];
@@ -97,11 +98,14 @@ export function queToca({ estado, ahora, hoy }) {
     // Las propias y las de Google Calendar (también las de los calendarios compartidos).
     // Lo que ya se pasó a Kairos (su serie vive en la semana tipo) no se avisa también desde Google.
     const traidas = new Set((estado.ritmo ?? []).map((e) => e.google).filter(Boolean));
+    const vienen = acciones.filter((a) => a.estado === "abierta" && a.cuando === hoy && a.pasadas > 0 && a.vieneDe && a.vieneDe < hoy && !enfoque.tres.some((t) => t.id === a.id)).slice(0, 6);
     const reuniones = reunionesDelPeriodo(estado.eventos ?? [], (estado.externos ?? []).filter((x) => !traidas.has(x.serie)), { desde: hoy, hasta: hoy }, aj);
     const texto = [
       resumenDeLaManana({ nombre, plan, versiculo }),
       ...(reuniones.length ? [["Reuniones y citas de hoy:", ...reuniones.map((e) => `• ${e.horaPorDefinir ? "(hora por definir)" : e.inicio === "00:00" && e.fin === "23:59" ? "(todo el día)" : textoHora(e.inicio)} ${e.titulo}`)].join("\n")] : []),
       ...(extra.length ? [["Para tener presente:", ...extra].join("\n")] : []),
+      ...(aj.preparado === hoy ? [] : [`¿No lo preparaste anoche? Escoge tus 3 y el orden de lo demás:\n${APP}/#preparar`]),
+      ...(vienen.length ? [["Pasaron solas a tus bloques de hoy:", ...vienen.map((a) => `• ${a.titulo}${a.pasadas > 1 ? ` (${a.pasadas}.ª vez)` : ""}`)].join("\n")] : []),
     ].join("\n\n");
     // Tus 3 de hoy con su botón: se marcan desde Telegram sin abrir la app.
     const tres = enfoque.tres.filter((a) => a.estado === "abierta");
@@ -137,7 +141,7 @@ export function queToca({ estado, ahora, hoy }) {
     const ctx = { hoy, proyectos: estado.proyectos ?? [], sombreros };
     for (const b of bloques) {
       if (!avisa(b) || enfocado || enSilencio(b.inicio, aj) || !enVentana(ahora, b.inicio, VENTANA.bloque)) continue;
-      const tareas = ordenarPor(tareasDelBloque(acciones, b, hoy, { todos: bloques }), "prioridad", ctx);
+      const tareas = tareasDelBloque(ordenarPor(acciones, "prioridad", ctx), b, hoy, { todos: bloques, ritmo: estado.ritmo ?? [], hoy, proyectos: ctx.proyectos, sombreros });
       const nombreS = sombreros.find((x) => x.id === b.sombrero)?.nombre;
       const empresas = b.sombrero && sombreros.find((x) => x.id === b.sombrero)?.fuente === "juancito-ads" ? (estado.empresasDeHoy ?? []) : [];
       const texto = [
@@ -163,12 +167,20 @@ export function queToca({ estado, ahora, hoy }) {
   if (enVentana(ahora, horaCierre, VENTANA.cierre)) {
     if (seg.cierre) {
       const hechas = acciones.filter((a) => a.estado === "hecha" && a.hechaEl === hoy);
-      const pendientes = deHoy(acciones, hoy).filter((a) => a.lista === "siguientes");
-      const base = hechas.length || pendientes.length ? cierreDelDia({ dia: hoy, hechas, pendientes, versiculo: elegirVersiculo({ momento: "descanso", hoy, frecuencia: aj.frecuenciaVersiculos }) }) : "Hoy no quedó nada pendiente. Descansa bien.";
+      // Lo que ya se pasó tres veces va aparte (con sus botones): no se repite en «¿qué hacemos con lo que quedó?».
+      const aDecidir = new Set((rodadas?.aDecidir ?? []).map((a) => a.id));
+      const pendientes = deHoy(acciones, hoy).filter((a) => a.lista === "siguientes" && !aDecidir.has(a.id));
+      const pasaron = rodadas ? textoDeRodadas(rodadas, hoy) : "";
+      const hay = hechas.length || pendientes.length;
+      const base = hay ? cierreDelDia({ dia: hoy, hechas, pendientes }) : pasaron ? "" : "Hoy no quedó nada pendiente. Descansa bien.";
+      const v = hay || pasaron ? elegirVersiculo({ momento: "descanso", hoy, frecuencia: aj.frecuenciaVersiculos }) : null;
       const tres = acciones.filter((a) => a.enfoque === hoy);
       const deTus3 = tres.length ? `De tus ${tres.length} de hoy hiciste ${tres.filter((a) => a.estado === "hecha").length}.` : "";
-      const texto = [deTus3, base].filter(Boolean).join("\n\n");
-      out.push({ clave: `cierre:${hoy}`, texto });
+      // La rutina de Juan: preparar mañana la noche antes. Si ya lo hizo, no se le pide.
+      const preparar = aj.preparado === sumarDias(hoy, 1) ? "" : `¿Preparamos mañana? Escoge tus 3 y el orden de lo demás:\n${APP}/#preparar`;
+      const texto = [deTus3, base, pasaron, preparar, v ? bloqueVersiculo(v.id) : ""].filter(Boolean).join("\n\n");
+      const decidir = (rodadas?.aDecidir ?? []).filter((a) => a.estado === "abierta").slice(0, 5);
+      out.push({ clave: `cierre:${hoy}`, texto, botones: decidir.length ? botonesDeVarias(decidir) : undefined });
     }
     if (seg.preguntas) {
       for (const p of preguntasDeHoy(acciones, hoy).slice(0, MAX_PREGUNTAS_POR_CIERRE)) {
@@ -211,12 +223,37 @@ export async function vuelta(env, momento = new Date()) {
       const dias = diasParaBorrar(estado.ajustes);
       if (dias > 0) await almacen.purgarHechas(sumarDias(hoy, -dias)).catch(() => null);
     }
+    // Lo que no se hizo en su bloque pasa solo al siguiente: por la noche, a la hora del cierre (lo de hoy cuyo bloque
+    // terminó), y de madrugada lo de días anteriores que quedó (un bloque que acabó después del cierre, una noche caída).
+    let rodadas = null;
+    const sombrerosR = sombrerosDe(estado.ajustes);
+    const horaRodar = horaDelCierre(hoy, { ajustes: estado.ajustes, eventos: [...(estado.ritmo ?? []), ...(estado.eventos ?? [])] }) ?? "21:00";
+    const rodar = async (hasta, hora) => {
+      const r = rodarPendientes(estado.acciones ?? [], estado.ritmo ?? [], { hasta, ahora: hora, proyectos: estado.proyectos ?? [], sombreros: sombrerosR });
+      if (r.movidas.length) {
+        await almacen.lote(r.movidas.map((m) => almacen.sentenciaElemento("accion", m.despues)));
+        // Google Tasks (la fecha) y Juancito Ads se enteran por el camino de siempre.
+        await reflejar(env, almacen, r.movidas.map((m) => ({ tipo: "accion", antes: m.antes, despues: m.despues })), { hoy, ajustes: estado.ajustes }).catch(() => null);
+        estado = await almacen.estado();
+      }
+      return r;
+    };
+    try {
+      const atrasadas = ahora >= "03:00" && (await almacen.reclamarAviso(`rodar-atrasadas:${hoy}`));
+      const deHoyRodar = ahora >= horaRodar && (await almacen.reclamarAviso(`rodar:${hoy}`));
+      // Con lo que acaba de llegar de Juancito Ads y de Google.
+      if (atrasadas || deHoyRodar) estado = await almacen.estado();
+      if (atrasadas) await rodar(sumarDias(hoy, -1), "23:59");
+      if (deHoyRodar) rodadas = await rodar(hoy, ahora);
+    } catch (e) {
+      resultado.errores.push(e.message);
+    }
     if (!hayTelegram(env)) continue;
     const chat = await chatDe(db, owner);
     if (!chat) continue;
     const diasFijos = (await almacen.conexion(juancito.SERVICIO).catch(() => null))?.datos?.diasFijos;
     estado = { ...(await almacen.estado()), externos: await almacen.externosEntre(hoy, hoy).catch(() => []), empresasDeHoy: juancito.empresasDelDia(diasFijos, diaSemana(hoy)) };
-    for (const m of queToca({ estado, ahora, hoy })) {
+    for (const m of queToca({ estado, ahora, hoy, rodadas })) {
       if (!(await almacen.reclamarAviso(m.clave))) continue;
       try {
         await enviar(env, chat, m.texto, m.botones);

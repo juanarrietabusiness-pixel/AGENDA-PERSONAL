@@ -760,17 +760,62 @@ button.dia-item { width: 100%; background: none; border: 0; text-align: left; fo
 .proyecto-siguiente-paso small { color: var(--texto-3); }
 
 /* Modo enfoque: una tarea, a pantalla completa */
-.enfoque-capa { z-index: 80; align-items: stretch; justify-content: stretch; padding: 0; }
-.enfoque-modo { display: flex; flex-direction: column; width: 100%; min-height: 100dvh; padding: calc(var(--sp-4) + env(safe-area-inset-top)) var(--sp-5) calc(var(--sp-5) + env(safe-area-inset-bottom)); background: var(--bg); border-top: 6px solid var(--s, var(--acento)); }
-.enfoque-modo-cabeza { display: flex; justify-content: space-between; align-items: center; gap: var(--sp-3); }
-.enfoque-modo-bloque { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0; font-size: var(--fs-sm); color: var(--texto-2); }
-.enfoque-modo-tarea { flex: 1; display: flex; flex-direction: column; justify-content: center; max-width: 720px; width: 100%; margin: 0 auto; text-align: center; }
-.enfoque-modo-tarea h2 { margin: var(--sp-2) 0; font-size: clamp(26px, 6vw, 40px); line-height: 1.2; }
-.enfoque-modo-cuenta { margin: 0; color: var(--texto-3); font-size: var(--fs-sm); }
-.enfoque-modo-notas { margin: 0 0 var(--sp-4); color: var(--texto-2); white-space: pre-wrap; }
-.enfoque-modo-botones { display: flex; flex-wrap: wrap; gap: var(--sp-3); justify-content: center; margin-top: var(--sp-4); }
-.enfoque-modo-botones .boton { min-width: 140px; }
-.enfoque-modo-pie { display: flex; align-items: center; justify-content: center; gap: 6px; margin: 0; font-size: var(--fs-xs); color: var(--texto-3); text-align: center; }
+/* Modo enfoque: la pantalla de Hoy con sólo el bloque de ahora y su lista; el menú, el asistente y lo demás se ocultan
+   (`.app.en-enfoque`) y vuelven al salir o al acabar el bloque. */
+.app.en-enfoque .cabecera, .app.en-enfoque .nav, .app.en-enfoque .boton-crear, .app.en-enfoque .burbuja, .app.en-enfoque .burbuja-boton { display: none !important; }
+.app.en-enfoque .cuerpo { display: block; }
+.app.en-enfoque .contenido { max-width: 760px; padding-top: calc(var(--sp-5) + env(safe-area-inset-top)); padding-bottom: calc(var(--sp-6) + env(safe-area-inset-bottom)); }
+.hoy.hoy-enfocado { display: block; height: auto !important; }
+.enfoque { display: grid; gap: var(--sp-4); padding: var(--sp-5); border-radius: var(--radius-lg); border: 1px solid var(--borde); border-top: 5px solid var(--s, var(--acento)); background: var(--surface); }
+.enfoque-cabeza { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: var(--sp-3); }
+.enfoque-cabeza h1 { margin: 2px 0; font-size: var(--fs-2xl, 28px); line-height: 1.15; }
+.enfoque-cabeza .nota { margin: 0; color: var(--texto-2); }
+.enfoque-etiqueta { display: inline-flex; align-items: center; gap: 6px; margin: 0; font-size: var(--fs-xs); font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--s, var(--acento)); }
+.enfoque-actual { display: grid; grid-template-columns: auto 1fr; gap: var(--sp-4); align-items: start; padding: var(--sp-4); border-radius: var(--radius); background: var(--surface-2); }
+.enfoque-actual.vacio-enfoque { grid-template-columns: 1fr; text-align: center; }
+.marcar.grande { width: 40px; height: 40px; }
+.enfoque-ahora { margin: 0 0 2px; font-size: var(--fs-2xs); font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--texto-3); }
+.enfoque-titulo { display: block; font-size: clamp(20px, 4.5vw, 28px); font-weight: 700; line-height: 1.25; text-align: left; }
+.vacio-enfoque .enfoque-titulo { text-align: center; }
+.enfoque-notas { margin: var(--sp-1) 0 0; color: var(--texto-2); white-space: pre-wrap; }
+.enfoque-sub { margin: 0; font-size: var(--fs-xs); font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--texto-3); }
+.enfoque-lista { list-style: none; margin: 0; padding: 0; display: grid; }
+.enfoque-lista li { display: flex; align-items: center; gap: var(--sp-3); min-height: var(--tap); border-bottom: 1px solid var(--borde); }
+.enfoque-lista li:last-child { border-bottom: 0; }
+.enfoque-lista .marcar { width: 24px; height: 24px; margin: 0; }
+.enfoque-lista .enlace { flex: 1; min-width: 0; text-align: left; font-weight: 500; }
+.enfoque-tres { color: var(--acento); flex-shrink: 0; }
+.enfoque-anadir { margin: 0; }
+.enfoque-pie { display: flex; align-items: center; gap: 6px; margin: 0; font-size: var(--fs-xs); color: var(--texto-3); }
+@media (max-width: 699px) { .enfoque { padding: var(--sp-4); border-radius: var(--radius); } }
+
+/* «Prepara tu día»: tus 3, lo demás en orden y lo que se puede sumar. Es una pantalla entera en el teléfono (como Crear). */
+.prep-aviso { display: flex; align-items: center; gap: var(--sp-2); width: 100%; min-height: var(--tap); margin-bottom: var(--sp-2); padding: 0 var(--sp-3); border: 1px dashed var(--acento); border-radius: var(--radius); background: color-mix(in srgb, var(--acento) 8%, var(--surface)); color: var(--texto); font: inherit; font-size: var(--fs-sm); text-align: left; cursor: pointer; }
+.prep-aviso span { flex: 1; }
+.prep-aviso .icon, .prep-aviso svg { color: var(--acento); flex-shrink: 0; }
+.dialogo.preparar { max-width: 640px; }
+.prep-dia { margin-bottom: var(--sp-2); }
+.prep-contexto { display: flex; flex-wrap: wrap; gap: 4px; margin: var(--sp-2) 0; }
+.prep-chip { display: inline-flex; align-items: center; gap: 4px; min-height: 26px; padding: 0 8px; border-radius: var(--radius-pill); background: var(--surface-2); color: var(--texto-2); font-size: var(--fs-2xs); }
+.prep-chip.bloque { box-shadow: inset 3px 0 0 var(--s, var(--borde)); }
+.prep-h { display: flex; align-items: center; gap: 6px; margin: var(--sp-4) 0 var(--sp-1); font-size: var(--fs-sm); text-transform: uppercase; letter-spacing: 0.05em; color: var(--texto-2); }
+.prep-lista { list-style: none; margin: 0; padding: 0; display: grid; }
+.prep-fila { display: flex; align-items: center; gap: var(--sp-2); min-height: 44px; padding: 4px 0; border-bottom: 1px solid var(--borde); box-shadow: inset 3px 0 0 var(--s, var(--borde)); padding-left: var(--sp-2); }
+.prep-n { width: 20px; flex-shrink: 0; text-align: center; font-size: var(--fs-xs); font-weight: 700; color: var(--texto-3); }
+.prep-titulo { flex: 1; min-width: 0; display: grid; }
+.prep-titulo small { font-size: var(--fs-3xs); color: var(--texto-3); }
+.prep-botones { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
+.prep-botones .editar-fila:disabled { opacity: 0.3; }
+.prep-tres .prep-fila { background: color-mix(in srgb, var(--acento) 6%, transparent); }
+.prep-sumar { color: var(--acento); }
+.prep-grupo h4 { margin: var(--sp-2) 0 0; font-size: var(--fs-xs); color: var(--texto-3); }
+.prep-plegar { min-height: 36px; padding-left: 0; font-size: var(--fs-xs); }
+.prep-carga { list-style: none; margin: var(--sp-2) 0 0; padding: 0; display: grid; gap: 2px; font-size: var(--fs-2xs); color: var(--texto-3); }
+.prep-carga li { display: flex; align-items: center; gap: 6px; }
+.prep-carga .punto { background: var(--s, var(--texto-3)); }
+.prep-carga li.lleno { color: var(--rojo, #d33); }
+.foco-solo-boton { justify-content: flex-start; padding-top: var(--sp-2); }
+.foco-proximos { margin: 0; }
 .foco-cabeza .boton-enfocarme { margin-left: auto; min-height: 32px; padding: 0 var(--sp-3); font-size: var(--fs-xs); }
 .foco-cabeza .nota { margin-left: var(--sp-2); }
 /* Cuántas de tus 3 llevas: un punto por cada una, lleno al hacerla (la hecha ya no ocupa sitio en la lista). */

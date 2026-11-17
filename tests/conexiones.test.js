@@ -622,6 +622,49 @@ describe("lo hecho se borra solo", () => {
   });
 });
 
+describe("lo que no se hizo en su bloque pasa solo al siguiente", () => {
+  it("por la noche, una vez: la de Trabajo del lunes pasa al bloque del martes; lo que no va en bloques no se toca", async () => {
+    await darDeAlta();
+    const e0 = await estado();
+    const trabajo = { id: "tb", titulo: "Trabajo", sombrero: "trabajo", inicio: "08:00", fin: "12:00", repite: { regla: "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR", inicio: "2026-01-05" } };
+    await pedir("/api/perfil", { metodo: "PUT", datos: { ajustes: e0.ajustes, ritmo: [trabajo] } });
+    const pendiente = nuevaAccion({ id: "r1", titulo: "Propuesta Dcasa", sombrero: "trabajo", lista: "siguientes", cuando: "2026-11-09" }, "2026-11-09");
+    const personal = nuevaAccion({ id: "r2", titulo: "Pagar la luz", sombrero: "personal", lista: "siguientes", cuando: "2026-11-09" }, "2026-11-09");
+    for (const a of [pendiente, personal]) await pedir(`/api/elementos/accion/${a.id}`, { metodo: "PUT", datos: a });
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("{}", { status: 500 })));
+    // Lunes 9, 2:00 p. m.: todavía no.
+    await vuelta(env, new Date("2026-11-09T19:00:00Z"));
+    expect((await estado()).acciones.find((a) => a.id === "r1").cuando).toBe("2026-11-09");
+    // Lunes 9, 9:05 p. m. (la hora del cierre): pasa al martes, a su bloque.
+    await vuelta(env, new Date("2026-11-10T02:05:00Z"));
+    let a = (await estado()).acciones;
+    expect(a.find((x) => x.id === "r1")).toMatchObject({ cuando: "2026-11-10", bloque: "tb", pasadas: 1, vieneDe: "2026-11-09" });
+    expect(a.find((x) => x.id === "r2").cuando).toBe("2026-11-09");
+    // Una vez por noche: otra vuelta no la vuelve a mover.
+    await vuelta(env, new Date("2026-11-10T02:10:00Z"));
+    a = (await estado()).acciones;
+    expect(a.find((x) => x.id === "r1")).toMatchObject({ cuando: "2026-11-10", pasadas: 1 });
+  });
+
+  it("el cierre dice a dónde pasó cada una y pide decidir lo que ya se pasó tres veces", () => {
+    const hoy = "2026-11-09";
+    const bloque = { id: "tb", titulo: "Trabajo", inicio: "08:00" };
+    const movida = nuevaAccion({ id: "m1", titulo: "Propuesta Dcasa", sombrero: "trabajo", lista: "siguientes", cuando: "2026-11-10" }, hoy);
+    const cansada = nuevaAccion({ id: "m2", titulo: "Llamar al contador", sombrero: "trabajo", lista: "siguientes", cuando: hoy }, hoy);
+    const estadoC = { ajustes: AJUSTES_BASE, ritmo: [], eventos: [], acciones: [movida, cansada], proyectos: [] };
+    const rodadas = { movidas: [{ antes: movida, despues: movida, bloque, dia: "2026-11-10" }], aDecidir: [cansada], sinSitio: [] };
+    const cierre = queToca({ estado: estadoC, ahora: "21:00", hoy, rodadas }).find((m) => m.clave === `cierre:${hoy}`);
+    expect(cierre.texto).toMatch(/pasa al siguiente:\n• Propuesta Dcasa → mañana, Trabajo \(8:00 a\. m\.\)/);
+    expect(cierre.texto.match(/Llamar al contador/g)).toHaveLength(1);
+    expect(cierre.texto).toMatch(/¿Preparamos mañana\?[^]*#preparar/);
+    // Si ya lo preparaste, no se pide.
+    const preparado = queToca({ estado: { ...estadoC, ajustes: { ...AJUSTES_BASE, preparado: "2026-11-10" } }, ahora: "21:00", hoy, rodadas }).find((m) => m.clave === `cierre:${hoy}`);
+    expect(preparado.texto).not.toMatch(/Preparamos/);
+    expect(cierre.texto).toMatch(/tres veces/);
+    expect(cierre.botones.map((f) => f[0].callback_data)).toEqual(["h:m2"]);
+  });
+});
+
 describe("la empresa del día (los días fijos de Mi día, en Juancito Ads)", () => {
   const TEXTO = "· Café Luna — restaurante · @cafe\n  Calendarios: 2026-11\n  Días fijos: lunes, miércoles\n· Dcasa · @dcasa\n  Calendarios: ninguno\n· Baby Caleb\n  Calendarios: 2026-11\n  Días fijos: miércoles, sábado";
   it("se leen de listar_clientes, y se sabe cuál toca cada día", () => {

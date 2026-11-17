@@ -3,6 +3,7 @@ import Icon from "../componentes/Icon.jsx";
 import Fila from "../componentes/Fila.jsx";
 import AnadirRapido from "../componentes/AnadirRapido.jsx";
 import ModoEnfoque from "../componentes/ModoEnfoque.jsx";
+import PrepararDia from "../componentes/PrepararDia.jsx";
 import { useDeslizar } from "../hooks/useDeslizar.js";
 import { textoCorto, textoHora, sumarDias, rangoCorto, horaCorta, minutos, aHora } from "../lib/fechas.js";
 import { sombrerosDe, estiloDe, nombreDe } from "../lib/sombreros.js";
@@ -43,7 +44,7 @@ const recordado = (k, base, validos) => {
  * (reuniones, recordatorios y especiales) en columnas, cada una se desplaza por dentro. El versículo va en el resumen de
  * la mañana por Telegram (y, en la computadora, en la barra lateral): no ocupa lo primero que ves.
  */
-export default function Hoy({ estado, hoy, hora, onHecha, onAbrir, onDecidir, onAsistente, cambiar, onEnfoque, onNoHoy }) {
+export default function Hoy({ estado, hoy, hora, onHecha, onAbrir, onDecidir, onAsistente, cambiar, onEnfoque, onNoHoy, avisar = () => {} }) {
   const { acciones, eventos, proyectos, ajustes, bandeja = [], externos = [] } = estado;
   const sombreros = sombrerosDe(ajustes);
   // Hoy mira un día (hoy, mañana…): la semana se mira en Plan.
@@ -79,7 +80,7 @@ export default function Hoy({ estado, hoy, hora, onHecha, onAbrir, onDecidir, on
   const [verSinFecha, setVerSinFecha] = useState(false);
   const [verRutina, setVerRutina] = useState(false);
   const [verReserva, setVerReserva] = useState(false);
-  const [enfocado, setEnfocado] = useState(false);
+  const [preparando, setPreparando] = useState(null);
 
   const r = rango(periodo, dia);
   const ctx = { hoy, proyectos, sombreros };
@@ -90,12 +91,15 @@ export default function Hoy({ estado, hoy, hora, onHecha, onAbrir, onDecidir, on
   const deFiltro = (x) => !filtro || x.sombrero === filtro;
   const enfoque = useMemo(() => enfoqueDelDia(acciones, { hoy, proyectos, sombreros }), [acciones, hoy, proyectos, sombreros]);
   // Tus 3 van arriba, solas: en la lista quedan las demás (las secundarias), sin repetirlas.
-  const enTres = useMemo(() => new Set(enfoque.tres.map((a) => a.id)), [enfoque]);
+  // (Sólo mirando hoy: mirando otro día, sus 3 salen primero en la lista, en el orden que preparaste.)
+  const enTres = useMemo(() => new Set(dia === hoy ? enfoque.tres.map((a) => a.id) : []), [enfoque, dia, hoy]);
+  const enPlan = (a) => (a.planDia?.dia === dia ? a.planDia.n : Infinity);
   const datos = useMemo(() => {
     const t = accionesDelPeriodo(acciones, { ...r, hoy, clase: "tarea" });
     const rc = accionesDelPeriodo(acciones, { ...r, hoy, clase: "recordatorio" });
     return {
-      tareas: ordenarPor(t.abiertas.filter((a) => deFiltro(a) && !enTres.has(a.id)), orden, ctx),
+      // En el orden que preparaste para ese día (`planDia`), y lo demás detrás, como lo ordenes.
+      tareas: ordenarPor(t.abiertas.filter((a) => deFiltro(a) && !enTres.has(a.id)), orden, ctx).sort((a, b) => enPlan(a) - enPlan(b)),
       hechas: t.hechas.filter(deFiltro),
       recordatorios: ordenarPor(rc.abiertas.filter(deFiltro), "limite", ctx),
       recordatoriosHechos: rc.hechas.filter(deFiltro),
@@ -118,26 +122,40 @@ export default function Hoy({ estado, hoy, hora, onHecha, onAbrir, onDecidir, on
   // Ahora: el bloque de tu semana en el que estás, sus tareas y lo que sigue (sólo mirando hoy).
   const bloquesHoy = semanaDelDia(ritmo, hoy).bloques;
   const { ahora, despues } = ahoraYDespues(ritmo, hoy, hora ?? "00:00");
-  const tareasAhora = ahora ? ordenarPor(tareasDelBloque(acciones, ahora, hoy, { todos: bloquesHoy }), "prioridad", ctx) : [];
+  const tareasAhora = ahora ? tareasDelBloque(ordenarPor(acciones, "prioridad", ctx), ahora, hoy, { todos: bloquesHoy, ritmo, hoy, proyectos, sombreros }) : [];
   const cargaAhora = ahora ? carga(tareasAhora, ahora) : null;
+  // Lo que viene hoy (tus bloques, reuniones y recordatorios): a la vista en una línea, sin quitarle sitio a las tareas.
+  const proximos = useMemo(() => {
+    const h = hora ?? "00:00";
+    const deDia = (e) => e.inicio === "00:00" && e.fin === "23:59";
+    return [
+      ...despues.map((e) => ({ clave: `r:${e.id}`, hora: e.inicio, titulo: e.titulo })),
+      ...reunionesDelPeriodo(eventos, externosVis, { desde: hoy, hasta: hoy }, ajustes).filter((e) => e.inicio && !deDia(e) && !e.horaPorDefinir && e.inicio > h).map((e) => ({ clave: `m:${e.fuente ?? ""}:${e.id}`, hora: e.inicio, titulo: e.titulo, reunion: true })),
+      ...acciones.filter((a) => a.estado === "abierta" && a.clase === "recordatorio" && a.cuando === hoy && a.hora && a.hora > h).map((a) => ({ clave: `a:${a.id}`, hora: a.hora, titulo: a.titulo })),
+    ].sort((a, b) => a.hora.localeCompare(b.hora)).slice(0, 3);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [despues, eventos, externos, acciones, hoy, hora, ajustes]);
   const empresasHoy = estado.empresasDeHoy ?? [];
   const hayBloques = ritmo.some((e) => claseDeRitmo(e) === "bloque");
   const hechasHoy = acciones.filter((a) => a.estado === "hecha" && a.hechaEl === hoy).length;
   const pendientesHoy = useMemo(() => accionesDelPeriodo(acciones, { ...rango("dia", hoy), hoy, clase: "tarea" }).abiertas.length, [acciones, hoy]);
   const cuenta = { tareas: datos.tareas.length, reuniones: datos.reuniones.length + datos.porAgendar.length, recordatorios: datos.recordatorios.length, especiales: datos.especiales.length };
   const variosDias = periodo !== "dia";
-  const conFoco = hayBloques || enfoque.tres.length > 0 || enfoque.reserva.length > 0;
+  const conFoco = hayBloques || enfoque.tres.length > 0 || enfoque.reserva.length > 0 || proximos.length > 0;
+  // ¿Toca preparar? Por la mañana, el día si no lo preparaste; desde las 6 de la tarde, el de mañana.
+  const manana = sumarDias(hoy, 1);
+  const tocaPreparar = (hora ?? "00:00") >= "18:00" ? (ajustes.preparado !== manana ? manana : null) : (hora ?? "00:00") < "12:00" && ajustes.preparado !== hoy ? hoy : null;
 
   const ponerPeriodo = (p) => setPeriodo(p);
   // Modo enfoque: Tus 3 y las tareas del bloque, una a una; los avisos callan hasta el final del bloque (o una hora).
   const paraEnfocar = [...enfoque.tres, ...tareasAhora.filter((a) => !enfoque.tres.some((x) => x.id === a.id))].filter((a) => a.estado === "abierta");
   const hastaEnfoque = ahora?.fin ?? aHora(Math.min(minutos(hora ?? "00:00") + 60, 23 * 60 + 59));
+  // Se guarda en los ajustes (también calla los avisos de Telegram): sobrevive a recargar y se acaba solo con el bloque.
+  const enfoqueActivo = ajustes.enfoque?.dia === hoy && Boolean(ajustes.enfoque.hasta) && (hora ?? "00:00") < ajustes.enfoque.hasta;
   const enfocarme = () => {
-    setEnfocado(true);
-    cambiar?.((e) => ({ ...e, ajustes: { ...e.ajustes, enfoque: { dia: hoy, hasta: hastaEnfoque } } }));
+    cambiar?.((e) => ({ ...e, ajustes: { ...e.ajustes, enfoque: { dia: hoy, hasta: hastaEnfoque, bloque: ahora?.id ?? null, ids: paraEnfocar.map((a) => a.id) } } }));
   };
   const salirDelEnfoque = () => {
-    setEnfocado(false);
     cambiar?.((e) => ({ ...e, ajustes: { ...e.ajustes, enfoque: null } }));
   };
 
@@ -147,6 +165,18 @@ export default function Hoy({ estado, hoy, hora, onHecha, onAbrir, onDecidir, on
     if (!q.has("anadir")) return;
     setTimeout(() => [...document.querySelectorAll(".anadir-campo")].find((x) => x.offsetParent)?.focus(), 50);
     window.history.replaceState(null, "", window.location.pathname + window.location.hash);
+  }, []);
+
+  // «#preparar» (el enlace del cierre de Telegram) abre «Prepara mañana» (o tu día, por la mañana).
+  useEffect(() => {
+    const mirar = () => {
+      if (window.location.hash !== "#preparar") return;
+      setPreparando({ dia: null });
+      window.history.replaceState(null, "", "#hoy");
+    };
+    mirar();
+    window.addEventListener("hashchange", mirar);
+    return () => window.removeEventListener("hashchange", mirar);
   }, []);
 
   const ponerOrden = (o) => {
@@ -324,9 +354,35 @@ export default function Hoy({ estado, hoy, hora, onHecha, onAbrir, onDecidir, on
   const sombreroFiltrado = filtro && sombreros.find((s) => s.id === filtro);
   const filtrosActivos = Boolean(filtro) || orden !== "prioridad";
 
+  const preparar = preparando && <PrepararDia estado={estado} hoy={hoy} hora={hora} sombreros={sombreros} cambiar={cambiar} avisar={avisar} diaInicial={preparando.dia} onCerrar={() => setPreparando(null)} />;
+
+  if (enfoqueActivo) {
+    // Lo que había al entrar (para contar lo hecho) y lo que se sumó después al bloque.
+    const ids = ajustes.enfoque.ids ?? [];
+    const bloqueE = bloquesHoy.find((b) => b.id === ajustes.enfoque.bloque) ?? ahora;
+    const deEntrada = ids.map((x) => acciones.find((a) => a.id === x)).filter((a) => a && (a.estado === "abierta" || (a.estado === "hecha" && a.hechaEl === hoy)));
+    const nuevas = paraEnfocar.filter((a) => !ids.includes(a.id));
+    return (
+      <div className="hoy hoy-enfocado">
+        <ModoEnfoque
+          tareas={[...deEntrada, ...nuevas]}
+          tres={enfoque.tres}
+          bloque={bloqueE}
+          hasta={ajustes.enfoque.hasta}
+          hora={hora}
+          sombreros={sombreros}
+          onHecha={(x) => onHecha(x, { fijar: true })}
+          onAbrir={(a) => onAbrir("accion", a)}
+          onAnadir={cambiar ? (titulo) => cambiar((e) => ({ ...e, acciones: [...e.acciones, nuevaAccion({ titulo, sombrero: bloqueE?.sombrero ?? null, lista: "siguientes", cuando: hoy, bloque: bloqueE?.id ?? null, origen: "app" }, hoy)] })) : null}
+          onSalir={salirDelEnfoque}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="hoy" data-entra={entra || undefined}>
-      {enfocado && <ModoEnfoque tareas={paraEnfocar} bloque={ahora} hasta={hastaEnfoque} hora={hora} sombreros={sombreros} onHecha={(id) => onHecha(id, { fijar: true })} onSalir={salirDelEnfoque} />}
+      {preparar}
       <div className="hoy-saludo">
         <h1 className="titulo-pantalla">{saludo(hora, hoy)}, {ajustes.nombre}.</h1>
         <p className="subtitulo">
@@ -341,6 +397,11 @@ export default function Hoy({ estado, hoy, hora, onHecha, onAbrir, onDecidir, on
           <button type="button" className="boton fantasma" aria-label="Siguiente" onClick={() => setDia((d) => mover(periodo, d, 1))}><Icon name="chevronRight" size={18} /></button>
           {(dia < r.desde || dia > r.hasta || hoy < r.desde || hoy > r.hasta) && <button type="button" className="boton" onClick={() => setDia(hoy)}>Hoy</button>}
         </div>
+        {cambiar && (
+          <button type="button" className="boton fantasma boton-preparar" onClick={() => setPreparando({ dia: null })} title="Escoge tus 3 y ordena lo demás">
+            <Icon name="list" size={16} /> {(hora ?? "00:00") >= "15:00" ? "Preparar mañana" : "Preparar el día"}
+          </button>
+        )}
         <button type="button" className={`boton fantasma boton-filtrar${filtrosActivos ? " activo" : ""}`} aria-expanded={verFiltros} aria-controls="hoy-filtros" onClick={() => setVerFiltros((x) => !x)}>
           <Icon name="filter" size={16} /> Filtrar
         </button>
@@ -379,6 +440,13 @@ export default function Hoy({ estado, hoy, hora, onHecha, onAbrir, onDecidir, on
 
       <section className="hoy-foco" aria-label="Tu foco de hoy">
         {anadirTarea("solo-movil")}
+        {tocaPreparar && cambiar && (
+          <button type="button" className="prep-aviso" onClick={() => setPreparando({ dia: tocaPreparar })}>
+            <Icon name="list" size={16} />
+            <span>{tocaPreparar === hoy ? "Prepara tu día: escoge tus 3 y el orden de lo demás." : "¿Preparamos mañana? Escoge tus 3 y el orden."}</span>
+            <Icon name="chevronRight" size={16} />
+          </button>
+        )}
         {conFoco && (
           <div className="tarjeta foco">
             {hayBloques && (
@@ -407,7 +475,14 @@ export default function Hoy({ estado, hoy, hora, onHecha, onAbrir, onDecidir, on
                 ) : ahora ? (
                   <p className="ahora-nota">Nada planeado para este bloque.</p>
                 ) : null}
-                {despues.length > 0 && <p className="ahora-despues">Después: {despues.map((e) => `${horaCorta(e.inicio)} ${e.titulo}`).join(" · ")}</p>}
+                {proximos.length > 0 && <p className="ahora-despues">Después: {proximos.map((e) => `${horaCorta(e.hora)} ${e.titulo}`).join(" · ")}</p>}
+              </div>
+            )}
+
+            {!hayBloques && proximos.length > 0 && <p className="ahora-despues foco-proximos">Hoy: {proximos.map((e) => `${horaCorta(e.hora)} ${e.titulo}`).join(" · ")}</p>}
+            {ahora && !(enfoque.tres.length > 0 || enfoque.reserva.length > 0) && paraEnfocar.length > 0 && cambiar && (
+              <div className="foco-cabeza foco-solo-boton">
+                <button type="button" className="boton primario boton-enfocarme" onClick={enfocarme}><Icon name="target" size={15} /> Enfocarme en {ahora.titulo.trim()}</button>
               </div>
             )}
 

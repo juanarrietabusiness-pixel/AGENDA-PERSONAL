@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import worker from "../worker/index.js";
 import { d1EnMemoria } from "./utils/d1Memoria.js";
-import { conReino, rutinaDeGoogle, textoDias, horasPorSombrero, ahoraYDespues, tareasDelBloque, carga, semanaDelDia, sombreroPorTitulo, diaEnBloques, choques, porRevisar, minutosSinSombrero } from "../src/lib/semana.js";
+import { conReino, rutinaDeGoogle, textoDias, horasPorSombrero, ahoraYDespues, tareasDelBloque, carga, semanaDelDia, sombreroPorTitulo, diaEnBloques, choques, porRevisar, minutosSinSombrero, bloquesPosibles, repartir, diaAutomatico, tareasDelDia, rodarPendientes, MAX_PASADAS } from "../src/lib/semana.js";
 import { horaCorta, rangoCorto } from "../src/lib/fechas.js";
 import { aplicarRitmo, RITMO_BASE } from "../src/lib/ritmo.js";
 import { SOMBREROS, sombrerosDe } from "../src/lib/sombreros.js";
@@ -63,7 +63,7 @@ describe("tu semana por bloques", () => {
     expect(semanaDelDia(ritmo, LUNES).recordatorios.map((e) => e.titulo)).toEqual(["Proverbios"]);
   });
 
-  it("las tareas de un bloque: las asignadas y las del sombrero sin otro bloque; su carga", () => {
+  it("las tareas de un bloque: la asignada en el suyo y la del sombrero en uno solo; su carga", () => {
     const acciones = [
       nuevaAccion({ id: "a1", titulo: "Propuesta Dcasa", sombrero: "trabajo", lista: "siguientes", cuando: LUNES, minutos: 120 }),
       nuevaAccion({ id: "a2", titulo: "Llamar al contador", sombrero: "trabajo", lista: "siguientes", cuando: LUNES, bloque: ritmo[2].id, minutos: 30 }),
@@ -73,7 +73,7 @@ describe("tu semana por bloques", () => {
     const manana = tareasDelBloque(acciones, ritmo[1], LUNES, { todos: ritmo });
     expect(manana.map((a) => a.id)).toEqual(["a1"]);
     const tarde = tareasDelBloque(acciones, ritmo[2], LUNES, { todos: ritmo });
-    expect(tarde.map((a) => a.id).sort()).toEqual(["a1", "a2"]);
+    expect(tarde.map((a) => a.id)).toEqual(["a2"]);
     expect(carga(manana, ritmo[1])).toEqual({ ocupado: 120, cabe: 240, sobra: -120 });
   });
 
@@ -322,5 +322,74 @@ describe("modo enfoque", () => {
     expect(enEnfoque(aj, LUNES, "12:00")).toBe(false);
     expect(enEnfoque(aj, "2026-11-10", "10:15")).toBe(false);
     expect(enEnfoque({ enfoque: null }, LUNES, "10:15")).toBe(false);
+  });
+});
+
+describe("cada tarea en su bloque, sola", () => {
+  const MAR = "2026-11-10";
+  const JUE = "2026-11-12";
+  const trabajo = { ...bloque({ titulo: "Trabajo", sombrero: "trabajo", dias: [1, 2, 3, 4, 5], inicio: "08:00", fin: "12:00" }), id: "tm" };
+  const tarde = { ...bloque({ titulo: "Trabajo", sombrero: "trabajo", dias: [1, 2, 3, 4, 5], inicio: "13:00", fin: "15:00" }), id: "tt" };
+  const dmc = { ...bloque({ titulo: "57DMC", sombrero: "artistico", dias: [4], inicio: "13:00", fin: "17:00" }), id: "dmc" };
+  const ritmo = [trabajo, tarde, dmc];
+  const t = (datos) => ({ ...nuevaAccion({ lista: "siguientes", ...datos }, LUNES), ...datos });
+  const sombreros = sombrerosDe({});
+
+  it("por nombre (la empresa, una etiqueta o el proyecto) antes que por sombrero", () => {
+    const delDia = semanaDelDia(ritmo, JUE).bloques;
+    expect(bloquesPosibles(t({ titulo: "Informe", sombrero: "trabajo", cliente: "57DMC" }), delDia).map((b) => b.id)).toEqual(["dmc"]);
+    expect(bloquesPosibles(t({ titulo: "Letra", sombrero: "artistico", etiquetas: ["57dmc"] }), delDia).map((b) => b.id)).toEqual(["dmc"]);
+    expect(bloquesPosibles(t({ titulo: "Paso", proyectoId: "p1" }), delDia, { proyectos: [{ id: "p1", titulo: "57DMC" }] }).map((b) => b.id)).toEqual(["dmc"]);
+    expect(bloquesPosibles(t({ titulo: "Propuesta", sombrero: "trabajo", cliente: "Dcasa" }), delDia, { sombreros }).map((b) => b.id)).toEqual(["tm", "tt"]);
+    expect(bloquesPosibles(t({ titulo: "Pagar la luz", sombrero: "personal" }), delDia)).toEqual([]);
+  });
+
+  it("sin pasar de lo que cabe: si el bloque se llena, lo que sobra va al siguiente posible del día", () => {
+    const tareas = [t({ id: "a", titulo: "A", sombrero: "trabajo", minutos: 180 }), t({ id: "b", titulo: "B", sombrero: "trabajo", minutos: 90 }), t({ id: "c", titulo: "C", sombrero: "trabajo", minutos: 60 })];
+    const { porBloque } = repartir(tareas, semanaDelDia(ritmo, MAR).bloques, { sombreros });
+    expect(porBloque.get("tm").map((a) => a.id)).toEqual(["a", "c"]);
+    expect(porBloque.get("tt").map((a) => a.id)).toEqual(["b"]);
+  });
+
+  it("lo que preparaste va en su orden; lo que vence pronto sin día entra solo el primer día con bloque", () => {
+    const tareas = [t({ id: "x", titulo: "X", sombrero: "trabajo", cuando: MAR }), t({ id: "y", titulo: "Y", sombrero: "trabajo", cuando: MAR, planDia: { dia: MAR, n: 0 } })];
+    expect(repartir(tareas, semanaDelDia(ritmo, MAR).bloques, { dia: MAR }).porBloque.get("tm").map((a) => a.id)).toEqual(["y", "x"]);
+    const vence = t({ id: "v", titulo: "Declaración", sombrero: "trabajo", limite: JUE });
+    // El sábado no hay bloque de Trabajo: entra el lunes siguiente si vence ese lunes; desde el martes, ese mismo martes.
+    expect(diaAutomatico(vence, ritmo, MAR)).toBe(MAR);
+    expect(diaAutomatico(vence, ritmo, LUNES)).toBeNull(); // vence en 3 días: todavía no
+    expect(diaAutomatico({ ...vence, limite: "2026-11-16" }, ritmo, "2026-11-14")).toBe("2026-11-16");
+    expect(tareasDelDia([vence], ritmo, MAR, { hoy: MAR }).map((a) => a.id)).toEqual(["v"]);
+    expect(tareasDelDia([vence], ritmo, JUE, { hoy: MAR })).toEqual([]);
+  });
+
+  it("lo pendiente de un bloque que terminó pasa al siguiente bloque que le toca, sin pasar su fecha límite", () => {
+    const acciones = [
+      t({ id: "p1", titulo: "Propuesta", sombrero: "trabajo", cuando: LUNES }),
+      t({ id: "p2", titulo: "Informe 57DMC", sombrero: "trabajo", cliente: "57DMC", cuando: LUNES }),
+      t({ id: "p3", titulo: "Vence el martes", sombrero: "trabajo", cuando: LUNES, limite: LUNES }),
+      t({ id: "p4", titulo: "Pagar la luz", sombrero: "personal", cuando: LUNES }),
+      t({ id: "p5", titulo: "Cansada", sombrero: "trabajo", cuando: LUNES, pasadas: MAX_PASADAS }),
+      t({ id: "p6", titulo: "Hecha", sombrero: "trabajo", cuando: LUNES, estado: "hecha" }),
+    ];
+    // A las 14:00 el bloque de la tarde sigue: nada se mueve todavía.
+    expect(rodarPendientes(acciones, ritmo, { hasta: LUNES, ahora: "14:00", sombreros }).movidas).toEqual([]);
+    const r = rodarPendientes(acciones, ritmo, { hasta: LUNES, ahora: "21:00", sombreros });
+    const a = Object.fromEntries(r.movidas.map((m) => [m.antes.id, m]));
+    expect(a.p1.dia).toBe(MAR);
+    expect(a.p1.despues).toMatchObject({ cuando: MAR, bloque: "tm", pasadas: 1, vieneDe: LUNES });
+    // La de 57DMC espera al jueves, a su bloque.
+    expect(a.p2).toMatchObject({ dia: JUE, bloque: expect.objectContaining({ id: "dmc" }) });
+    expect(a.p3).toBeUndefined(); // vencía el lunes: no se pasa más allá
+    expect(r.sinSitio.map((x) => x.id)).toEqual(["p3"]);
+    expect(a.p4).toBeUndefined(); // sin bloque: «Por decidir», como siempre
+    expect(r.aDecidir.map((x) => x.id)).toEqual(["p5"]);
+    expect(a.p6).toBeUndefined();
+  });
+
+  it("si el bloque de mañana está lleno, espera al siguiente día con sitio", () => {
+    const llena = [t({ id: "l1", titulo: "Lleno", sombrero: "trabajo", cuando: MAR, minutos: 240 }), t({ id: "l2", titulo: "Lleno tarde", sombrero: "trabajo", cuando: MAR, minutos: 120 })];
+    const r = rodarPendientes([...llena, t({ id: "q", titulo: "Queda", sombrero: "trabajo", cuando: LUNES })], ritmo, { hasta: LUNES, ahora: "22:00", sombreros });
+    expect(r.movidas.map((m) => [m.antes.id, m.dia])).toEqual([["q", "2026-11-11"]]);
   });
 });

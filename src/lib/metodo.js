@@ -203,7 +203,8 @@ export function completar(accion, hoy) {
 
 /** Pasar a otro día. Cuenta cuántas veces se movió: a la tercera, la pregunta es otra. */
 export function posponer(accion, nuevoDia) {
-  return { ...accion, cuando: nuevoDia, enfoque: null, pospuesta: (accion.pospuesta || 0) + 1 };
+  // Decidirlo tú cuenta como plan nuevo: deja de ser «la que se pasó sola» (`pasadas`, ver rodarPendientes).
+  return { ...accion, cuando: nuevoDia, enfoque: null, pospuesta: (accion.pospuesta || 0) + 1, pasadas: 0, vieneDe: null };
 }
 
 /** «Ya no aplica»: no se borra (enseña al cerebro qué se suelta), sólo deja de estar abierta. */

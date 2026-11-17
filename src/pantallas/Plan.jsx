@@ -15,7 +15,7 @@ import CrearAqui from "../componentes/CrearAqui.jsx";
 import { useDialogo } from "../hooks/useDialogo.js";
 import { useMedia } from "../hooks/useMedia.js";
 import { piezasDelDia, huecos, ventanaDelDia, duracionCercana, esRutinario } from "../lib/rejilla.js";
-import { seriesTraidas, horasPorSombrero, semanaDelDia, diaEnBloques, minutosSinSombrero, porRevisar, textoHoras, moverSiempre } from "../lib/semana.js";
+import { seriesTraidas, horasPorSombrero, semanaDelDia, diaEnBloques, minutosSinSombrero, porRevisar, textoHoras, moverSiempre, tareasDelDia, diaAutomatico } from "../lib/semana.js";
 import { zonaDeSoltar, empezarArrastre } from "../lib/arrastre.js";
 
 const EN_BLOQUE = 3; // tareas que se ven dentro de un bloque; las demás, al tocarlo
@@ -104,14 +104,19 @@ export default function Plan({ estado, hoy, hora, cambiar, onHecha, onAbrir, avi
   const googleDelDia = (d) =>
     externos.filter((x) => x.tipo === "evento" && x.dia === d && !propioDeGoogle(x)).map((x) => ({ ...x, fuente: "google", clase: claseDeGoogle(x, ajustes) }));
 
+  const enBloques = { proyectos: estado.proyectos ?? [], sombreros };
   const porDia = dias.map((d) => {
     if (tipo) {
       const base = diaEnBloques(ritmo, d, [], { tipo: true });
       return { dia: d, eventos: [], ...base, ...piezasDelDia({ ...base, eventos: [] }) };
     }
     const propios = eventosDelDia(eventos, d).map((e) => ({ ...e, fuente: "agenda" }));
-    const tareas = acciones.filter((a) => a.estado === "abierta" && (a.cuando === d || (!a.cuando && a.limite === d)));
-    const base = diaEnBloques(ritmo, d, tareas, { soloAsignadas: true });
+    // Lo del día: lo planeado, lo escogido y lo que vence pronto entran SOLOS en su bloque (`tareasDelDia`); lo que vence
+    // sin bloque posible sale en su día límite, arriba.
+    const auto = tareasDelDia(acciones, ritmo, d, { hoy, ...enBloques });
+    const vence = acciones.filter((a) => a.estado === "abierta" && !a.cuando && a.limite === d && !auto.includes(a) && !diaAutomatico(a, ritmo, hoy, enBloques));
+    const resto = acciones.filter((a) => a.estado === "abierta" && a.cuando === d && !auto.includes(a));
+    const base = diaEnBloques(ritmo, d, [...auto, ...resto, ...vence], enBloques);
     const todos = [...propios, ...googleDelDia(d)];
     return { dia: d, eventos: todos, ...base, ...piezasDelDia({ ...base, eventos: todos }) };
   });
@@ -357,6 +362,7 @@ export default function Plan({ estado, hoy, hora, cambiar, onHecha, onAbrir, avi
           proyectos={estado.proyectos}
           sombreros={sombreros}
           todos={semanaDelDia(ritmo, asignando.dia).bloques}
+          ritmo={ritmo}
           cambiar={cambiar}
           avisar={avisar}
           onCerrar={() => setAsignando(null)}

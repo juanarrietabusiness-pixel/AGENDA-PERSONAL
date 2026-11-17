@@ -65,14 +65,37 @@ semana tipo», `EditarBloque` con la misma comprobación que el asistente: `apli
 (`rutinaDeGoogle`) pasa la rutina de Google a bloques (marca `google` = la serie: no sale dos veces) y quita lo «por
 confirmar» de partida a la misma hora. «Publicar en Google» la escribe, sólo de ida, en un calendario aparte «Kairos ·
 Bloques» (`publicarSemana`, una huella por bloque en `conexiones.datos.semana`; se relanza al guardar el perfil si la
-semana cambió) que NO se lee de vuelta. Con eso: Hoy → «Ahora» (`ahoraYDespues`, `tareasDelBloque`: las asignadas
-—`accion.bloque`— y las de su sombrero para hoy, con su `carga`), Plan → tocar un bloque de un día para asignarle
+semana cambió) que NO se lee de vuelta. Con eso: Hoy → «Ahora» (`ahoraYDespues`, `tareasDelBloque`: las que caen solas en ese
+bloque, ver «Cada tarea en su bloque», con su `carga`), Plan → tocar un bloque de un día para asignarle
 tareas (`AsignarBloque`), las horas por sombrero salen de los bloques (`horasPorSombrero`), y Telegram avisa al empezar
 cada bloque (`avisa`: no los de Reino) y en cada recordatorio con su anticipación, nunca en el silencio (`enSilencio`).
 El asistente conoce los bloques (pone `bloque` en una tarea, crea recordatorios fijos como «ritmo»). **Reino** es un
 sombrero aparte de Iglesia (intimidad con Dios), el primero; `conReino` lo pone UNA vez al cargar el estado
 (`ajustes.reino`) y le pasa lo devocional. **La empresa del día** sale de los días fijos de Mi día en Juancito Ads
 (`listar_clientes` → «Días fijos: …», `leerDiasFijos`, `empresasDelDia`; `estado.empresasDeHoy`).
+
+**Cada tarea en su bloque, sola** (decisión de Juan; `bloquesPosibles`, `repartir`, `tareasDelDia`, `diaAutomatico` en
+semana.js): lo planeado para un día (y lo que vence en 2 días o menos sin día, en el primer día con bloque para ella) cae
+en el bloque que se le asignó; si no, en el que se llama como su EMPRESA, una ETIQUETA o su PROYECTO («57DMC», aunque sea
+de otro sombrero); si no, en uno de su sombrero (primero el que se llama como el sombrero). Sin pasar de lo que cabe
+(`minutos`, 30 por defecto): lo que no cabe va al siguiente posible del día. Lo usan Plan, «Ahora» de Hoy, el diálogo de
+un bloque y el aviso de Telegram al empezar el bloque. **Lo que no se hizo pasa solo al siguiente bloque**
+(`rodarPendientes`, por la noche en la vuelta, a la hora del cierre —o a las 21:00—, reserva `rodar:<día>`; y de madrugada
+lo de días anteriores, `rodar-atrasadas:<día>`): al siguiente bloque que le toca (el mismo, uno que se llame como ella —si
+en la semana hay un bloque con su nombre, sólo ésos: `destinosPosibles`— o uno de su sombrero) con sitio, en 14 días como
+mucho. Lleva `pasadas` y `vieneDe` (se ve «Viene de ayer · 2.ª vez»); la FECHA LÍMITE no se toca ni se pasa más allá de
+ella (`sinSitio`); lo que se repite no rueda; con `MAX_PASADAS` (3) se queda en «Por decidir» (`aDecidir`, con botones en
+el cierre de Telegram). Lo que se decide a mano (`posponer`) vuelve a 0. El cierre dice a dónde pasó cada una
+(`textoDeRodadas`) y el resumen de la mañana lo recuerda. Lo que no estaba en un bloque sigue a «Por decidir» como siempre.
+
+**Prepara tu día** (`src/lib/preparar.js`, `componentes/PrepararDia.jsx`; la rutina de Juan: revisar la noche antes y
+hacer la lista): Tus 3 y lo demás EN ORDEN (`planDia = { dia, n }`; tus 3 con n negativo), con lo que ese día ya tiene
+(bloques, reuniones, recordatorios) y cómo quedan los bloques; lo que quedó, lo que vence y lo sin día se SUMAN a mano.
+`ajustes.preparado` = el día preparado. Se abre con «Preparar mañana/el día» (controles de Hoy), con el aviso del foco (por
+la mañana, el día sin preparar; desde las 18:00, mañana) y con `#preparar` (el enlace del cierre de Telegram, que no sale si
+mañana ya está preparado; el resumen de la mañana lo pide si no se preparó). Hoy ordena «Otras tareas» por `planDia` y
+`enfoqueDelDia` ordena tus 3 igual. «Después:» del foco junta bloques, reuniones y recordatorios de hoy (`proximos`): a la
+vista, pero en una línea.
 
 **Tus 3 de hoy** (`enfoqueDelDia`, agenda.js): las fijadas con ★ (`accion.enfoque` = hoy; `completar` ya no lo borra,
 así lo hecho sigue a la vista) y, si faltan, las que propone por prioridad; «Hoy no» (`noHoy`); al terminarlas, la
@@ -115,9 +138,11 @@ pasos, acciones con `proyectoId`. El asistente los devuelve con el mismo «proye
 el ensayo que se repite se corta el día antes (`hastaElEvento`, UNTIL). La tarjeta dice cuánto falta, cuántos pasos llevas,
 el siguiente y el próximo ensayo. La purga no borra los pasos hechos de un proyecto con fecha que sigue activo (son su
 progreso). **Telegram con botones por tarea** (`botonesDeVarias`): el aviso de cada bloque y Tus 3 del resumen llevan
-«✓ tarea» y «Mañana»; al pulsar se quita sólo esa fila. **Modo enfoque** (`componentes/ModoEnfoque.jsx`, «Enfocarme» en
-Tus 3): una tarea a la vez hasta el final del bloque; `ajustes.enfoque = { dia, hasta }` calla los avisos de la escalera y
-los de inicio de bloque (`enEnfoque`), no los recordatorios fijos ni las reuniones. **La app se instala**
+«✓ tarea» y «Mañana»; al pulsar se quita sólo esa fila. **Modo enfoque** (`componentes/ModoEnfoque.jsx`, «Enfocarme» en Tus 3 o en el bloque de ahora; decisión de Juan): se
+OCULTA TODO —menú, crear, asistente, las demás listas (`.app.en-enfoque`, y App sólo pinta Hoy)— y queda el bloque de
+ahora con su lista (tus 3 primero, la de arriba destacada, lo hecho se va, «Añadir a este bloque»). Vive en
+`ajustes.enfoque = { dia, hasta, bloque, ids }` (sobrevive a recargar y se acaba solo con el bloque; al salir, todo vuelve)
+y calla los avisos de la escalera y los de inicio de bloque (`enEnfoque`), no los recordatorios fijos ni las reuniones. **La app se instala**
 (`public/manifest.webmanifest` con íconos) y el ícono tiene dos atajos: «Hablar» (`/?hablar=1`, el micrófono listo; si el
 navegador no deja escuchar sin un toque, queda el botón «Hablar») y «Añadir» (`/?anadir=1`, el campo con el foco).
 
@@ -154,9 +179,9 @@ izquierda se pliega a sólo iconos con el botón de la cabecera (`nav-plegada`) 
 un puntito de color el día con algo especial o una reunión que no se repite (`marcasDeDias` en agenda.js: lo de cada
 semana no, que marcaría todos los días); tocar un día abre su semana en Plan (`irA`) con el día subrayado.
 
-**Las tareas del día van ARRIBA del día en Plan** (como en Google Calendar): `diaEnBloques(…, { soloAsignadas: true })`
-sólo mete en un bloque las que se le pusieron (`accion.bloque`); las demás salen arriba (Semana) o en «Del día» (Horas,
-con «y N más» que despliega). **«Lo que viene»** (primero en el panel de Plan, también en el teléfono): lo especial y lo
+**Las tareas del día en Plan**: las que tienen un bloque posible van DENTRO de él solas (`repartir`, ver «Cada tarea en
+su bloque»); las demás salen arriba del día (Semana) o en «Del día» (Horas, con «y N más» que despliega).
+(`soloAsignadas` sigue en `diaEnBloques` para quien sólo quiera las asignadas a mano.) **«Lo que viene»** (primero en el panel de Plan, también en el teléfono): lo especial y lo
 que no se repite de las próximas semanas (`marcasDeDias`, que ahora trae `obj` y `de` para abrirlo); los días de la
 semana del teléfono llevan su puntito. **La revisión semanal salió del menú** (decisión de Juan) pero `#revision` sigue
 abriéndola (`OCULTAS` en App.jsx: el aviso de Telegram lleva ahí). **En el teléfono**: un «+» junto al micrófono abre
@@ -301,7 +326,8 @@ Bandeja con su error. Lo que devuelve el modelo lo comprueba `src/lib/agente.js`
   repeticiones son RRULE (RFC 5545). La lógica de «Mi día» del calendario de
   marketing NO se usa: a Juan no le gusta.
 - **Rojo sólo es una fecha límite REAL que se pasó.** Lo planeado que no salió
-  va a «Por decidir», no a atrasadas.
+  va a «Por decidir», no a atrasadas. Lo que estaba en un BLOQUE pasa antes solo
+  al siguiente bloque que le toca (hasta 3 veces, sin pasar su fecha límite).
 - **El código calcula; la IA interpreta.** Fechas, urgencia y cuándo avisar los
   decide el código. El modelo se equivoca con el día de la semana: se le da la
   tabla de días (`calendarioParaLaIA`) y se comprueba (`diaQueNoCuadra`).

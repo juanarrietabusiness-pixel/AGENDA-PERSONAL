@@ -1,53 +1,95 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import Icon from "./Icon.jsx";
-import { useDialogo } from "../hooks/useDialogo.js";
 import { estiloDe, nombreDe } from "../lib/sombreros.js";
-import { horaCorta, minutos } from "../lib/fechas.js";
+import { horaCorta, minutos, rangoCorto } from "../lib/fechas.js";
 import { textoHoras } from "../lib/semana.js";
 
 /**
- * Modo enfoque: una sola tarea a la vez, a pantalla completa, con lo que queda del bloque. Mientras dura, los avisos de
- * Telegram (los de la escalera y los de inicio de bloque) callan hasta `hasta`; los recordatorios fijos y las reuniones
- * siguen. «Hecha» la marca y pasa a la siguiente; «Después» la deja para luego.
+ * Modo enfoque (decisión de Juan): se oculta TODO —el menú, las demás listas, el asistente— y queda sólo el bloque de
+ * ahora con su lista de tareas (tus 3 primero), una debajo de otra, la de arriba destacada. Lo hecho se va. Al salir
+ * (o al acabar el bloque) todo vuelve como estaba. Mientras dura, los avisos de Telegram callan hasta `hasta`, menos
+ * los recordatorios fijos y las reuniones. No es un diálogo: es la pantalla de Hoy mientras dura.
  */
-export default function ModoEnfoque({ tareas, bloque, hasta, hora, sombreros, onHecha, onSalir }) {
-  const ref = useDialogo(onSalir);
-  const [indice, setIndice] = useState(0);
+export default function ModoEnfoque({ tareas, tres = [], bloque, hasta, hora, sombreros, onHecha, onAbrir, onAnadir, onSalir }) {
+  const id = useId();
+  const [nueva, setNueva] = useState("");
   const abiertas = tareas.filter((a) => a.estado === "abierta");
-  const actual = abiertas.length ? abiertas[indice % abiertas.length] : null;
+  const hechas = tareas.length - abiertas.length;
   const quedan = Math.max(0, minutos(hasta) - minutos(hora ?? "00:00"));
+  const [primera, ...resto] = abiertas;
+  const esDeTus3 = (a) => tres.some((x) => x.id === a.id);
 
   return (
-    <div className="capa enfoque-capa">
-      <div ref={ref} className="enfoque-modo" role="dialog" aria-modal="true" aria-labelledby="enfoque-titulo" style={estiloDe(actual?.sombrero ?? bloque?.sombrero, sombreros)}>
-        <header className="enfoque-modo-cabeza">
-          <p className="enfoque-modo-bloque">
-            <Icon name="target" size={16} /> {bloque ? `${bloque.titulo.trim()} · hasta las ${horaCorta(bloque.fin)}` : "Una cosa a la vez"}
-            {quedan > 0 && <span> · quedan {textoHoras(quedan)}</span>}
+    <section className="enfoque" aria-labelledby={`${id}-t`} style={estiloDe(bloque?.sombrero ?? primera?.sombrero, sombreros)}>
+      <header className="enfoque-cabeza">
+        <div>
+          <p className="enfoque-etiqueta"><Icon name="target" size={14} /> Enfocado</p>
+          <h1 id={`${id}-t`}>{bloque ? bloque.titulo.trim() : "Una cosa a la vez"}</h1>
+          <p className="nota">
+            {bloque ? rangoCorto(bloque.inicio, bloque.fin) : `hasta las ${horaCorta(hasta)}`}
+            {quedan > 0 && ` · quedan ${textoHoras(quedan)}`}
+            {tareas.length > 0 && ` · ${hechas} de ${tareas.length} hechas`}
           </p>
-          <button type="button" className="boton fantasma" onClick={onSalir}><Icon name="close" size={16} /> Salir</button>
-        </header>
+        </div>
+        <button type="button" className="boton" onClick={onSalir}><Icon name="close" size={16} /> Salir del enfoque</button>
+      </header>
 
-        {actual ? (
-          <div className="enfoque-modo-tarea" aria-live="polite">
-            <p className="enfoque-modo-cuenta">{(indice % abiertas.length) + 1} de {abiertas.length}{actual.sombrero ? ` · ${nombreDe(actual.sombrero, sombreros)}` : ""}</p>
-            <h2 id="enfoque-titulo">{actual.titulo}</h2>
-            {actual.notas && <p className="enfoque-modo-notas">{actual.notas}</p>}
-            <div className="enfoque-modo-botones">
-              <button type="button" className="boton grande primario" onClick={() => onHecha(actual.id)}><Icon name="check" size={20} /> Hecha</button>
-              {abiertas.length > 1 && <button type="button" className="boton grande" onClick={() => setIndice((i) => i + 1)}>Después</button>}
+      {primera ? (
+        <>
+          <div className="enfoque-actual">
+            <button type="button" className="marcar grande" aria-label={`Marcar como hecha: ${primera.titulo}`} onClick={() => onHecha(primera.id)}>
+              <Icon name="check" size={20} strokeWidth={3} />
+            </button>
+            <div>
+              <p className="enfoque-ahora">{esDeTus3(primera) ? "Ahora · una de tus 3" : "Ahora"}</p>
+              <button type="button" className="enlace enfoque-titulo" onClick={() => onAbrir?.(primera)}>{primera.titulo}</button>
+              {primera.notas && <p className="enfoque-notas">{primera.notas}</p>}
+              {primera.sombrero && primera.sombrero !== bloque?.sombrero && <p className="nota">{nombreDe(primera.sombrero, sombreros)}</p>}
             </div>
           </div>
-        ) : (
-          <div className="enfoque-modo-tarea">
-            <h2 id="enfoque-titulo">¡Terminaste lo de este rato!</h2>
-            <p className="enfoque-modo-notas">Descansa un momento o sal y escoge lo siguiente.</p>
-            <div className="enfoque-modo-botones"><button type="button" className="boton grande primario" onClick={onSalir}>Salir</button></div>
+          {resto.length > 0 && (
+            <>
+              <h2 className="enfoque-sub">Después</h2>
+              <ol className="enfoque-lista">
+                {resto.map((a) => (
+                  <li key={a.id} style={estiloDe(a.sombrero, sombreros)}>
+                    <button type="button" className="marcar" aria-label={`Marcar como hecha: ${a.titulo}`} onClick={() => onHecha(a.id)}>
+                      <Icon name="check" size={14} strokeWidth={3} />
+                    </button>
+                    <button type="button" className="enlace" onClick={() => onAbrir?.(a)}>{a.titulo}</button>
+                    {esDeTus3(a) && <Icon name="star" size={13} className="enfoque-tres" />}
+                  </li>
+                ))}
+              </ol>
+            </>
+          )}
+        </>
+      ) : (
+        <div className="enfoque-actual vacio-enfoque">
+          <div>
+            <p className="enfoque-titulo">{tareas.length ? "¡Terminaste lo de este bloque!" : "No hay tareas en este bloque."}</p>
+            <p className="enfoque-notas">Añade lo que vas a hacer ahora, o sal y escoge lo siguiente.</p>
           </div>
-        )}
+        </div>
+      )}
 
-        <p className="enfoque-modo-pie"><Icon name="bell" size={13} /> Avisos en silencio hasta las {horaCorta(hasta)} (menos tus recordatorios fijos y las reuniones).</p>
-      </div>
-    </div>
+      {onAnadir && (
+        <form
+          className="anadir-linea enfoque-anadir"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (!nueva.trim()) return;
+            onAnadir(nueva.trim());
+            setNueva("");
+          }}
+        >
+          <Icon name="plus" size={16} />
+          <label className="solo-lector" htmlFor={`${id}-a`}>Añadir a este bloque</label>
+          <input id={`${id}-a`} className="anadir-campo" placeholder="Añadir a este bloque…" value={nueva} onChange={(e) => setNueva(e.target.value)} />
+        </form>
+      )}
+
+      <p className="enfoque-pie"><Icon name="bell" size={13} /> Avisos en silencio hasta las {horaCorta(hasta)} (menos tus recordatorios fijos y las reuniones). Al salir, todo vuelve como estaba.</p>
+    </section>
   );
 }

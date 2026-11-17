@@ -233,8 +233,11 @@ export default function App() {
     if (pantalla !== "plan") window.location.hash = "plan";
   };
 
+  // Modo enfoque: sólo Hoy con el bloque de ahora; lo demás (menú, crear, asistente) se oculta hasta salir o acabar.
+  const enEnfoque = estado.ajustes?.enfoque?.dia === hoy && Boolean(estado.ajustes.enfoque.hasta) && hora < estado.ajustes.enfoque.hasta;
+
   return (
-    <div className={`app${asistente ? " con-asistente" : ""}${navPlegada ? " nav-plegada" : ""}`}>
+    <div className={`app${asistente && !enEnfoque ? " con-asistente" : ""}${navPlegada ? " nav-plegada" : ""}${enEnfoque ? " en-enfoque" : ""}`}>
       <header className="cabecera">
         <button type="button" className="boton-menu" onClick={plegarNav} aria-expanded={!navPlegada} aria-controls="nav-principal" aria-label={navPlegada ? "Desplegar el menú" : "Plegar el menú"} title={navPlegada ? "Desplegar el menú" : "Plegar el menú"}>
           <Icon name="menu" size={20} />
@@ -262,22 +265,22 @@ export default function App() {
           </a>
         </nav>
         <main className="contenido" id="contenido">
-          {pantalla === "hoy" && <Hoy {...comunes} cambiar={cambiar} hora={hora} onDecidir={onDecidir} onEnfoque={onEnfoque} onNoHoy={onNoHoy} onAsistente={() => (servidor ? setAsistente(true) : estado.bandeja[0] && setAclarando(estado.bandeja[0]))} />}
-          {pantalla === "plan" && <Plan {...comunes} hora={hora} cambiar={cambiar} servidor={servidor} recargar={almacen.recargar} irA={irA} />}
-          {pantalla === "tareas" && <Tareas {...comunes} cambiar={cambiar} onEnfoque={onEnfoque} />}
-          {pantalla === "revision" && <Revision {...comunes} cambiar={cambiar} onDecidir={onDecidir} recargar={almacen.recargar} servidor={servidor} onAsistente={() => (servidor ? setAsistente(true) : estado.bandeja[0] && setAclarando(estado.bandeja[0]))} />}
-          {pantalla === "ajustes" && (
+          {(pantalla === "hoy" || enEnfoque) && <Hoy {...comunes} cambiar={cambiar} hora={hora} onDecidir={onDecidir} onEnfoque={onEnfoque} onNoHoy={onNoHoy} onAsistente={() => (servidor ? setAsistente(true) : estado.bandeja[0] && setAclarando(estado.bandeja[0]))} />}
+          {pantalla === "plan" && !enEnfoque && <Plan {...comunes} hora={hora} cambiar={cambiar} servidor={servidor} recargar={almacen.recargar} irA={irA} />}
+          {pantalla === "tareas" && !enEnfoque && <Tareas {...comunes} cambiar={cambiar} onEnfoque={onEnfoque} />}
+          {pantalla === "revision" && !enEnfoque && <Revision {...comunes} cambiar={cambiar} onDecidir={onDecidir} recargar={almacen.recargar} servidor={servidor} onAsistente={() => (servidor ? setAsistente(true) : estado.bandeja[0] && setAclarando(estado.bandeja[0]))} />}
+          {pantalla === "ajustes" && !enEnfoque && (
             <Ajustes estado={estado} cambiar={cambiar} reiniciar={modo === "prototipo" ? reiniciar : null} salir={servidor ? almacen.salir : null} servidor={servidor} recargar={almacen.recargar} avisar={avisar} />
           )}
         </main>
       </div>
 
-      <button type="button" className="boton-crear" onClick={() => setCreando({ dia: hoy })} aria-label="Crear: una tarea, una reunión, un compromiso o un recordatorio">
+      {!enEnfoque && <button type="button" className="boton-crear" onClick={() => setCreando({ dia: hoy })} aria-label="Crear: una tarea, una reunión, un compromiso o un recordatorio">
         <Icon name="plus" size={26} />
-      </button>
+      </button>}
       {creando && <CrearAqui en={creando} hoy={hoy} estado={estado} sombreros={sombreros} cambiar={cambiar} aplicarAlRitmo={aplicarAlRitmo} avisar={avisar} onCerrar={() => setCreando(null)} />}
 
-      <Burbuja estado={estado} servidor={servidor} recargar={almacen.recargar} avisar={avisar} abierta={asistente} setAbierta={setAsistente} onPrototipo={enPrototipo} />
+      {!enEnfoque && <Burbuja estado={estado} servidor={servidor} recargar={almacen.recargar} avisar={avisar} abierta={asistente} setAbierta={setAsistente} onPrototipo={enPrototipo} />}
 
       <div role="status" aria-live="polite" className={mensaje ? "aviso toast" : "solo-lector"}>
         {mensaje && (

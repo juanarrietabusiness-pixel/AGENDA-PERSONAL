@@ -9,14 +9,15 @@ import { textoLargo, textoHora } from "../lib/fechas.js";
 
 /**
  * Un bloque de un día (Trabajo, martes de 8 a 12): qué tareas van ahí, cuánto ocupan frente a lo que dura, y añadir
- * más. Asignar es poner la tarea ese día y en ese bloque; las del mismo sombrero planeadas ese día ya caen aquí solas.
+ * más. Asignar es poner la tarea ese día y en ese bloque; las planeadas ese día (y las que vencen pronto) ya caen aquí
+ * solas, por su nombre (empresa, etiqueta, proyecto) o por su sombrero (`repartir`).
  */
-export default function AsignarBloque({ bloque, dia, hoy, acciones, proyectos = [], sombreros, todos = [], cambiar, avisar, onCerrar, onEditar = null }) {
+export default function AsignarBloque({ bloque, dia, hoy, acciones, proyectos = [], sombreros, todos = [], ritmo = null, cambiar, avisar, onCerrar, onEditar = null }) {
   const ref = useDialogo(onCerrar);
   const id = useId();
   const [nueva, setNueva] = useState("");
   const ctx = { hoy, proyectos, sombreros };
-  const en = ordenarPor(tareasDelBloque(acciones, bloque, dia, { todos }), "prioridad", ctx);
+  const en = ordenarPor(tareasDelBloque(acciones, bloque, dia, { todos, ritmo, hoy, proyectos, sombreros }), "prioridad", ctx);
   const c = carga(en, bloque);
   const candidatas = ordenarPor(
     acciones.filter((a) => a.estado === "abierta" && a.lista === "siguientes" && (a.clase ?? "tarea") === "tarea" && !en.some((x) => x.id === a.id) && (!bloque.sombrero || a.sombrero === bloque.sombrero)),

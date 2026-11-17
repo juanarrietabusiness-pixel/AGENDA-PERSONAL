@@ -17,6 +17,12 @@ export default function Fila({ accion, hoy, sombreros, proyectos = [], onHecha, 
   const hecha = accion.estado === "hecha";
   const proyecto = proyectos.find((p) => p.id === accion.proyectoId);
   const planeadaAntes = accion.estado === "abierta" && accion.cuando && accion.cuando < hoy && !u;
+  // Pasó sola desde su bloque de otro día (por la noche): se dice de dónde viene y cuántas veces.
+  const paso = accion.estado === "abierta" && accion.pasadas > 0 && accion.vieneDe && accion.cuando >= hoy && (
+    <span className="chip ambar" title="No se hizo en su bloque y pasó sola a este">
+      {textoFecha(accion.vieneDe, hoy) === "ayer" ? "Viene de ayer" : `Viene del ${textoFecha(accion.vieneDe, hoy)}`}{accion.pasadas > 1 ? ` · ${accion.pasadas}.ª vez` : ""}
+    </span>
+  );
   const urgente = u && <span className={`chip ${u === "vencida" ? "rojo" : "ambar"}`}>{TEXTO_URGENCIA[u]}{accion.limite && u !== "hoy" && u !== "mañana" ? ` · ${textoFecha(accion.limite, hoy)}` : ""}</span>;
   return (
     <li
@@ -41,9 +47,10 @@ export default function Fila({ accion, hoy, sombreros, proyectos = [], onHecha, 
           {accion.titulo}
         </button>
         {compacta ? (
-          (urgente || accion.hora || (mostrarDia && accion.cuando && accion.cuando !== hoy)) && (
+          (urgente || paso || accion.hora || (mostrarDia && accion.cuando && accion.cuando !== hoy)) && (
             <div className="accion-meta">
               {urgente}
+              {paso}
               {mostrarDia && accion.cuando && accion.cuando !== hoy && !u && <span>{textoFecha(accion.cuando, hoy)}</span>}
               {accion.hora && <span>{textoHora(accion.hora)}</span>}
             </div>
@@ -55,6 +62,7 @@ export default function Fila({ accion, hoy, sombreros, proyectos = [], onHecha, 
             {accion.cliente && <span className="chip">{accion.cliente}</span>}
             {urgente}
             {planeadaAntes && <span className="chip ambar">Quedó del {textoFecha(accion.cuando, hoy)}</span>}
+            {paso}
             {mostrarDia && accion.cuando && accion.cuando !== hoy && !planeadaAntes && <span>{textoFecha(accion.cuando, hoy)}</span>}
             {accion.hora && <span>{textoHora(accion.hora)}</span>}
             {accion.repite?.regla && (

@@ -152,3 +152,19 @@ export function textoDeAviso(aviso, accion, dia) {
 
 /** La cabecera del día en la pantalla de Hoy. */
 export const titularDelDia = (dia, nombre) => `${variante(SALUDOS, `${dia}|saludo`)(nombre)} Hoy es ${textoLargo(dia)}.`;
+
+/**
+ * Lo que pasó solo de los bloques de hoy a los siguientes (`rodarPendientes`), dicho en el cierre: a dónde fue cada una,
+ * lo que ya se pasó tres veces (lo decides tú) y lo que no encontró sitio antes de su fecha límite.
+ */
+export function textoDeRodadas({ movidas = [], aDecidir = [], sinSitio = [] }, dia) {
+  const partes = [];
+  if (movidas.length) {
+    const lineas = movidas.slice(0, MAX_EN_CIERRE).map((m) => `• ${m.despues.titulo} → ${textoFecha(m.dia, dia)}, ${m.bloque.titulo.trim()} (${textoHora(m.bloque.inicio)})`);
+    const resto = movidas.length - MAX_EN_CIERRE;
+    partes.push(["Lo que quedó de tus bloques pasa al siguiente:", ...lineas, ...(resto > 0 ? [`… y ${resto} más`] : [])].join("\n"));
+  }
+  if (aDecidir.length) partes.push([`Ya se pasaron ${aDecidir.length === 1 ? "tres veces; ¿qué hacemos con ella?" : "tres veces; ¿qué hacemos con ellas?"}`, ...aDecidir.slice(0, MAX_EN_CIERRE).map(linea)].join("\n"));
+  if (sinSitio.length) partes.push(["No encontré bloque antes de su fecha límite:", ...sinSitio.slice(0, MAX_EN_CIERRE).map(linea)].join("\n"));
+  return partes.join("\n\n");
+}

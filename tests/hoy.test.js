@@ -1,3 +1,4 @@
+import { inicioDePreparar, aplicarPreparacion, bloquesPreparados } from "../src/lib/preparar.js";
 import { describe, it, expect } from "vitest";
 import { eventosDelDia, huecos, ventanasPara, planDelDia, porDecidir, ahora } from "../src/lib/hoy.js";
 import { nuevaAccion } from "../src/lib/metodo.js";
@@ -82,5 +83,49 @@ describe("lo que ya pasó del día", () => {
     const plan = planDelDia({ dia: "2026-11-06", eventos: RITMO_BASE, acciones, ajustes: AJUSTES_BASE, ahora: "18:52" });
     expect(plan.libres[0].inicio).toBe("18:55");
     expect(plan.propuesta[0].inicio >= "18:55").toBe(true);
+  });
+});
+
+describe("prepara tu día", () => {
+  const HOY = "2026-11-17"; // martes
+  const MAN = "2026-11-18";
+  const trabajo = { id: "tb", titulo: "Trabajo", sombrero: "trabajo", inicio: "08:00", fin: "12:00", repite: { regla: "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR", inicio: "2026-01-05" } };
+  const t = (datos) => ({ ...nuevaAccion({ lista: "siguientes", sombrero: "trabajo", ...datos }, HOY), ...datos });
+  const acciones = [
+    t({ id: "p1", titulo: "Propuesta", cuando: MAN, importante: true }),
+    t({ id: "p2", titulo: "Informe", cuando: MAN }),
+    t({ id: "p3", titulo: "Llamar", cuando: MAN, planDia: { dia: MAN, n: 0 } }),
+    t({ id: "v1", titulo: "Declaración", limite: "2026-11-19" }),
+    t({ id: "q1", titulo: "Quedó del lunes", cuando: "2026-11-16", pasadas: 2, vieneDe: "2026-11-13" }),
+    t({ id: "s1", titulo: "Sin día", sombrero: "personal" }),
+  ];
+
+  it("arranca con tus 3 propuestas, lo del día en su orden y lo que se puede sumar aparte", () => {
+    const r = inicioDePreparar(acciones, [trabajo], MAN, { hoy: HOY });
+    expect(r.tres).toHaveLength(3);
+    expect(r.tres).toContain("p1");
+    expect([...r.tres, ...r.orden].sort()).toEqual(expect.arrayContaining(["p1", "p2", "p3"]));
+    expect(new Set([...r.tres, ...r.orden]).size).toBe(r.tres.length + r.orden.length);
+    const sumar = Object.values(r.sumar).flat().map((a) => a.id);
+    expect(sumar).toContain("s1");
+    expect(sumar.some((id) => r.tres.includes(id) || r.orden.includes(id))).toBe(false);
+  });
+
+  it("al aplicar: tus 3 escogidas y en su orden, lo demás ordenado, lo quitado sin día y lo de antes decidido", () => {
+    const nuevas = aplicarPreparacion(acciones, { dia: MAN, tres: ["q1", "p1"], orden: ["p3", "v1"], quitadas: ["p2"] });
+    const a = Object.fromEntries(nuevas.map((x) => [x.id, x]));
+    expect(a.q1).toMatchObject({ cuando: MAN, enfoque: MAN, pasadas: 0, vieneDe: null, planDia: { dia: MAN, n: -3 } });
+    expect(a.p1).toMatchObject({ enfoque: MAN, planDia: { dia: MAN, n: -2 } });
+    expect(a.p3).toMatchObject({ cuando: MAN, planDia: { dia: MAN, n: 0 }, enfoque: null });
+    expect(a.v1).toMatchObject({ cuando: MAN, planDia: { dia: MAN, n: 1 } });
+    expect(a.p2).toMatchObject({ cuando: null, planDia: null });
+    expect(a.s1.cuando).toBeNull();
+  });
+
+  it("dice cómo quedan los bloques de ese día con lo preparado", () => {
+    const b = bloquesPreparados(acciones, [trabajo], MAN, ["p1", "p2", "s1"]);
+    expect(b.bloques[0]).toMatchObject({ ocupado: 60, cabe: 240 });
+    expect(b.bloques[0].tareas.map((x) => x.id)).toEqual(["p1", "p2"]);
+    expect(b.fuera.map((x) => x.id)).toEqual(["s1"]);
   });
 });

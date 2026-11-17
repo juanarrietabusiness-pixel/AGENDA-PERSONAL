@@ -16,7 +16,7 @@
 import { REINO, sombrerosDe } from "./sombreros.js";
 import { RITMO_BASE } from "./ritmo.js";
 import { tocaEl } from "./recurrencia.js";
-import { minutos, aHora, diaSemana } from "./fechas.js";
+import { minutos, aHora, diaSemana, sumarDias as sumarDiasLocal } from "./fechas.js";
 
 const CODIGOS = ["SU", "MO", "TU", "WE", "TH", "FR", "SA"];
 const INICIALES = ["D", "L", "M", "X", "J", "V", "S"];
@@ -91,19 +91,181 @@ export function ahoraYDespues(ritmo, dia, hora) {
   return { ahora, despues };
 }
 
+// ------------------------------------------------------------
+// Cada tarea en su bloque, sola
+//
+// Una tarea planeada para un día (y la que vence pronto sin día) cae SOLA en un bloque de ese día: el que se le
+// asignó; si no, el que se llama como su empresa, una etiqueta o su proyecto («57DMC»); si no, uno de su sombrero
+// (primero el que se llama como el sombrero). Si el bloque se llena, lo que no cabe va al siguiente posible del día.
+// ------------------------------------------------------------
+
+/** Días hacia delante en que una tarea sin día que vence pronto entra sola en un bloque. */
+export const VENCE_PRONTO = 2;
+const palabras = (t) => ` ${plano(t).replace(/[^a-z0-9ñ]+/g, " ").trim()} `;
+const corta = (t) => t.trim().length < 3;
+const minutosDe = (a) => Number(a.minutos) || 30;
+
+/** ¿El bloque se llama como la empresa, una etiqueta o el proyecto de la tarea? («57DMC») */
+export function nombraAlBloque(a, bloque, proyectos = []) {
+  const b = palabras(bloque?.titulo);
+  if (corta(b)) return false;
+  const proyecto = a.proyectoId ? proyectos.find((p) => p.id === a.proyectoId)?.titulo : null;
+  return [a.cliente, ...(a.etiquetas ?? []), proyecto].map(palabras).some((t) => !corta(t) && (b.includes(t) || t.includes(b)));
+}
+
+/** Los bloques de ese día donde puede ir una tarea, en orden de preferencia (vacío: ninguno). */
+export function bloquesPosibles(a, bloques, { proyectos = [], sombreros = [] } = {}) {
+  const asignado = a.bloque && bloques.find((b) => b.id === a.bloque);
+  if (asignado) return [asignado];
+  const nombrados = bloques.filter((b) => nombraAlBloque(a, b, proyectos));
+  if (nombrados.length) return nombrados;
+  if (!a.sombrero) return [];
+  const delSombrero = bloques.filter((b) => b.sombrero === a.sombrero);
+  const nombreS = palabras(sombreros.find((x) => x.id === a.sombrero)?.nombre ?? a.sombrero);
+  return [...delSombrero.filter((b) => palabras(b.titulo) === nombreS), ...delSombrero.filter((b) => palabras(b.titulo) !== nombreS)];
+}
+
 /**
- * Las tareas de un bloque ese día: las que le asignaste (`accion.bloque`) y, si es del sombrero, las de ese sombrero
- * planeadas para ese día o antes que no van en otro bloque. Sólo abiertas.
+ * Los bloques de un día a los que se puede MOVER una tarea (al pasarla o al ponerla sola): si en la semana hay un bloque
+ * que se llama como ella («57DMC»), sólo los que se llaman así; si no, los de `bloquesPosibles`.
  */
-export function tareasDelBloque(acciones, bloque, dia, { todos = [] } = {}) {
-  const deOtro = (a) => a.bloque && a.bloque !== bloque.id && todos.some((b) => b.id === a.bloque);
+export function destinosPosibles(a, ritmo, bloques, opciones = {}) {
+  const { proyectos = [] } = opciones;
+  const tieneSuyo = (ritmo ?? []).some((e) => claseDeRitmo(e) === "bloque" && nombraAlBloque(a, e, proyectos));
+  if (tieneSuyo && !(a.bloque && bloques.some((b) => b.id === a.bloque))) return bloques.filter((b) => nombraAlBloque(a, b, proyectos));
+  return bloquesPosibles(a, bloques, opciones);
+}
+
+/** ¿Va en bloques? Sólo las tareas abiertas de «Siguientes» (no lo que espera a otros ni «Algún día»). */
+const vaEnBloque = (a) => a.estado === "abierta" && (a.clase ?? "tarea") === "tarea" && a.lista === "siguientes";
+
+/** El día en que una tarea SIN día que vence pronto entra sola: el primero desde hoy con un bloque para ella. */
+export function diaAutomatico(a, ritmo, hoy, opciones = {}) {
+  if (a.cuando || !a.limite || a.limite > sumarDiasLocal(hoy, VENCE_PRONTO)) return null;
+  const hasta = a.limite < hoy ? hoy : a.limite;
+  for (let d = hoy; d <= hasta; d = sumarDiasLocal(d, 1)) {
+    if (destinosPosibles(a, ritmo, semanaDelDia(ritmo, d).bloques, opciones).length) return d;
+  }
+  return null;
+}
+
+/**
+ * Las tareas que van en los bloques de un día: las planeadas para ese día, las escogidas para ese día sin plan y las
+ * que vencen pronto sin día (en su `diaAutomatico`). Lo que se planeó para un día que ya pasó no: eso se pasa solo al
+ * siguiente bloque por la noche (`rodarPendientes`) o va a «Por decidir».
+ */
+export function tareasDelDia(acciones, ritmo, dia, { hoy = dia, ...opciones } = {}) {
   return acciones.filter(
-    (a) =>
-      a.estado === "abierta" &&
-      (a.clase ?? "tarea") === "tarea" &&
-      ((a.bloque === bloque.id && a.cuando === dia) ||
-        (bloque.sombrero && a.sombrero === bloque.sombrero && !deOtro(a) && a.lista === "siguientes" && ((a.cuando && a.cuando <= dia) || (a.limite && a.limite <= dia)))),
+    (a) => vaEnBloque(a) && (a.cuando === dia || (!a.cuando && a.enfoque === dia) || (!a.cuando && a.enfoque !== dia && diaAutomatico(a, ritmo, hoy, opciones) === dia)),
   );
+}
+
+/** En qué orden se reparten: lo que preparaste para ese día (su orden), luego tus 3, luego como vengan. */
+const ordenDelDia = (dia) => (a, b) => {
+  const pa = a.planDia?.dia === dia ? a.planDia.n : Infinity;
+  const pb = b.planDia?.dia === dia ? b.planDia.n : Infinity;
+  if (pa !== pb) return pa - pb;
+  return Number(b.enfoque === dia) - Number(a.enfoque === dia);
+};
+
+/**
+ * Las tareas de un día repartidas en sus bloques sin pasar de lo que cabe en cada uno mientras haya otro posible.
+ * Devuelve { porBloque: Map(id → tareas), fuera: tareas sin bloque }. Las asignadas a mano van primero.
+ */
+export function repartir(tareas, bloques, { dia = null, ...opciones } = {}) {
+  const porBloque = new Map(bloques.map((b) => [b.id, []]));
+  const usado = new Map(bloques.map((b) => [b.id, 0]));
+  const fuera = [];
+  const orden = [...tareas].sort((a, b) => Number(Boolean(b.bloque)) - Number(Boolean(a.bloque)) || (dia ? ordenDelDia(dia)(a, b) : 0));
+  for (const a of orden) {
+    const posibles = bloquesPosibles(a, bloques, opciones);
+    if (!posibles.length) {
+      fuera.push(a);
+      continue;
+    }
+    const b = posibles.find((x) => usado.get(x.id) + minutosDe(a) <= duracion(x)) ?? posibles[0];
+    porBloque.get(b.id).push(a);
+    usado.set(b.id, usado.get(b.id) + minutosDe(a));
+  }
+  // Dentro de cada bloque, el orden que preparaste.
+  if (dia) for (const lista of porBloque.values()) lista.sort(ordenDelDia(dia));
+  return { porBloque, fuera };
+}
+
+/**
+ * Las tareas de un bloque ese día (con `ritmo`, `hoy`, `proyectos` y `sombreros` para saber todo lo del día). `todos`
+ * son los bloques de ese día; sin `ritmo`, se usan ellos.
+ */
+export function tareasDelBloque(acciones, bloque, dia, { todos = [], ritmo = null, hoy = dia, ...opciones } = {}) {
+  const r = ritmo ?? (todos.length ? todos : [bloque]);
+  const bloques = semanaDelDia(r, dia).bloques;
+  const lista = bloques.some((b) => b.id === bloque.id) ? bloques : [...bloques, bloque];
+  return repartir(tareasDelDia(acciones, r, dia, { hoy, ...opciones }), lista, { dia, ...opciones }).porBloque.get(bloque.id) ?? [];
+}
+
+// ------------------------------------------------------------
+// Lo que no se hizo en su bloque pasa al siguiente
+// ------------------------------------------------------------
+
+/** Veces que una tarea se pasa sola al siguiente bloque; a la siguiente, va a «Por decidir». */
+export const MAX_PASADAS = 3;
+const BUSCAR_DIAS = 14;
+
+/**
+ * Por la noche (decisión de Juan: «no quiero que quede nada pendiente ni perderme»): lo planeado para un bloque que
+ * terminó y no se hizo pasa al siguiente bloque que le toca (el mismo, uno que se llame igual o uno de su sombrero),
+ * en el primer día que tenga sitio. La fecha LÍMITE no se toca: no se pasa más allá de ella. Lo que se repite sigue su
+ * regla, y lo que ya se pasó `MAX_PASADAS` veces se queda para «Por decidir» (hacerlo, delegarlo o soltarlo).
+ *
+ * `hasta`: el último día que se mira (hoy, por la noche); `ahora`: la hora, para no pasar lo de un bloque que sigue.
+ * Devuelve { movidas: [{ antes, despues, bloque, dia }], aDecidir: [tareas de `hasta` que ya no se pasan], sinSitio }.
+ */
+export function rodarPendientes(acciones, ritmo, { hasta, ahora = "23:59", ...opciones } = {}) {
+  const movidas = [];
+  const aDecidir = [];
+  const sinSitio = [];
+  const actual = new Map(acciones.map((a) => [a.id, a]));
+  const usoDe = new Map(); // «día|bloque» → minutos ya puestos
+  const uso = (d, bloques) => {
+    if (!usoDe.has(d)) {
+      const { porBloque } = repartir(tareasDelDia([...actual.values()], ritmo, d, { hoy: d, ...opciones }), bloques, { dia: d, ...opciones });
+      for (const [id, ts] of porBloque) usoDe.set(`${d}|${id}`, ts.reduce((t, a) => t + minutosDe(a), 0));
+      usoDe.set(d, true);
+    }
+    return (id) => usoDe.get(`${d}|${id}`) ?? 0;
+  };
+  const candidatas = acciones
+    .filter((a) => vaEnBloque(a) && a.cuando && a.cuando <= hasta && !a.repite?.regla)
+    .sort((a, b) => a.cuando.localeCompare(b.cuando) || ordenDelDia(a.cuando)(a, b));
+  for (const a of candidatas) {
+    const delDia = semanaDelDia(ritmo, a.cuando).bloques;
+    const suyos = bloquesPosibles(a, delDia, opciones);
+    if (!suyos.length) continue; // no estaba en un bloque: sigue la regla de siempre («Por decidir»)
+    if (a.cuando === hasta && suyos.some((b) => b.fin > ahora)) continue; // su bloque no ha terminado
+    if ((a.pasadas ?? 0) >= MAX_PASADAS) {
+      if (a.cuando === hasta) aDecidir.push(a);
+      continue;
+    }
+    let destino = null;
+    for (let i = 1; i <= BUSCAR_DIAS && !destino; i++) {
+      const d = sumarDiasLocal(hasta, i);
+      if (a.limite && d > a.limite) break;
+      const bloques = semanaDelDia(ritmo, d).bloques;
+      const usado = uso(d, bloques);
+      const b = destinosPosibles({ ...a, bloque: null }, ritmo, bloques, opciones).find((x) => usado(x.id) + minutosDe(a) <= duracion(x));
+      if (b) destino = { d, b };
+    }
+    if (!destino) {
+      sinSitio.push(a);
+      continue;
+    }
+    const { d, b } = destino;
+    const despues = { ...a, cuando: d, bloque: b.id, pasadas: (a.pasadas ?? 0) + 1, vieneDe: a.vieneDe ?? a.cuando, enfoque: null, planDia: null };
+    actual.set(a.id, despues);
+    usoDe.set(`${d}|${b.id}`, (usoDe.get(`${d}|${b.id}`) ?? 0) + minutosDe(a));
+    movidas.push({ antes: a, despues, bloque: b, dia: d });
+  }
+  return { movidas, aDecidir, sinSitio };
 }
 
 /** Minutos de tareas en un bloque frente a lo que dura: { ocupado, cabe, sobra }. */
@@ -140,10 +302,10 @@ const bloqueDeLaHora = (bloques, hora) => {
 /**
  * Un día de la semana con su jerarquía, para que se vea qué es cada cosa: los BLOQUES (tramos de tiempo) con sus
  * RECORDATORIOS y sus TAREAS dentro, y lo que no cae en ningún bloque aparte. `tareas` son las acciones de ese día
- * (las tareas y los recordatorios con hora). Una tarea va al bloque que se le asignó o, si no, al primero de su
- * sombrero ese día. Devuelve { bloques: [{ bloque, recordatorios, tareas }], recordatorios, tareas }.
+ * (las tareas y los recordatorios con hora). Las tareas se reparten solas (`repartir`): el bloque asignado, el que se
+ * llama como su empresa, etiqueta o proyecto, o uno de su sombrero, sin pasar de lo que cabe. Devuelve { bloques: [{ bloque, recordatorios, tareas }], recordatorios, tareas }.
  */
-export function diaEnBloques(ritmo, dia, tareas = [], { tipo = false, soloAsignadas = false } = {}) {
+export function diaEnBloques(ritmo, dia, tareas = [], { tipo = false, soloAsignadas = false, ...opciones } = {}) {
   const { bloques, recordatorios, compromisos } = semanaDelDia(ritmo, dia, { tipo });
   const dentro = new Map(bloques.map((b) => [b.id, { bloque: b, recordatorios: [], tareas: [] }]));
   const sueltos = { recordatorios: [], tareas: [] };
@@ -155,10 +317,15 @@ export function diaEnBloques(ritmo, dia, tareas = [], { tipo = false, soloAsigna
     const b = bloqueDeLaHora(bloques, r.inicio);
     (b ? dentro.get(b.id).recordatorios : sueltos.recordatorios).push(r);
   }
-  for (const a of tareas.filter((x) => (x.clase ?? "tarea") === "tarea")) {
-    // Con `soloAsignadas` (Plan) una tarea va dentro de un bloque sólo si se le puso; las demás, arriba del día.
-    const b = (a.bloque && dentro.has(a.bloque) && dentro.get(a.bloque).bloque) || (!soloAsignadas && a.sombrero && bloques.find((x) => x.sombrero === a.sombrero)) || null;
-    (b ? dentro.get(b.id).tareas : sueltos.tareas).push(a);
+  const lasTareas = tareas.filter((x) => (x.clase ?? "tarea") === "tarea");
+  if (soloAsignadas) {
+    // Sólo en el bloque que se le puso; las demás, arriba del día.
+    for (const a of lasTareas) (a.bloque && dentro.has(a.bloque) ? dentro.get(a.bloque).tareas : sueltos.tareas).push(a);
+  } else {
+    // Cada una en su bloque, sola (`repartir`): las abiertas de «Siguientes»; lo demás, arriba del día.
+    const { porBloque, fuera } = repartir(lasTareas.filter(vaEnBloque), bloques, { dia, ...opciones });
+    for (const [id, ts] of porBloque) dentro.get(id).tareas.push(...ts);
+    sueltos.tareas.push(...fuera, ...lasTareas.filter((a) => !vaEnBloque(a)));
   }
   return { bloques: [...dentro.values()], ...sueltos, compromisos };
 }
