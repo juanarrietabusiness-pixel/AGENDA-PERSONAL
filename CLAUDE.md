@@ -76,7 +76,9 @@ sombrero aparte de Iglesia (intimidad con Dios), el primero; `conReino` lo pone 
 
 **Tus 3 de hoy** (`enfoqueDelDia`, agenda.js): las fijadas con ★ (`accion.enfoque` = hoy; `completar` ya no lo borra,
 así lo hecho sigue a la vista) y, si faltan, las que propone por prioridad; «Hoy no» (`noHoy`); al terminarlas, la
-reserva propone lo siguiente. **Lo hecho se borra solo** (`ajustes.borrarHechas`, 7 días por defecto; `purgarHechas` una
+reserva propone lo siguiente. **En Hoy, lo hecho de Tus 3 se va** (a la vista sólo lo que falta; un punto lleno por cada
+una hecha, `.foco-avance`; queda en «Hechas» y con «Deshacer») y **no se repite en la lista**: «Otras tareas» son las
+demás (secundarias). En la agenda de Hoy, Especiales va ANTES que Recordatorios. **Lo hecho se borra solo** (`ajustes.borrarHechas`, 7 días por defecto; `purgarHechas` una
 vez al día en la vuelta, con la reserva `purga:<día>`), sólo de la agenda.
 
 **Menos ruido, más foco** (decisión de Juan: «que promueva el enfoque, que sea fácil de entender»). En Hoy, «Ahora» y «Tus
@@ -136,7 +138,8 @@ teléfono, puntos y el día tocado debajo). Se navega por semanas o meses. En cu
 `CrearAqui` (tarea, reunión, compromiso, recordatorio o bloque, con día y hora puestos; abajo, «o pon aquí algo que ya
 tienes»); en Horas se arrastra en lo vacío para crear con ese rango, y se arrastra un bloque, compromiso, reunión de Kairos
 o tarea para moverlo (su borde de abajo, `.asa`, para estirarlo; puntero propio en `SemanaRejilla`, con un clic que no
-abre nada tras arrastrar). Lo de Google no se mueve aquí. Las tareas (y las reuniones por agendar) se arrastran con
+abre nada tras arrastrar; el puntero sólo se CAPTURA cuando el gesto ya es un arrastre —capturarlo al bajar el dedo
+mandaba el clic al contenedor y tocar un bloque no lo abría—, salvo al crear en lo vacío). Lo de Google no se mueve aquí. Las tareas (y las reuniones por agendar) se arrastran con
 HTML5 (`src/lib/arrastre.js`, tipo MIME propio) a un día, un hueco, un bloque o «Del día». Lo que se repite pregunta
 «¿Sólo este día o todas las semanas?» (`Alcance`): sólo un día va a `cambios` del bloque (`aplicarRitmo` con `unDia`:
 `{ inicio, fin }`, `{ quitado }` o `{ extra }`; lo de hace más de un mes se olvida) y `semanaDelDia` lo aplica (con `{ tipo:
@@ -183,7 +186,10 @@ tuya filtrada, lo que se añade la lleva. **Pasos** (subtareas, `accion.pasos` =
 `agregarPaso`/`alternarPaso`/`quitarPaso` en tablero.js): «2/4 pasos» debajo del título se despliega y se marcan sin abrir
 la tarea (`Pasos`, exportado de Editar.jsx, el mismo en el editor). **Los proyectos se pliegan** y llevan su barra de avance
 (`avance` del grupo: hechas sobre todas las del proyecto, aunque las hechas no salgan en la lista). **Los sombreros se editan
-aquí** (el lápiz de cada columna: `EditarSombrero`, prioridad, nombre, color, quitar; «+ Sombrero» arriba): ya no en Plan.
+aquí** (el lápiz de cada columna: `EditarSombrero`, prioridad, nombre, color, quitar): ya no en Plan. **La cabecera es UNA
+franja** (como Google Tasks: título con su número, buscar, filtros, etiquetas y «+ Sombrero» al final, `en-filtros`; en el
+teléfono la lupa abre la búsqueda, «+ Sombrero» va junto al título, `en-cabeza`, y filtros y etiquetas son una tira que se
+desliza): el tablero empieza arriba. En la computadora un sombrero sin nada abierto es una columna más estrecha (`--columnas`).
 No se quita un sombrero con cosas abiertas.
 
 **Qué es cada cosa y cómo se ve** (decisión de Juan: «el gris es sólo para lo que se repite cada semana»). Cuatro tipos
@@ -246,6 +252,17 @@ lo nuevo y suyo de una vez (de hoy en adelante) pasa a Kairos; lo que Kairos cre
 = su id, en `aEventoGoogle`) y aquí ya no existe se borra allá (un borrado que no llegó). Las tareas se piden con las
 borradas (`showDeleted`). Lo que se repite sólo se mira por si se borró: la RUTINA y las series se cambian en Kairos. Las
 invitaciones de otros siguen viniendo de Google.
+
+**Lo repetido** (se vio en producción: «Ensayo Presentación Chile» tres veces): una tarea creada aquí se subía a Google y
+la PANTALLA, al guardarla después con su copia de antes, mandaba la fila SIN `google` y borraba el enlace; la siguiente
+vuelta la veía nueva y la traía otra vez (y dos vueltas a la vez la traían dos veces). Tres guardas: (1) el enlace con
+Google y con Juancito Ads es del SERVIDOR: el `upsert` de `elementos` lo conserva si lo que llega no lo trae (`CON_GOOGLE`
+en almacen.js, con funciones JSON de SQLite) y el PUT de la pantalla no lo puede cambiar; (2) cada cuenta se RESERVA antes
+de sincronizar (`reservarSync`: un UPDATE con condición; la segunda no cambia filas y se salta); (3) al empezar cada vuelta,
+`fusionarRepetidas` (principal.js, puro) junta lo que ya estaba repetido: mismo `google.id` → se queda una (la de aquí, la
+que lleva más); una de aquí sin enlace y otra que vino de Google con el mismo título (en un evento, mismo día y hora) → la
+de aquí toma el enlace y la otra se va. Lo nuevo de Google Tasks también se casa por título con una tarea abierta de aquí
+sin enlace antes de crear otra (`cambiosDesdeGoogle`).
 
 **Reflejar** (`worker/lib/reflejar.js`): UN sitio para que un cambio (pantalla, asistente, Telegram, Claude) vaya a
 Juancito Ads y a Google. Lo que falla fuera NO deshace lo de aquí: la agenda es la verdad y la vuelta reintenta.

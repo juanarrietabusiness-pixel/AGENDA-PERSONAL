@@ -61,12 +61,15 @@ export default function SemanaRejilla({ dias, hoy, hora, ajustes, sombreros, tip
   const empezar = (e, datos) => {
     if (e.button !== 0) return;
     gesto.current = { ...datos, x0: e.clientX, y0: e.clientY, activo: false };
-    e.currentTarget.setPointerCapture?.(e.pointerId);
+    // Al mover o estirar una pieza, el puntero se atrapa SÓLO cuando empieza a arrastrarse: atrapado desde el primer
+    // toque, el clic iba al contenedor y no al botón de dentro (tocar un bloque no lo abría).
+    if (datos.modo === "crear") e.currentTarget.setPointerCapture?.(e.pointerId);
   };
   const seguir = (e) => {
     const g = gesto.current;
     if (!g) return;
     if (!g.activo && Math.hypot(e.clientX - g.x0, e.clientY - g.y0) < UMBRAL) return;
+    if (!g.activo && g.modo !== "crear") e.currentTarget.setPointerCapture?.(e.pointerId);
     g.activo = true;
     const { dia, min } = lugar(e.clientX, e.clientY);
     if (g.modo === "crear") {

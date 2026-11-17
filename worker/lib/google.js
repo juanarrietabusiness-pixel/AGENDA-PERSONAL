@@ -37,7 +37,7 @@ export { sombreroDeLista };
 import { clasificar } from "./clasificar.js";
 import { ocurrencias } from "../../src/lib/recurrencia.js";
 import { claseDeRitmo } from "../../src/lib/semana.js";
-import { planDeTraspaso, candidatosACopiar, vueltaDeEventos, vueltaDeTareas, eventoDeGoogle, esSuyo, googleMasNuevo, aplicarDeGoogle } from "./principal.js";
+import { planDeTraspaso, candidatosACopiar, vueltaDeEventos, vueltaDeTareas, eventoDeGoogle, esSuyo, googleMasNuevo, aplicarDeGoogle, fusionarRepetidas, plano } from "./principal.js";
 import { sombreroDeJuancito } from "./juancito.js";
 
 export const ALCANCES = ["openid", "email", "https://www.googleapis.com/auth/calendar", "https://www.googleapis.com/auth/tasks"];
@@ -410,6 +410,7 @@ export async function dejarDePublicar(env, almacen) {
 export function cambiosDesdeGoogle(tareas, acciones, { hoy, cuenta, servicio, sombrero = null, lista = "@default" }) {
   const porId = new Map(acciones.filter((a) => a.google?.id).map((a) => [a.google.id, a]));
   const cambios = [];
+  const usadas = new Set();
   for (const t of tareas) {
     if (!t?.id || t.deleted) continue;
     const local = porId.get(t.id);
@@ -420,6 +421,13 @@ export function cambiosDesdeGoogle(tareas, acciones, { hoy, cuenta, servicio, so
       continue;
     }
     if (hecha || !String(t.title ?? "").trim()) continue;
+    // ¿Es una de aquí que perdió su enlace? Se vuelve a enlazar en vez de crear otra (así se duplicaban).
+    const suya = acciones.find((a) => !a.google?.id && a.estado === "abierta" && !usadas.has(a.id) && plano(a.titulo) === plano(t.title));
+    if (suya) {
+      usadas.add(suya.id);
+      cambios.push({ ...suya, google: { cuenta, servicio, lista, id: t.id } });
+      continue;
+    }
     cambios.push(nuevaAccion({ titulo: t.title, notas: t.notes ?? "", sombrero, lista: "siguientes", limite: t.due ? String(t.due).slice(0, 10) : null, google: { cuenta, servicio, lista, id: t.id }, origen: "google" }, hoy));
   }
   return cambios;
@@ -430,9 +438,16 @@ export async function sincronizar(env, almacen, { hoy, forzar = false } = {}) {
   if (!hayGoogle(env)) return { ok: false, motivo: "sin-google" };
   const lista = await cuentas(almacen);
   let total = 0;
+  // Lo repetido (dos copias de lo mismo) se junta antes de leer.
+  try {
+    total += await limpiarRepetidas(almacen);
+  } catch {
+    /* no tumba la vuelta */
+  }
   for (const cuenta of lista) {
-    const ultima = cuenta.sincronizado ? Date.parse(cuenta.sincronizado) : 0;
-    if (!forzar && Date.now() - ultima < MINUTOS_SYNC * 60_000) continue;
+    // Una vuelta a la vez por cuenta: se aparta poniendo la hora antes de empezar (a mano, siempre).
+    const antesDe = new Date(forzar ? Date.now() + 1000 : Date.now() - MINUTOS_SYNC * 60_000).toISOString();
+    if (!(await almacen.reservarSync(cuenta.servicio, antesDe))) continue;
     let c = cuenta;
     const fallos = [];
     try {
@@ -718,6 +733,18 @@ async function eventosEnDosSentidos(env, almacen, { datos, filas, leidosCal, des
   for (const x of r.borrarEnGoogle.slice(0, 5)) await api(env, almacen, x.servicio, `${CAL}/calendars/${encodeURIComponent(x.calendario ?? "primary")}/events/${encodeURIComponent(x.id)}`, { method: "DELETE" }).catch(() => null);
   const sombreros = sombrerosDe(estado.ajustes);
   for (const x of r.adoptar.slice(0, 20)) sentencias.push(almacen.sentenciaElemento("evento", eventoDeGoogle(x, { servicio: x.servicio, sombreros, ajustes: estado.ajustes, guardarEn: datos.ajustes?.guardarEn ?? {} })));
+  if (sentencias.length) await almacen.lote(sentencias);
+  return sentencias.length;
+}
+
+/** Junta lo repetido (dos copias de lo mismo, ver `fusionarRepetidas`) en las acciones y los eventos. Devuelve cuántas tocó. */
+async function limpiarRepetidas(almacen) {
+  const estado = await almacen.estado();
+  const sentencias = [];
+  for (const [tipo, lista] of [["accion", estado.acciones], ["evento", estado.eventos]]) {
+    const r = fusionarRepetidas(lista, tipo);
+    sentencias.push(...r.actualizar.map((x) => almacen.sentenciaElemento(tipo, x)), ...r.borrar.map((id) => almacen.sentenciaBorrar(tipo, id)));
+  }
   if (sentencias.length) await almacen.lote(sentencias);
   return sentencias.length;
 }

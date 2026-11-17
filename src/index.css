@@ -773,6 +773,16 @@ button.dia-item { width: 100%; background: none; border: 0; text-align: left; fo
 .enfoque-modo-pie { display: flex; align-items: center; justify-content: center; gap: 6px; margin: 0; font-size: var(--fs-xs); color: var(--texto-3); text-align: center; }
 .foco-cabeza .boton-enfocarme { margin-left: auto; min-height: 32px; padding: 0 var(--sp-3); font-size: var(--fs-xs); }
 .foco-cabeza .nota { margin-left: var(--sp-2); }
+/* Cuántas de tus 3 llevas: un punto por cada una, lleno al hacerla (la hecha ya no ocupa sitio en la lista). */
+.foco-avance { display: inline-flex; gap: 4px; margin-left: var(--sp-2); align-self: center; }
+.foco-avance span { width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid var(--acento); }
+.foco-avance span.lleno { background: var(--acento); }
+.foco-cabeza h2 { white-space: nowrap; }
+/* «Otras tareas» de Hoy: más filas a la vista, menos aire en cada una. */
+.hoy-tareas .lista { gap: 6px; }
+.hoy-tareas .accion:not(.compacta) { padding: var(--sp-2) var(--sp-3); gap: var(--sp-2); }
+.hoy-tareas .accion:not(.compacta) .accion-titulo { font-weight: 500; }
+.hoy-tareas .accion:not(.compacta) .accion-meta { margin-top: 2px; }
 
 /* ============================================================
    Plan: la semana con horas a la izquierda y el panel a la derecha; en la computadora cabe sin desplazar la página.
@@ -922,12 +932,42 @@ button.rejilla-mas { cursor: pointer; text-decoration: underline; }
 .contenido:has(> .tareas) { max-width: 1600px; }
 .tareas { display: grid; gap: var(--sp-3); grid-template-columns: minmax(0, 1fr); }
 .tareas > * { min-width: 0; }
-.tareas-cabeza { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: var(--sp-2) var(--sp-4); }
-.tareas-cabeza .titulo-pantalla { margin-top: 0; }
-.tareas-cabeza .subtitulo { margin: 0; }
-.tareas-controles { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); min-width: 0; }
-.buscar { display: flex; align-items: center; gap: var(--sp-2); width: min(100%, 280px); padding-left: var(--sp-3); border: 1px solid var(--borde); border-radius: var(--radius); background: var(--surface); color: var(--texto-3); }
-.buscar .campo { border: 0; background: transparent; min-height: 38px; padding-left: 0; }
+/* La cabecera es UNA franja (como Google Tasks): título, búsqueda, filtros y etiquetas; el tablero empieza arriba. */
+.tareas-cabeza { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); }
+.tareas-cabeza .titulo-pantalla { display: inline-flex; align-items: center; gap: var(--sp-2); margin: 0; font-size: var(--fs-xl); }
+.tareas-total { display: inline-grid; place-items: center; min-width: 24px; height: 22px; padding: 0 7px; border-radius: var(--radius-pill); background: var(--surface-2); color: var(--texto-2); font-size: var(--fs-2xs); font-weight: 600; }
+.buscar { display: flex; align-items: center; gap: var(--sp-2); width: min(100%, 220px); padding-left: var(--sp-3); border: 1px solid var(--borde); border-radius: var(--radius); background: var(--surface); color: var(--texto-3); }
+.buscar .campo { border: 0; background: transparent; min-height: 34px; height: 36px; padding-block: 0; padding-left: 0; }
+.tareas-lupa, .en-filtros { display: none; }
+.tareas-nuevo-sombrero { min-height: 34px; font-size: var(--fs-sm); white-space: nowrap; }
+.tareas-filtros { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-1) var(--sp-3); min-width: 0; }
+.tareas-filtros .filtro-sombreros { gap: 4px; }
+.tareas-filtros .chip-boton { min-height: 30px; padding: 0 10px; font-size: var(--fs-xs); }
+.tareas-etiquetas { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; color: var(--texto-3); }
+@container contenido (min-width: 760px) {
+  .tareas { gap: var(--sp-2); }
+  .tareas-cabeza .titulo-pantalla { order: 0; }
+  .buscar { order: 1; }
+  .tareas-filtros { order: 2; flex: 1 1 0; min-width: 320px; }
+  .en-cabeza { display: none !important; }
+  .en-filtros { display: inline-flex; margin-left: auto; }
+  .tareas-filtros .tareas-nuevo-sombrero { min-height: 30px; }
+  .tablero { scrollbar-width: thin; }
+  .tablero::-webkit-scrollbar { display: block; height: 8px; }
+}
+/* En el teléfono: título, lupa y «+ Sombrero» en una línea; la búsqueda se abre al tocarla; filtros y etiquetas, una tira que se desliza. */
+@container contenido (max-width: 759px) {
+  .tareas { gap: var(--sp-2); }
+  .tareas-cabeza .titulo-pantalla { flex: 1; }
+  .tareas-lupa { display: inline-grid; }
+  .buscar { display: none; order: 5; width: 100%; }
+  .buscar.abierto { display: flex; }
+  .buscar.abierto ~ .tareas-lupa { display: none; }
+  .tareas-filtros { order: 6; flex-basis: 100%; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin-inline: calc(-1 * var(--sp-4)); padding-inline: var(--sp-4); }
+  .tareas-filtros::-webkit-scrollbar { display: none; }
+  .tareas-filtros > *, .tareas-filtros .filtro-sombreros, .tareas-etiquetas { flex-wrap: nowrap; flex-shrink: 0; }
+  .tareas-filtros .chip-boton { flex-shrink: 0; }
+}
 .tareas-sombreros { display: flex; gap: var(--sp-1); overflow-x: auto; scrollbar-width: none; }
 .tareas-sombreros .chip-boton { flex-shrink: 0; }
 .tareas-sombreros small { color: var(--texto-3); margin-left: 2px; }
@@ -949,14 +989,7 @@ button.rejilla-mas { cursor: pointer; text-decoration: underline; }
 .grupo-tareas h3 small { font-weight: 400; }
 .grupo-vacio { margin: 4px 0 0; font-size: var(--fs-xs); color: var(--texto-3); }
 /* Etiquetas, pasos y proyectos plegables (Tareas). */
-.tareas-etiquetas { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-1); }
-@media (max-width: 759px) {
-  .tareas-etiquetas { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin-inline: calc(-1 * var(--sp-4)); padding-inline: var(--sp-4); }
-  .tareas-etiquetas > * { flex-shrink: 0; }
-  .tareas-cabeza .subtitulo { display: none; }
-}
-.tareas-etiquetas > .nota { display: inline-flex; align-items: center; gap: 4px; margin: 0 var(--sp-1) 0 0; }
-.etiqueta-chip { min-height: 32px; font-size: var(--fs-xs); gap: 3px; }
+.etiqueta-chip { gap: 3px; }
 .etiqueta-chip small { color: var(--texto-3); margin-left: 2px; }
 .sombrero-nuevo { display: flex; gap: var(--sp-2); }
 .sombrero-nuevo .campo { min-width: 0; width: 170px; }
@@ -995,13 +1028,16 @@ button.rejilla-mas { cursor: pointer; text-decoration: underline; }
 .accion.arrastrable:active { cursor: grabbing; }
 @container contenido (min-width: 760px) {
   .tareas-sombreros { display: none; }
-  .tablero { grid-auto-columns: minmax(180px, 1fr); gap: var(--sp-2); scroll-snap-type: none; padding-bottom: var(--sp-2); }
+  .tablero { grid-template-columns: var(--columnas, none); grid-auto-columns: minmax(180px, 1fr); gap: var(--sp-2); scroll-snap-type: none; padding-bottom: var(--sp-2); }
+  /* Más filas a la vista: menos aire en cada una. */
+  .columna-cabeza { padding: var(--sp-2) var(--sp-3) 0; }
+  .columna-cuerpo .accion.compacta { padding: 5px 0; gap: var(--sp-2); }
+  .grupo-tareas { margin-top: var(--sp-2); }
 }
 @media (min-width: 900px) and (min-height: 560px) {
   .contenido:has(> .tareas) { padding-bottom: var(--sp-4); }
   @container contenido (min-width: 760px) {
     .tareas { height: calc(100dvh - 61px - var(--sp-5) - var(--sp-4)); grid-template-rows: auto minmax(0, 1fr); }
-    .tareas:has(> .tareas-etiquetas) { grid-template-rows: auto auto minmax(0, 1fr); }
     .tareas-sombreros { display: none; }
     .tablero { min-height: 0; align-items: stretch; }
     .columna-tareas { min-height: 0; }

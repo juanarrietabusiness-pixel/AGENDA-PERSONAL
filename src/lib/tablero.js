@@ -17,7 +17,7 @@ export const FILTROS = Object.freeze({
   semana: "Esta semana",
   sinFecha: "Sin fecha",
   vencidas: "Vencidas",
-  espera: "Esperando a otros",
+  espera: "Esperando",
   algun: "Algún día",
 });
 

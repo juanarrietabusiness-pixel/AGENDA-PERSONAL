@@ -35,6 +35,11 @@ export const perfilInicial = (nombre = "") => ({
 /** El id de una persona es su nombre en minúsculas y sin tildes. */
 export const idDePersona = (nombre) => String(nombre ?? "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
+// El JSON nuevo con el enlace de Google de antes si no trae uno.
+const CON_GOOGLE =
+  "(case when json_extract(excluded.datos, '$.google') is null and json_extract(elementos.datos, '$.google') is not null " +
+  "then json_set(excluded.datos, '$.google', json(json_extract(elementos.datos, '$.google'))) else excluded.datos end)";
+
 export function crearAlmacen(db, ownerId) {
   if (!ownerId) throw new Error("El almacén necesita un dueño.");
 
@@ -45,7 +50,12 @@ export function crearAlmacen(db, ownerId) {
     return db
       .prepare(
         "insert into elementos (owner_id, tipo, id, datos, actualizado) values (?, ?, ?, ?, ?) " +
-          "on conflict (owner_id, tipo, id) do update set datos = excluded.datos, actualizado = excluded.actualizado",
+          // El enlace con Google y con Juancito Ads lo pone el servidor: un guardado que no lo trae (la pantalla con
+          // una copia de antes) no lo borra. Perderlo duplicaba las cosas al volver a leer de allá.
+          "on conflict (owner_id, tipo, id) do update set datos = " +
+          "case when json_extract(excluded.datos, '$.juancito') is null and json_extract(elementos.datos, '$.juancito') is not null " +
+          "then json_set(" + CON_GOOGLE + ", '$.juancito', json(json_extract(elementos.datos, '$.juancito'))) else " + CON_GOOGLE + " end, " +
+          "actualizado = excluded.actualizado",
       )
       .bind(ownerId, tipo, id, datos, ahora());
   };
@@ -303,6 +313,18 @@ export function crearAlmacen(db, ownerId) {
         )
         .bind(ownerId, servicio, JSON.stringify(datos), sincronizado ?? null, error ?? null, ahora())
         .run();
+    },
+
+    /**
+     * Apartar la vuelta de sincronizar una cuenta: sólo una a la vez (la del minuto y la de abrir la app se cruzaban y
+     * las dos creaban lo mismo). Pone `sincronizado` ahora si la última fue antes de `antesDe`; dice si la apartó.
+     */
+    async reservarSync(servicio, antesDe) {
+      const r = await db
+        .prepare("update conexiones set sincronizado = ? where owner_id = ? and servicio = ? and (sincronizado is null or sincronizado < ?)")
+        .bind(ahora(), ownerId, servicio, antesDe)
+        .run();
+      return (r.meta?.changes ?? 0) > 0;
     },
 
     async marcarConexion(servicio, { sincronizado = null, error = null }) {

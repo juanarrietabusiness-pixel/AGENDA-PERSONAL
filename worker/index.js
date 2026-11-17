@@ -223,6 +223,10 @@ async function api(req, env, ctx) {
       const obj = await cuerpo(req);
       if (!obj || typeof obj !== "object" || Array.isArray(obj)) return error("Falta el elemento.");
       if (a !== "persona" && String(obj.id) !== b) return error("El id no coincide con la dirección.");
+      // El enlace con Google y con Juancito Ads lo lleva el servidor: la pantalla puede traer una copia de antes (sin él,
+      // o con el de antes de «Copiar todo»). Sin esto se perdía, la siguiente lectura creaba otra y no se subían los cambios.
+      if (anterior?.google?.id && obj.google?.id !== anterior.google.id) obj.google = anterior.google;
+      if (anterior?.juancito?.id && obj.juancito?.id !== anterior.juancito.id) obj.juancito = anterior.juancito;
       try {
         await almacen.guardarElemento(a, obj);
       } catch (e) {

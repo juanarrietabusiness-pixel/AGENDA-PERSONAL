@@ -312,3 +312,48 @@ export function vueltaDeTareas({ tareas = [], acciones = [], vigencias = new Map
   }
   return { actualizar, borrar, subir };
 }
+
+// ------------------------------------------------------------
+// Lo repetido
+// ------------------------------------------------------------
+
+/** Un título para comparar: sin tildes, sin mayúsculas, sin espacios de más. */
+export const plano = (t) => String(t ?? "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").trim();
+
+/** De dos copias, cuál se queda: la creada en Kairos, luego la que lleva más (proyecto, bloque, etiquetas, pasos). */
+const peso = (x) => (x.origen === "google" ? 0 : 8) + (x.proyectoId ? 4 : 0) + (x.bloque ? 2 : 0) + ((x.etiquetas?.length || x.pasos?.length) ? 1 : 0);
+
+/**
+ * Dos copias de lo mismo, juntas en una (las dejaba un enlace con Google que se perdía, y dos lecturas a la vez):
+ *   · dos con el MISMO id de Google: se queda una (`peso`);
+ *   · una de aquí SIN enlace y otra que vino de Google (`origen: "google"`) con el mismo título (y, en un evento, el mismo
+ *     día y hora): la de aquí toma el enlace y la otra se va.
+ * Devuelve { actualizar, borrar (ids) }. Puro.
+ */
+export function fusionarRepetidas(lista = [], tipo = "accion") {
+  const vivas = lista.filter((x) => tipo !== "accion" || x.estado !== "soltada");
+  const actualizar = [];
+  const borrar = new Set();
+  const porGoogle = new Map();
+  for (const x of vivas) {
+    if (!x.google?.id) continue;
+    const k = `${x.google.servicio ?? ""}|${x.google.id}`;
+    (porGoogle.get(k) ?? porGoogle.set(k, []).get(k)).push(x);
+  }
+  for (const grupo of porGoogle.values()) {
+    if (grupo.length < 2) continue;
+    const [, ...resto] = [...grupo].sort((a, b) => peso(b) - peso(a) || String(a.id).localeCompare(String(b.id)));
+    for (const x of resto) borrar.add(x.id);
+  }
+  const mismo = (a, b) => plano(a.titulo) === plano(b.titulo) && (tipo === "accion" ? a.estado === b.estado : a.fecha === b.fecha && (a.inicio ?? null) === (b.inicio ?? null));
+  const usadas = new Set();
+  for (const a of vivas) {
+    if (a.google?.id || borrar.has(a.id) || (tipo === "accion" && a.estado !== "abierta")) continue;
+    const b = vivas.find((y) => y !== a && !borrar.has(y.id) && !usadas.has(y.id) && y.google?.id && y.origen === "google" && mismo(a, y));
+    if (!b) continue;
+    usadas.add(b.id);
+    actualizar.push({ ...a, google: b.google });
+    borrar.add(b.id);
+  }
+  return { actualizar, borrar: [...borrar] };
+}

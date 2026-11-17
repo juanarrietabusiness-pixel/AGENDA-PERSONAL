@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import worker from "../worker/index.js";
 import { d1EnMemoria } from "./utils/d1Memoria.js";
-import { esSemanalSimple, diasDeRegla, planDeTraspaso, vueltaDeEventos, vueltaDeTareas, candidatosACopiar, claseAlTraer, sinSufijo, googleMasNuevo } from "../worker/lib/principal.js";
+import { esSemanalSimple, diasDeRegla, planDeTraspaso, vueltaDeEventos, vueltaDeTareas, candidatosACopiar, claseAlTraer, sinSufijo, googleMasNuevo, fusionarRepetidas } from "../worker/lib/principal.js";
 import { deEventoGoogle, maestroDeGoogle } from "../worker/lib/google.js";
 import { hoyEn, sumarDias } from "../src/lib/fechas.js";
 
@@ -151,6 +151,35 @@ describe("Kairos como principal: los dos sentidos", () => {
   });
 });
 
+describe("Kairos como principal: lo repetido se junta", () => {
+  const g = (id) => ({ cuenta: "juan@agencia.com", servicio: SERV, lista: "l1", id });
+  it("tres copias de una tarea (una de aquí sin enlace y dos que vinieron de Google) quedan en una: la de aquí, con el enlace", () => {
+    const aqui = { id: "a1", titulo: "Ensayo presentación Chile", estado: "abierta", proyectoId: "p1" };
+    const de1 = { id: "a2", titulo: "Ensayo Presentación  Chile", estado: "abierta", origen: "google", google: g("t1") };
+    const de2 = { id: "a3", titulo: "Ensayo Presentación Chile", estado: "abierta", origen: "google", google: g("t1") };
+    const otra = { id: "a4", titulo: "Otra cosa", estado: "abierta", origen: "google", google: g("t2") };
+    const r = fusionarRepetidas([aqui, de1, de2, otra], "accion");
+    expect(r.actualizar).toEqual([{ ...aqui, google: g("t1") }]);
+    expect(r.borrar.sort()).toEqual(["a2", "a3"]);
+  });
+  it("dos con el mismo enlace: se queda la creada aquí; lo hecho no se junta con lo abierto; nada repetido, nada cambia", () => {
+    const k = { id: "b1", titulo: "Pagar", estado: "abierta", google: g("t9") };
+    const de = { id: "b2", titulo: "Pagar", estado: "abierta", origen: "google", google: g("t9") };
+    expect(fusionarRepetidas([de, k], "accion")).toEqual({ actualizar: [], borrar: ["b2"] });
+    const hecha = { id: "c1", titulo: "Llamar", estado: "hecha" };
+    const abierta = { id: "c2", titulo: "Llamar", estado: "abierta", origen: "google", google: g("t3") };
+    expect(fusionarRepetidas([hecha, abierta], "accion")).toEqual({ actualizar: [], borrar: [] });
+  });
+  it("un evento sólo se junta con otro del mismo título, día y hora", () => {
+    const aqui = { id: "e1", titulo: "Cita", fecha: "2026-11-20", inicio: "10:00" };
+    const otroDia = { id: "e2", titulo: "Cita", fecha: "2026-11-21", inicio: "10:00", origen: "google", google: g("x1") };
+    const igual = { id: "e3", titulo: "cita", fecha: "2026-11-20", inicio: "10:00", origen: "google", google: g("x2") };
+    const r = fusionarRepetidas([aqui, otroDia, igual], "evento");
+    expect(r.actualizar).toEqual([{ ...aqui, google: g("x2") }]);
+    expect(r.borrar).toEqual(["e3"]);
+  });
+});
+
 // ------------------------------------------------------------
 // De punta a punta: traer, copiar y los dos sentidos
 // ------------------------------------------------------------
@@ -182,6 +211,7 @@ describe("Kairos como principal, de punta a punta", () => {
       { id: "otro@gmail.com", summary: "Iglesia de otro", accessRole: "reader" },
     ];
     let fase = "traer";
+    let idCopia = null;
     const llamadas = [];
     let n = 0;
     let nt = 0;
@@ -215,7 +245,7 @@ describe("Kairos como principal, de punta a punta", () => {
             return Response.json({
               items: [
                 // La cita se movió en Google después de copiarla.
-                { id: "nuevo-copia", summary: "Cita con el dentista", updated: futuro(), start: { dateTime: at(D(5), "15:00") }, end: { dateTime: at(D(5), "16:00") }, ...yo },
+                { id: idCopia, summary: "Cita con el dentista", description: "Llevar la tarjeta", updated: futuro(), start: { dateTime: at(D(5), "15:00") }, end: { dateTime: at(D(5), "16:00") }, ...yo },
                 { id: "n1", summary: "Comprar el regalo", updated: futuro(), start: { dateTime: at(D(4), "17:00") }, end: { dateTime: at(D(4), "18:00") }, ...yo },
                 { id: "k9", summary: "Borrado en Kairos", extendedProperties: { private: { kairos: "e-ya-no" } }, start: { dateTime: at(D(4), "08:00") }, end: { dateTime: at(D(4), "09:00") }, ...yo },
               ],
@@ -275,8 +305,10 @@ describe("Kairos como principal, de punta a punta", () => {
     const citaCopiada = e.eventos.find((x) => x.id === cita.id);
     expect(citaCopiada.google.id).not.toBe("o1");
 
-    // La copia allá se llama «nuevo-copia» en la siguiente lectura (la de mentira la renombra).
-    await pedir(`/api/elementos/evento/${cita.id}`, { metodo: "PUT", datos: { ...citaCopiada, google: { ...citaCopiada.google, id: "nuevo-copia" } } });
+    // La pantalla guarda la cita con su copia de ANTES (con el enlace viejo): el servidor conserva el nuevo.
+    await pedir(`/api/elementos/evento/${cita.id}`, { metodo: "PUT", datos: { ...cita, notas: "Llevar la tarjeta" } });
+    idCopia = citaCopiada.google.id;
+    expect((await pedir("/api/estado")).datos.eventos.find((x) => x.id === cita.id).google.id).toBe(idCopia);
 
     // Los dos sentidos: la cita movida en Google vuelve, lo nuevo y suyo entra, lo huérfano de Kairos se borra allá y la tarea borrada allá se borra aquí.
     fase = "dos";
@@ -289,5 +321,26 @@ describe("Kairos como principal, de punta a punta", () => {
     expect(e.acciones.find((x) => x.id === "a1")).toBeUndefined();
     // La Lectura bíblica (la rutina) no se toca desde Google.
     expect(e.ritmo.find((x) => x.google === "s1")).toMatchObject({ clase: "compromiso" });
+
+    // Una tarea guardada desde una copia vieja de la pantalla (sin su enlace) no lo pierde.
+    await pedir("/api/elementos/accion/a7", { metodo: "PUT", datos: { id: "a7", titulo: "Comprar pan", estado: "abierta", lista: "siguientes", sombrero: "personal" } });
+    const a7 = (await pedir("/api/estado")).datos.acciones.find((x) => x.id === "a7");
+    expect(a7.google?.id).toBeTruthy();
+    await pedir("/api/elementos/accion/a7", { metodo: "PUT", datos: { id: "a7", titulo: "Comprar pan integral", estado: "abierta", lista: "siguientes", sombrero: "personal" } });
+    expect((await pedir("/api/estado")).datos.acciones.find((x) => x.id === "a7").google.id).toBe(a7.google.id);
+  });
+});
+
+describe("Sincronizar: dos lecturas a la vez", () => {
+  it("la segunda no reserva la cuenta mientras la primera la tiene", async () => {
+    const { crearAlmacen } = await import("../worker/lib/almacen.js");
+    await env.DB.prepare("insert into usuarios (id, email, hash) values ('u1', 'u1@x.co', 'x')").run();
+    const almacen = crearAlmacen(env.DB, "u1");
+    await almacen.guardarConexion(SERV, { cuenta: "juan@agencia.com" });
+    const antes = new Date(Date.now() - 2 * 60_000).toISOString();
+    const [uno, dos] = await Promise.all([almacen.reservarSync(SERV, antes), almacen.reservarSync(SERV, antes)]);
+    expect([uno, dos].filter(Boolean)).toHaveLength(1);
+    // Pasados los 2 minutos, vuelve a poder.
+    expect(await almacen.reservarSync(SERV, new Date(Date.now() + 1000).toISOString())).toBe(true);
   });
 });

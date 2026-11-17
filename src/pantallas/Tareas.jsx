@@ -20,6 +20,8 @@ export default function Tareas({ estado, hoy, cambiar, onHecha, onAbrir, onEnfoq
   const sombreros = sombrerosDe(estado.ajustes);
   const [filtro, setFiltro] = useState("todo");
   const [buscar, setBuscar] = useState("");
+  const [verBuscar, setVerBuscar] = useState(false);
+  const campoBuscar = useRef(null);
   const [etiqueta, setEtiqueta] = useState(null);
   const [visto, setVisto] = useState(undefined); // undefined: aún sin escoger (null es la columna «Sin sombrero»)
   const [creando, setCreando] = useState(false);
@@ -96,46 +98,53 @@ export default function Tareas({ estado, hoy, cambiar, onHecha, onAbrir, onEnfoq
   };
   const sombreroDe = (cid) => sombreros.findIndex((s) => s.id === cid);
 
+  // «+ Sombrero»: en el teléfono, junto al título; en la computadora, al final de la franja de filtros.
+  const sombreroNuevo = (donde) =>
+    creando ? (
+      <form className={`anadir-rapido sombrero-nuevo ${donde}`} onSubmit={(e) => { e.preventDefault(); if (cambiarSombreros({ accion: "crear", nombre: nuevoSombrero })) { avisar(`Sombrero nuevo: «${nuevoSombrero.trim()}».`); setNuevoSombrero(""); setCreando(false); } }}>
+        <label className="solo-lector" htmlFor={`${id}-nuevo-${donde}`}>Nombre del sombrero nuevo</label>
+        <input id={`${id}-nuevo-${donde}`} className="campo" autoFocus placeholder="Estudios, Familia…" value={nuevoSombrero} onChange={(e) => setNuevoSombrero(e.target.value)} onKeyDown={(e) => e.key === "Escape" && setCreando(false)} />
+        <button type="submit" className="boton primario" disabled={!nuevoSombrero.trim()}>Crear</button>
+      </form>
+    ) : (
+      <button type="button" className={`boton fantasma tareas-nuevo-sombrero ${donde}`} onClick={() => setCreando(true)}><Icon name="plus" size={16} /> Sombrero</button>
+    );
+
   return (
     <div className="tareas">
+      {/* Una sola franja (como Google Tasks): el tablero empieza arriba. */}
       <div className="tareas-cabeza">
-        <div>
-          <h1 className="titulo-pantalla">Tareas</h1>
-          <p className="subtitulo">{total} abierta{total === 1 ? "" : "s"} en tus sombreros. Arrastra para ordenarlas o pasarlas a otro sombrero; en el teléfono, desliza para cambiar de sombrero.</p>
-        </div>
-        <div className="tareas-controles">
-          <label className="buscar">
-            <Icon name="search" size={16} />
-            <span className="solo-lector">Buscar una tarea</span>
-            <input className="campo" type="search" placeholder="Buscar…" value={buscar} onChange={(e) => setBuscar(e.target.value)} />
-          </label>
+        <h1 className="titulo-pantalla">
+          Tareas <span className="tareas-total" title={`${total} abierta${total === 1 ? "" : "s"} en tus sombreros`}>{total}</span>
+        </h1>
+        <label className={`buscar${verBuscar || buscar ? " abierto" : ""}`}>
+          <Icon name="search" size={16} />
+          <span className="solo-lector">Buscar una tarea</span>
+          <input ref={campoBuscar} className="campo" type="search" placeholder="Buscar…" value={buscar} onChange={(e) => setBuscar(e.target.value)} onBlur={() => !buscar && setVerBuscar(false)} />
+        </label>
+        <button type="button" className="boton fantasma icono tareas-lupa" aria-label="Buscar una tarea" aria-expanded={verBuscar || Boolean(buscar)} onClick={() => { setVerBuscar(true); requestAnimationFrame(() => campoBuscar.current?.focus()); }}>
+          <Icon name="search" size={18} />
+        </button>
+        {sombreroNuevo("en-cabeza")}
+        <div className="tareas-filtros">
           <div className="filtro-sombreros" role="group" aria-label="Qué tareas ver">
             {Object.entries(FILTROS).map(([k, t]) => (
               <button key={k} type="button" className="chip-boton" aria-pressed={filtro === k} onClick={() => setFiltro(k)}>{t}</button>
             ))}
           </div>
-          {creando ? (
-            <form className="anadir-rapido sombrero-nuevo" onSubmit={(e) => { e.preventDefault(); if (cambiarSombreros({ accion: "crear", nombre: nuevoSombrero })) { avisar(`Sombrero nuevo: «${nuevoSombrero.trim()}».`); setNuevoSombrero(""); setCreando(false); } }}>
-              <label className="solo-lector" htmlFor={`${id}-nuevo`}>Nombre del sombrero nuevo</label>
-              <input id={`${id}-nuevo`} className="campo" autoFocus placeholder="Estudios, Familia…" value={nuevoSombrero} onChange={(e) => setNuevoSombrero(e.target.value)} onKeyDown={(e) => e.key === "Escape" && setCreando(false)} />
-              <button type="submit" className="boton primario" disabled={!nuevoSombrero.trim()}>Crear</button>
-            </form>
-          ) : (
-            <button type="button" className="boton fantasma" onClick={() => setCreando(true)}><Icon name="plus" size={16} /> Sombrero</button>
+          {etiquetas.length > 0 && (
+            <div className="tareas-etiquetas" role="group" aria-label="Filtrar por etiqueta">
+              <Icon name="tag" size={13} />
+              {etiquetas.map((t) => (
+                <button key={`${t.tipo}:${t.nombre}`} type="button" className={`chip-boton etiqueta-chip${t.tipo === "empresa" ? " empresa" : ""}`} aria-pressed={etiquetaVista === t.nombre} onClick={() => setEtiqueta(etiquetaVista === t.nombre ? null : t.nombre)}>
+                  {t.tipo === "empresa" ? <Icon name="building" size={12} /> : "#"}{t.nombre} <small>{t.n}</small>
+                </button>
+              ))}
+            </div>
           )}
+          {sombreroNuevo("en-filtros")}
         </div>
       </div>
-
-      {etiquetas.length > 0 && (
-        <div className="tareas-etiquetas" role="group" aria-label="Filtrar por etiqueta">
-          <span className="nota"><Icon name="tag" size={13} /> Etiquetas</span>
-          {etiquetas.map((t) => (
-            <button key={`${t.tipo}:${t.nombre}`} type="button" className={`chip-boton etiqueta-chip${t.tipo === "empresa" ? " empresa" : ""}`} aria-pressed={etiquetaVista === t.nombre} onClick={() => setEtiqueta(etiquetaVista === t.nombre ? null : t.nombre)}>
-              {t.tipo === "empresa" ? <Icon name="building" size={12} /> : "#"}{t.nombre} <small>{t.n}</small>
-            </button>
-          ))}
-        </div>
-      )}
 
       <div className="tareas-sombreros" role="group" aria-label="Sombrero que ves">
         {columnas.map((c) => (
@@ -145,7 +154,7 @@ export default function Tareas({ estado, hoy, cambiar, onHecha, onAbrir, onEnfoq
         ))}
       </div>
 
-      <div className="tablero" ref={tablerito} onScroll={alDeslizar} aria-labelledby={`${id}-t`}>
+      <div className="tablero" ref={tablerito} onScroll={alDeslizar} aria-labelledby={`${id}-t`} style={{ "--columnas": columnas.map((c) => (c.total ? "minmax(180px, 1fr)" : "minmax(150px, 0.55fr)")).join(" ") }}>
         <h2 id={`${id}-t`} className="solo-lector">Tus tareas por sombrero</h2>
         {columnas.map((c) => (
           <Columna

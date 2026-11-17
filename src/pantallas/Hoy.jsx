@@ -17,8 +17,8 @@ const saludo = (hora, dia) => (hora < "12:00" ? variante(SALUDO, dia) : hora < "
 const SECCIONES = [
   { id: "tareas", nombre: "Tareas", icono: "checkSquare" },
   { id: "reuniones", nombre: "Reuniones", icono: "users" },
-  { id: "recordatorios", nombre: "Recordatorios", icono: "bell" },
   { id: "especiales", nombre: "Especiales", icono: "star" },
+  { id: "recordatorios", nombre: "Recordatorios", icono: "bell" },
 ];
 
 const recordar = (k, v) => {
@@ -88,15 +88,18 @@ export default function Hoy({ estado, hoy, hora, onHecha, onAbrir, onDecidir, on
   const traidas = seriesTraidas(ritmo);
   const externosVis = externos.filter((x) => !traidas.has(x.serie));
   const deFiltro = (x) => !filtro || x.sombrero === filtro;
+  const enfoque = useMemo(() => enfoqueDelDia(acciones, { hoy, proyectos, sombreros }), [acciones, hoy, proyectos, sombreros]);
+  // Tus 3 van arriba, solas: en la lista quedan las demás (las secundarias), sin repetirlas.
+  const enTres = useMemo(() => new Set(enfoque.tres.map((a) => a.id)), [enfoque]);
   const datos = useMemo(() => {
     const t = accionesDelPeriodo(acciones, { ...r, hoy, clase: "tarea" });
     const rc = accionesDelPeriodo(acciones, { ...r, hoy, clase: "recordatorio" });
     return {
-      tareas: ordenarPor(t.abiertas.filter(deFiltro), orden, ctx),
+      tareas: ordenarPor(t.abiertas.filter((a) => deFiltro(a) && !enTres.has(a.id)), orden, ctx),
       hechas: t.hechas.filter(deFiltro),
       recordatorios: ordenarPor(rc.abiertas.filter(deFiltro), "limite", ctx),
       recordatoriosHechos: rc.hechas.filter(deFiltro),
-      libres: ordenarPor(sinFecha(acciones).filter(deFiltro), orden, ctx),
+      libres: ordenarPor(sinFecha(acciones).filter((a) => deFiltro(a) && !enTres.has(a.id)), orden, ctx),
       reuniones: reunionesDelPeriodo(eventos, externosVis, r, ajustes).filter((e) => !filtro || e.sombrero === filtro || e.fuente === "google"),
       porAgendar: eventosPorAgendar(eventos).filter(deFiltro),
       // Tu semana de hoy (los bloques y recordatorios de Kairos) y la rutina de Google que todavía no trajiste.
@@ -107,9 +110,11 @@ export default function Hoy({ estado, hoy, hora, onHecha, onAbrir, onDecidir, on
       especiales: especialesDelMes(acciones, eventos, dia, externosVis, ajustes).filter((e) => !filtro || e.sombrero === filtro || e.fuente === "google"),
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [acciones, eventos, externos, periodo, dia, orden, filtro, hoy, proyectos, ajustes, ritmo]);
+  }, [acciones, eventos, externos, periodo, dia, orden, filtro, hoy, proyectos, ajustes, ritmo, enTres]);
 
-  const enfoque = useMemo(() => enfoqueDelDia(acciones, { hoy, proyectos, sombreros }), [acciones, hoy, proyectos, sombreros]);
+  // Lo hecho de tus 3 se va (queda en «Hechas» y se puede deshacer): a la vista, sólo lo que falta.
+  const tresAbiertas = enfoque.tres.filter((a) => a.estado === "abierta");
+  const tresHechas = enfoque.tres.length - tresAbiertas.length;
   // Ahora: el bloque de tu semana en el que estás, sus tareas y lo que sigue (sólo mirando hoy).
   const bloquesHoy = semanaDelDia(ritmo, hoy).bloques;
   const { ahora, despues } = ahoraYDespues(ritmo, hoy, hora ?? "00:00");
@@ -311,7 +316,7 @@ export default function Hoy({ estado, hoy, hora, onHecha, onAbrir, onDecidir, on
 
   const cabezaSeccion = (s, nota) => (
     <div className="seccion-cabeza hoy-seccion-cabeza">
-      <h2 id={`hoy-${s.id}`}><Icon name={s.icono} size={14} /> {s.nombre}</h2>
+      <h2 id={`hoy-${s.id}`}><Icon name={s.icono} size={14} /> {s.id === "tareas" && enfoque.tres.length > 0 ? "Otras tareas" : s.nombre}</h2>
       <span className="nota">{nota ?? (cuenta[s.id] || "")}</span>
     </div>
   );
@@ -410,13 +415,17 @@ export default function Hoy({ estado, hoy, hora, onHecha, onAbrir, onDecidir, on
               <div className="foco-tres" aria-labelledby="enfoque-t">
                 <div className="foco-cabeza">
                   <h2 id="enfoque-t"><Icon name="target" size={14} /> Tus {TRES} de hoy</h2>
-                  <span className="nota">{enfoque.tres.filter((a) => a.estado === "hecha").length} de {enfoque.tres.length}</span>
+                  {tresHechas > 0 && (
+                    <span className="foco-avance" aria-label={`${tresHechas} de ${enfoque.tres.length} hechas`}>
+                      {enfoque.tres.map((a) => <span key={a.id} className={a.estado === "hecha" ? "lleno" : undefined} />)}
+                    </span>
+                  )}
                   {paraEnfocar.length > 0 && cambiar && (
                     <button type="button" className="boton primario boton-enfocarme" onClick={enfocarme}><Icon name="target" size={15} /> Enfocarme</button>
                   )}
                 </div>
-                {compactas(enfoque.tres, (a) => ({ onHecha: (id) => onHecha(id, { fijar: true }), onHoyNo: a.enfoque !== hoy ? onNoHoy : undefined }))}
-                {enfoque.tres.some((a) => a.estado === "abierta" && a.enfoque !== hoy) && (
+                {tresAbiertas.length > 0 && compactas(tresAbiertas, (a) => ({ onHecha: (id) => onHecha(id, { fijar: true }), onHoyNo: a.enfoque !== hoy ? onNoHoy : undefined }))}
+                {tresAbiertas.some((a) => a.enfoque !== hoy) && (
                   <p className="foco-ayuda">
                     Las de <Icon name="star" size={12} style={{ display: "inline", verticalAlign: "-2px" }} /> vacía te las propongo yo: tócala para fijarla, o <Icon name="close" size={12} style={{ display: "inline", verticalAlign: "-2px" }} /> si hoy no.
                   </p>
