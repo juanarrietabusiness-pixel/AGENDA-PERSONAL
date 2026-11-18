@@ -661,13 +661,14 @@ button.dia-item { width: 100%; background: none; border: 0; text-align: left; fo
    ============================================================ */
 .contenido { container: contenido / inline-size; }
 .contenido:has(> .hoy) { max-width: 1480px; }
-.hoy { display: grid; gap: var(--sp-3); grid-template-columns: minmax(0, 1fr); grid-template-areas: "saludo" "avisos" "foco" "controles" "filtros" "pestanas" "tareas" "agenda"; }
+.hoy { display: grid; gap: var(--sp-3); grid-template-columns: minmax(0, 1fr); grid-template-areas: "saludo" "aviso-i" "aviso-d" "foco" "controles" "filtros" "pestanas" "tareas" "agenda"; }
 .hoy-saludo { grid-area: saludo; }
 .hoy-saludo .titulo-pantalla { font-size: var(--fs-xl); margin: var(--sp-1) 0 0; }
 .hoy-saludo .subtitulo { margin: 2px 0 0; font-size: var(--fs-sm); }
-.hoy-avisos { grid-area: avisos; display: grid; gap: var(--sp-2); }
-.hoy-avisos .prep-aviso { margin: 0; }
+/* Los avisos van cada uno encima de su columna: así la tarjeta del centro empieza más arriba que las dos de los lados. */
 .hoy-aviso { width: 100%; text-align: left; padding: var(--sp-2) var(--sp-3); font-size: var(--fs-sm); }
+.hoy-aviso-bandeja { grid-area: aviso-i; }
+.hoy .hoy-aviso-prep { grid-area: aviso-d; margin: 0; }
 .hoy-foco { grid-area: foco; display: grid; gap: var(--sp-3); align-content: start; }
 .hoy-foco-anadir:empty { display: none; }
 .hoy-foco .anadir { margin-bottom: 0; }
@@ -728,13 +729,19 @@ button.dia-item { width: 100%; background: none; border: 0; text-align: left; fo
 .linea-ahora::after { content: ""; height: 2px; border-radius: 2px; background: var(--rojo); }
 .linea-marcar { width: 22px; height: 22px; margin: 0; }
 .agenda-anadir { margin-top: var(--sp-3); }
+/* Por agendar y «Lo que viene», debajo de lo de hoy. */
+.agenda-bloque { margin-top: var(--sp-4); padding-top: var(--sp-3); border-top: 1px solid var(--borde); }
+.agenda-sub, .agenda-viene .seccion-cabeza h2 { display: flex; align-items: center; gap: 6px; margin: 0 0 var(--sp-1); font-size: var(--fs-2xs); font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--texto-3); }
+.agenda-sub small { font-weight: 400; }
+.agenda-viene .seccion { margin: 0; padding: 0; border: 0; background: none; box-shadow: none; }
+.agenda-viene .seccion-cabeza { margin-bottom: var(--sp-1); }
 .agenda-anadir .anadir { margin-bottom: 0; }
 
-/* Dos columnas: el foco y las tareas a un lado, la agenda al otro. */
+/* Dos columnas: el foco y la agenda a la izquierda, las tareas a la derecha. */
 @container contenido (min-width: 760px) {
   .hoy {
     grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
-    grid-template-areas: "saludo controles" "filtros filtros" "avisos avisos" "foco agenda" "tareas agenda";
+    grid-template-areas: "saludo controles" "filtros filtros" "aviso-i aviso-d" "foco tareas" "agenda tareas";
     column-gap: var(--sp-4);
   }
   .hoy-controles { justify-content: flex-end; align-self: center; }
@@ -746,13 +753,16 @@ button.dia-item { width: 100%; background: none; border: 0; text-align: left; fo
   .hoy-tareas, .hoy-agenda { background: var(--surface); border: 1px solid var(--borde); border-radius: var(--radius-lg); padding: var(--sp-4); box-shadow: var(--elev-1); }
   .hoy-tareas .anadir { margin-bottom: var(--sp-3); }
 }
-/* Tres columnas: tareas, el foco EN EL CENTRO y la agenda. */
+/* Tres columnas: la agenda a la izquierda, el foco EN EL CENTRO y las tareas a la derecha. El centro empieza más arriba
+   (a la altura de los avisos) y se despega más: es lo primero que se mira. */
 @container contenido (min-width: 940px) {
   .hoy {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1.22fr) minmax(0, 1fr);
-    grid-template-areas: "saludo controles controles" "filtros filtros filtros" "avisos avisos avisos" "tareas foco agenda";
+    grid-template-areas: "saludo controles controles" "filtros filtros filtros" "aviso-i foco aviso-d" "agenda foco tareas";
   }
-  .hoy-avisos { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+  .hoy-col { margin-top: var(--sp-4); }
+  .hoy-foco .foco { box-shadow: var(--elev-2); }
+  .hoy-foco .foco-bloque { font-size: 24px; }
 }
 /* En la computadora, el tablero ocupa la ventana y cada columna se desplaza por dentro: la página no se mueve. */
 @media (min-width: 900px) and (min-height: 560px) {

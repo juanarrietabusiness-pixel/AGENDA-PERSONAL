@@ -3,13 +3,14 @@ import Icon from "../componentes/Icon.jsx";
 import Fila from "../componentes/Fila.jsx";
 import AnadirRapido from "../componentes/AnadirRapido.jsx";
 import PrepararDia from "../componentes/PrepararDia.jsx";
+import LoQueViene from "../componentes/LoQueViene.jsx";
 import { useDeslizar } from "../hooks/useDeslizar.js";
 import { textoCorto, textoLargo, sumarDias, rangoCorto, horaCorta, minutos, aHora } from "../lib/fechas.js";
 import { sombrerosDe, estiloDe } from "../lib/sombreros.js";
 import { variante } from "../lib/mensajes.js";
 import { nuevaAccion } from "../lib/metodo.js";
 import { ahoraYDespues, tareasDelBloque, carga, semanaDelDia, seriesTraidas, claseDeRitmo, textoHoras } from "../lib/semana.js";
-import { ORDENES, rango, mover, tituloDe, accionesDelPeriodo, sinFecha, ordenarPor, enfoqueDelDia, TRES, eventosPorAgendar, textoHoraEvento } from "../lib/agenda.js";
+import { ORDENES, rango, mover, tituloDe, accionesDelPeriodo, sinFecha, ordenarPor, enfoqueDelDia, TRES, eventosPorAgendar, marcasDeDias } from "../lib/agenda.js";
 import { agendaDelDia, indiceAhora, gruposDeTareas, avanceDelBloque } from "../lib/vistaHoy.js";
 
 const SALUDO = ["Buenos días", "Buen día", "Arrancamos"];
@@ -38,10 +39,11 @@ const recordado = (k, base, validos) => {
 };
 
 /**
- * Hoy (decisión de Juan: «que se priorice el bloque de hoy, el enfoque y las tareas del día»). En el CENTRO, el bloque
- * de ahora con su lista y su tiempo, y tus 3; a un lado, las demás tareas del día por el bloque en que caen; al otro, la
- * agenda del día en orden de hora con una raya en «ahora». En el teléfono, el foco arriba y debajo dos pestañas (Tareas
- * y Agenda). El modo enfoque no cambia de pantalla: resalta la tarjeta del centro y deja lo demás borroso.
+ * Hoy (decisión de Juan: «que se priorice el bloque de hoy, el enfoque y las tareas del día»). En el CENTRO, y más
+ * arriba que lo demás, el bloque de ahora con su lista y su tiempo, y tus 3; a la IZQUIERDA, la agenda del día SIN tu
+ * rutina (reuniones, eventos y recordatorios, con una raya en «ahora»), lo que está por agendar y lo que viene; a la
+ * DERECHA, las demás tareas del día por el bloque en que caen. En el teléfono, el foco arriba y debajo dos pestañas
+ * (Tareas y Agenda). El modo enfoque no cambia de pantalla: resalta la tarjeta del centro y deja lo demás borroso.
  */
 export default function Hoy({ estado, hoy, hora, onHecha, onAbrir, onDecidir, onAsistente, cambiar, onEnfoque, onNoHoy, avisar = () => {} }) {
   const { acciones, eventos, proyectos, ajustes, bandeja = [], externos = [] } = estado;
@@ -68,8 +70,6 @@ export default function Hoy({ estado, hoy, hora, onHecha, onAbrir, onDecidir, on
   const [verHechas, setVerHechas] = useState(false);
   const [verSinFecha, setVerSinFecha] = useState(false);
   const [verReserva, setVerReserva] = useState(false);
-  const [verPorAgendar, setVerPorAgendar] = useState(false);
-  const [verMes, setVerMes] = useState(false);
   const [preparando, setPreparando] = useState(null);
   const [nuevaEnBloque, setNuevaEnBloque] = useState("");
 
@@ -115,7 +115,7 @@ export default function Hoy({ estado, hoy, hora, onHecha, onAbrir, onDecidir, on
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [acciones, eventos, externos, dia, orden, filtro, hoy, ahoraH, proyectos, ajustes, ritmo, fueraDeLaLista]);
   const enLista = datos.grupos.reduce((n, g) => n + g.tareas.length, 0);
-  const deAgenda = datos.agenda.linea.filter((x) => !["bloque", "compromiso", "rutina"].includes(x.tipo)).length + datos.agenda.sinHora.length + datos.agenda.especiales.length;
+  const deAgenda = datos.agenda.linea.length + datos.agenda.sinHora.length + datos.agenda.especiales.length;
   const cuenta = { tareas: enLista, agenda: deAgenda };
   const hechasHoy = acciones.filter((a) => a.estado === "hecha" && a.hechaEl === hoy).length;
   const pendientesHoy = useMemo(() => accionesDelPeriodo(acciones, { ...rango("dia", hoy), hoy, clase: "tarea" }).abiertas.length, [acciones, hoy]);
@@ -357,6 +357,9 @@ export default function Hoy({ estado, hoy, hora, onHecha, onAbrir, onDecidir, on
   // La agenda del día, en orden de hora
   // ------------------------------------------------------------
   const ag = datos.agenda;
+  // Lo que viene después del día que miras (como en el panel de Plan): lo especial, lo que no se repite y los recordatorios.
+  const viene = useMemo(() => marcasDeDias(estado, sumarDias(dia, 1), sumarDias(hoy, 45), { recordatorios: true }), [estado, dia, hoy]);
+  const abrirMarca = (m) => (m.de === "accion" ? onAbrir("accion", acciones.find((a) => a.id === m.obj.id) ?? m.obj) : m.de === "google" ? onAbrir("google", m.obj) : onAbrir("evento", eventos.find((e) => e.id === m.obj.id) ?? m.obj));
   const iAhora = indiceAhora(ag.linea, { dia, hoy, hora: ahoraH });
   const abrirItem = (x) => {
     if (x.fuente === "google") return onAbrir("google", x.obj);
@@ -433,47 +436,26 @@ export default function Hoy({ estado, hoy, hora, onHecha, onAbrir, onDecidir, on
           {iAhora === ag.linea.length && marcaAhora}
         </ol>
       ) : (
-        !ag.especiales.length && !ag.sinHora.length && vacio("Nada en la agenda de este día.")
+        !ag.especiales.length && !ag.sinHora.length && vacio(esHoy ? "Hoy no tienes reuniones ni recordatorios." : "Nada en la agenda de este día.")
       )}
       {cambiar && <div className="agenda-anadir"><AnadirRapido sombreros={sombreros} inicial={sombreroPropuesto} paraCuando={paraCuando} clase="recordatorio" onAnadir={anadir} /></div>}
       {datos.porAgendar.length > 0 && (
-        <div className="plegable">
-          <button type="button" className="boton fantasma" aria-expanded={verPorAgendar} onClick={() => setVerPorAgendar((x) => !x)}>
-            <Icon name={verPorAgendar ? "chevronUp" : "chevronDown"} size={16} /> Reuniones por agendar ({datos.porAgendar.length})
-          </button>
-          {verPorAgendar && (
-            <ul className="linea sin-hora">
-              {datos.porAgendar.map((e) => (
-                <li key={e.id} className="linea-item t-reunion" style={estiloDe(e.sombrero, sombreros)}>
-                  <time>{textoHoraEvento(e)}</time>
-                  <span className="linea-punto" aria-hidden="true" />
-                  <div className="linea-texto"><button type="button" className="enlace" onClick={() => onAbrir("evento", e)}>{e.titulo}</button></div>
-                </li>
-              ))}
-            </ul>
-          )}
+        <div className="agenda-bloque">
+          <h3 className="agenda-sub">Por agendar <small>{datos.porAgendar.length}</small></h3>
+          <ul className="linea sin-hora">
+            {datos.porAgendar.map((e) => (
+              <li key={e.id} className="linea-item t-reunion" style={estiloDe(e.sombrero, sombreros)}>
+                <time>{e.clase === "reunion" ? "Reunión" : "Evento"}</time>
+                <span className="linea-punto" aria-hidden="true" />
+                <div className="linea-texto"><button type="button" className="enlace" onClick={() => onAbrir("evento", e)}>{e.clase === "reunion" && <Icon name="users" size={12} />}{e.titulo}</button></div>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
-      {ag.proximosEspeciales.length > 0 && (
-        <div className="plegable">
-          <button type="button" className="boton fantasma" aria-expanded={verMes} onClick={() => setVerMes((x) => !x)}>
-            <Icon name={verMes ? "chevronUp" : "chevronDown"} size={16} /> Especiales del mes ({ag.proximosEspeciales.length})
-          </button>
-          {verMes && (
-            <ul className="linea sin-hora">
-              {ag.proximosEspeciales.map((e) => (
-                <li key={`${e.tipo}:${e.id}:${e.dia}`} className="linea-item t-especial" style={e.tipo === "google" && e.color ? { "--s": e.color } : estiloDe(e.sombrero, sombreros)}>
-                  <time>{textoCorto(e.dia, hoy)}</time>
-                  <span className="linea-punto" aria-hidden="true" />
-                  <div className="linea-texto">
-                    <button type="button" className="enlace" onClick={() => onAbrir(e.tipo === "google" ? "google" : e.tipo, e.tipo === "google" ? e : (e.tipo === "accion" ? acciones : eventos).find((x) => x.id === e.id) ?? e)}>{e.titulo}</button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      )}
+      <div className="agenda-bloque agenda-viene">
+        <LoQueViene marcas={viene} hoy={hoy} sombreros={sombreros} onAbrir={abrirMarca} onDia={(d) => setDia(d)} max={6} vacio="Nada especial en las próximas semanas." />
+      </div>
       <p className="vacio hoy-pie">
         {esHoy ? (
           <>¿Mañana? <button type="button" className="enlace" onClick={() => setDia(manana)}>Ver mañana</button>. Tu semana está en <a href="#plan">Plan</a>.</>
@@ -591,22 +573,18 @@ export default function Hoy({ estado, hoy, hora, onHecha, onAbrir, onDecidir, on
         </div>
       )}
 
-      {(bandeja.length > 0 || (tocaPreparar && cambiar)) && (
-        <div className="hoy-avisos" inert={quieto}>
-          {bandeja.length > 0 && (
-            <button type="button" className="aviso hoy-aviso" onClick={onAsistente}>
-              <Icon name="inbox" size={16} />
-              <span>{bandeja.length} cosa{bandeja.length === 1 ? "" : "s"} sin ordenar. Toca para aclararla{bandeja.length === 1 ? "" : "s"}.</span>
-            </button>
-          )}
-          {tocaPreparar && cambiar && (
-            <button type="button" className="prep-aviso" onClick={() => setPreparando({ dia: tocaPreparar })}>
-              <Icon name="list" size={16} />
-              <span>{tocaPreparar === hoy ? "Prepara tu día: escoge tus 3 y el orden de lo demás." : "¿Preparamos mañana? Escoge tus 3 y el orden."}</span>
-              <Icon name="chevronRight" size={16} />
-            </button>
-          )}
-        </div>
+      {bandeja.length > 0 && (
+        <button type="button" className="aviso hoy-aviso hoy-aviso-bandeja" onClick={onAsistente} inert={quieto}>
+          <Icon name="inbox" size={16} />
+          <span>{bandeja.length} cosa{bandeja.length === 1 ? "" : "s"} sin ordenar. Toca para aclararla{bandeja.length === 1 ? "" : "s"}.</span>
+        </button>
+      )}
+      {tocaPreparar && cambiar && (
+        <button type="button" className="prep-aviso hoy-aviso-prep" onClick={() => setPreparando({ dia: tocaPreparar })} inert={quieto}>
+          <Icon name="list" size={16} />
+          <span>{tocaPreparar === hoy ? "Prepara tu día: escoge tus 3 y el orden de lo demás." : "¿Preparamos mañana? Escoge tus 3 y el orden."}</span>
+          <Icon name="chevronRight" size={16} />
+        </button>
       )}
 
       <section className="hoy-foco" aria-label="Tu foco de hoy">

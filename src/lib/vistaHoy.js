@@ -1,10 +1,10 @@
 // ============================================================
 // Lo que pinta Hoy, calculado aparte (puro)
 //
-// Hoy pone en el CENTRO el bloque de ahora y tus 3; a un lado, las demás
-// tareas del día agrupadas por el bloque en que caen; al otro, la AGENDA del
-// día en orden de hora (bloques, compromisos, reuniones y recordatorios), con
-// lo especial arriba y una raya en «ahora».
+// Hoy pone en el CENTRO el bloque de ahora y tus 3; a la izquierda, la AGENDA
+// del día en orden de hora (reuniones, eventos y recordatorios: no tu rutina),
+// con lo especial arriba y una raya en «ahora», y luego lo que viene; a la
+// derecha, las demás tareas del día agrupadas por el bloque en que caen.
 // ============================================================
 
 import { semanaDelDia, repartir } from "./semana.js";
@@ -14,7 +14,7 @@ const deTodoElDia = (e) => !e.inicio || (e.inicio === "00:00" && e.fin === "23:5
 const PESO = { bloque: 0, compromiso: 1, rutina: 1, reunion: 2, evento: 2, fijo: 3, recordatorio: 3 };
 
 /**
- * La agenda de un día: { especiales, sinHora, linea, proximosEspeciales }.
+ * La agenda de un día, SIN tu rutina (salvo con `conRutina`): { especiales, sinHora, linea, proximosEspeciales }.
  *   · especiales: lo especial de ese día (cumpleaños, fechas), arriba;
  *   · sinHora: reuniones con la hora por definir y recordatorios sin hora;
  *   · linea: lo que tiene hora, en orden: { clave, tipo, inicio, fin, titulo, obj, sombrero, color, fuente, pasado };
@@ -22,17 +22,23 @@ const PESO = { bloque: 0, compromiso: 1, rutina: 1, reunion: 2, evento: 2, fijo:
  *   · proximosEspeciales: lo especial que queda del mes.
  * `hora` (sólo si el día es hoy) marca lo que ya pasó.
  */
-export function agendaDelDia({ dia, hoy, hora = null, ritmo = [], eventos = [], externos = [], acciones = [], ajustes = {} }) {
+export function agendaDelDia({ dia, hoy, hora = null, ritmo = [], eventos = [], externos = [], acciones = [], ajustes = {}, conRutina = false }) {
   const r = { desde: dia, hasta: dia };
-  const sd = semanaDelDia(ritmo, dia);
   const linea = [];
   const sinHora = [];
   const pon = (x) => linea.push(x);
-  for (const b of sd.bloques) pon({ clave: `b:${b.id}`, tipo: "bloque", inicio: b.inicio, fin: b.fin, titulo: b.titulo, obj: b, sombrero: b.sombrero, fuente: "kairos" });
-  for (const c of sd.compromisos) pon({ clave: `c:${c.id}`, tipo: "compromiso", inicio: c.inicio, fin: c.fin, titulo: c.titulo, obj: c, sombrero: c.sombrero, fuente: "kairos" });
-  for (const f of sd.recordatorios) pon({ clave: `f:${f.id}`, tipo: "fijo", inicio: f.inicio, fin: null, titulo: f.titulo, obj: f, sombrero: f.sombrero, fuente: "kairos" });
-  for (const g of rutinaDelPeriodo(externos, r, ajustes, eventos)) pon({ clave: `g:${g.id}`, tipo: "rutina", inicio: g.inicio, fin: g.fin, titulo: g.titulo, obj: g, color: g.color, fuente: "google" });
+  // Tu rutina (tus bloques, compromisos y recordatorios fijos, y lo que se repite y es sólo tuyo) no va en la agenda de
+  // Hoy (decisión de Juan: «eso me lo sé de memoria»): está en el centro, en el «Después» y en Plan.
+  if (conRutina) {
+    const sd = semanaDelDia(ritmo, dia);
+    for (const b of sd.bloques) pon({ clave: `b:${b.id}`, tipo: "bloque", inicio: b.inicio, fin: b.fin, titulo: b.titulo, obj: b, sombrero: b.sombrero, fuente: "kairos" });
+    for (const c of sd.compromisos) pon({ clave: `c:${c.id}`, tipo: "compromiso", inicio: c.inicio, fin: c.fin, titulo: c.titulo, obj: c, sombrero: c.sombrero, fuente: "kairos" });
+    for (const f of sd.recordatorios) pon({ clave: `f:${f.id}`, tipo: "fijo", inicio: f.inicio, fin: null, titulo: f.titulo, obj: f, sombrero: f.sombrero, fuente: "kairos" });
+    for (const g of rutinaDelPeriodo(externos, r, ajustes, eventos)) pon({ clave: `g:${g.id}`, tipo: "rutina", inicio: g.inicio, fin: g.fin, titulo: g.titulo, obj: g, color: g.color, fuente: "google" });
+  }
   for (const e of reunionesDelPeriodo(eventos, externos, r, ajustes)) {
+    // Un evento tuyo que se repite cada semana (sin otras personas) también es rutina.
+    if (!conRutina && e.fuente !== "google" && e.clase !== "reunion" && /FREQ=(WEEKLY|DAILY)/.test(e.repite?.regla ?? "")) continue;
     const x = { clave: `e:${e.fuente ?? "aqui"}:${e.id}`, tipo: e.clase === "reunion" || e.fuente === "google" ? "reunion" : "evento", inicio: e.inicio, fin: e.fin, titulo: e.titulo, obj: e, sombrero: e.sombrero, color: e.color, fuente: e.fuente ?? "kairos" };
     (deTodoElDia(e) ? sinHora : linea).push(x);
   }

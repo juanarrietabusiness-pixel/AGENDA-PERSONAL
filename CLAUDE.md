@@ -113,14 +113,18 @@ DENTRO, lo demás aparte, con una leyenda; en el teléfono, un día a la vez. La
 falta ver siempre, plegado.
 
 **Hoy: el bloque de ahora en el CENTRO** (decisión de Juan: «que se priorice ese bloque de hoy, el enfoque y las tareas
-del día»; `src/lib/vistaHoy.js`, puro). En la computadora, tres columnas: a la IZQUIERDA las demás tareas del día por el
-bloque en que caen (`gruposDeTareas`: primero «Quedaron de antes» con sus botones de decidir, luego cada bloque en su hora y
-al final «Sin bloque»; sin lo que va en el centro), en el CENTRO la tarjeta del foco (el bloque de ahora con su tiempo
-—`avanceDelBloque`—, su lista y «Añadir a …»; debajo, tus 3 que no van en ese bloque) y a la DERECHA la agenda del día en
-orden de hora (`agendaDelDia`: lo especial arriba, lo sin hora, y la línea con bloques y compromisos en gris, reuniones y
-recordatorios en color, lo pasado apagado y una raya roja en «ahora», `indiceAhora`). Mirando otro día, el centro enseña
-sus 3 (o «Preparar este día»). Se decide por el ancho del CONTENIDO (`@container contenido`): desde 760 px, dos columnas;
-desde 940, tres; en pantallas de 900 px o más, a la altura de la ventana (cada columna se desplaza por dentro). En el
+del día»; `src/lib/vistaHoy.js`, puro). En la computadora, tres columnas: en el CENTRO la tarjeta del foco (el bloque de
+ahora con su tiempo —`avanceDelBloque`—, su lista y «Añadir a …»; debajo, tus 3 que no van en ese bloque), que empieza MÁS
+ARRIBA que las otras dos (los avisos van cada uno encima de su columna: `aviso-i`, `aviso-d`) y se despega más; a la
+IZQUIERDA la agenda del día SIN tu rutina (decisión de Juan: «eso me lo sé de memoria»; `agendaDelDia` sin `conRutina`:
+fuera bloques, compromisos, recordatorios fijos, la rutina de Google y lo tuyo que se repite cada semana; quedan lo
+especial, lo sin hora y la línea de reuniones, eventos y recordatorios con lo pasado apagado y una raya roja en «ahora»,
+`indiceAhora`), «Añadir recordatorio», «Por agendar» a la vista y «Lo que viene» (`componentes/LoQueViene.jsx`, el mismo
+del panel de Plan, `marcasDeDias` desde el día siguiente); a la DERECHA las demás tareas del día por el bloque en que caen
+(`gruposDeTareas`: primero «Quedaron de antes» con sus botones de decidir, luego cada bloque en su hora y al final «Sin
+bloque»; sin lo que va en el centro). Mirando otro día, el centro enseña sus 3 (o «Preparar este día»). Se decide por el
+ancho del CONTENIDO (`@container contenido`): desde 760 px, dos columnas (foco y agenda | tareas); desde 940, tres; en
+pantallas de 900 px o más, a la altura de la ventana (cada columna se desplaza por dentro). En el
 teléfono: saludo, avisos, añadir, la tarjeta del foco y dos pestañas (Tareas | Agenda) que se deslizan. El versículo va en
 el resumen de la mañana por Telegram y en la barra lateral de la computadora. **La burbuja es un micrófono** (si el
 navegador dicta): tocarla escucha al momento, se ve lo dicho y se envía con otro toque; «Escribir» abre el chat. **Reuniones y eventos nunca se vuelven tarea**: sin hora, «hora por definir» (de todo el día,

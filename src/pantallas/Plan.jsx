@@ -7,6 +7,7 @@ import { ordenarPor, claseDeGoogle, esTodoElDia, eventosPorAgendar, normalizarEv
 import { RITMO_BASE, aplicarRitmo } from "../lib/ritmo.js";
 import SemanaTipo from "../componentes/SemanaTipo.jsx";
 import AsignarBloque from "../componentes/AsignarBloque.jsx";
+import LoQueViene from "../componentes/LoQueViene.jsx";
 import EditarBloque from "../componentes/EditarBloque.jsx";
 import ProyectosConFecha from "../componentes/ProyectosConFecha.jsx";
 import SemanaRejilla from "../componentes/SemanaRejilla.jsx";
@@ -403,45 +404,6 @@ export default function Plan({ estado, hoy, hora, cambiar, onHecha, onAbrir, avi
  * Lo que viene en las próximas semanas (lo especial, las reuniones y los compromisos que no se repiten), por día: para
  * verlo de un vistazo, también en el teléfono. Tocar el día lleva a su semana; tocar algo, lo abre.
  */
-function LoQueViene({ marcas, hoy, sombreros, onAbrir, onDia, onMes }) {
-  const [todo, setTodo] = useState(false);
-  const dias = Object.keys(marcas).filter((d) => d >= hoy).sort();
-  const visibles = todo ? dias : dias.slice(0, 5);
-  return (
-    <section className="seccion lo-que-viene" aria-label="Lo que viene">
-      <div className="seccion-cabeza">
-        <h2>Lo que viene</h2>
-        <button type="button" className="enlace nota" onClick={onMes}>Ver el mes</button>
-      </div>
-      {dias.length ? (
-        <ul className="lista-viene">
-          {visibles.map((d) => (
-            <li key={d}>
-              <button type="button" className="viene-dia" onClick={() => onDia(d)}>{d === hoy ? "Hoy" : textoCorto(d, hoy)}</button>
-              <ul>
-                {marcas[d].map((m, i) => (
-                  <li key={i} style={m.color ? { "--s": m.color } : estiloDe(m.sombrero, sombreros)}>
-                    <button type="button" onClick={() => onAbrir(m)}>
-                      <Icon name={m.tipo === "especial" ? "star" : m.tipo === "reunion" ? "users" : m.tipo === "recordatorio" ? "bell" : "calendar"} size={13} />
-                      {m.hora && <time>{horaCorta(m.hora)}</time>}
-                      <span>{m.titulo}</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p className="vacio">Nada especial en las próximas semanas.</p>
-      )}
-      {dias.length > 5 && (
-        <button type="button" className="enlace nota" onClick={() => setTodo(!todo)}>{todo ? "Ver menos" : `Ver ${dias.length - 5} días más`}</button>
-      )}
-    </section>
-  );
-}
-
 /** Mover algo que se repite: ¿sólo este día o todas las semanas? */
 function Alcance({ alcance, onSoloEste, onSiempre, onCerrar }) {
   const ref = useDialogo(onCerrar);

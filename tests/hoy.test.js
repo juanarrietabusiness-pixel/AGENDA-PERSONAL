@@ -144,17 +144,21 @@ describe("Hoy: la agenda en orden de hora y las tareas por bloque", () => {
       { id: "e2", titulo: "Cita por definir", clase: "reunion", fecha: D, inicio: "00:00", fin: "23:59", horaPorDefinir: true },
     ];
     const acciones = [t({ id: "r1", titulo: "Llamar al banco", clase: "recordatorio", cuando: D, hora: "15:00" }), t({ id: "r2", titulo: "Llevar la tarjeta", clase: "recordatorio", cuando: D })];
-    const a = agendaDelDia({ dia: D, hoy: D, hora: "11:30", ritmo: [trabajo, dmc, prov], eventos, acciones });
-    expect(a.linea.map((x) => [x.inicio, x.tipo, x.titulo])).toEqual([
+    const oracion = { id: "e3", titulo: "Oración en casa", clase: "evento", fecha: D, inicio: "06:00", fin: "06:30", repite: { regla: "FREQ=WEEKLY;BYDAY=TU", inicio: "2026-01-06" } };
+    const conTodo = agendaDelDia({ dia: D, hoy: D, hora: "11:30", ritmo: [trabajo, dmc, prov], eventos, acciones, conRutina: true });
+    expect(conTodo.linea.map((x) => [x.inicio, x.tipo, x.titulo])).toEqual([
       ["08:00", "bloque", "Trabajo"],
       ["10:00", "reunion", "Reunión con Dcasa"],
       ["11:45", "fijo", "Proverbios"],
       ["13:00", "bloque", "57DMC"],
       ["15:00", "recordatorio", "Llamar al banco"],
     ]);
+    // Sin tu rutina (lo de Hoy): ni bloques, ni recordatorios fijos, ni lo tuyo que se repite cada semana.
+    const a = agendaDelDia({ dia: D, hoy: D, hora: "11:30", ritmo: [trabajo, dmc, prov], eventos: [...eventos, oracion], acciones });
+    expect(a.linea.map((x) => x.titulo)).toEqual(["Reunión con Dcasa", "Llamar al banco"]);
     expect(a.linea.filter((x) => x.pasado).map((x) => x.titulo)).toEqual(["Reunión con Dcasa"]);
     expect(a.sinHora.map((x) => x.titulo).sort()).toEqual(["Cita por definir", "Llevar la tarjeta"]);
-    expect(indiceAhora(a.linea, { dia: D, hoy: D, hora: "11:30" })).toBe(2);
+    expect(indiceAhora(a.linea, { dia: D, hoy: D, hora: "11:30" })).toBe(1);
     expect(indiceAhora(a.linea, { dia: "2026-11-18", hoy: D, hora: "10:30" })).toBeNull();
   });
 
